@@ -13,9 +13,12 @@ to predict the observed values in that column using the data from other columns.
 
 ## Dependencies
 
-Sockeye requires:
 
+Sockeye requires:
 - **Python3.6**
+
+DataWig requires:
+- **Python3**
 - MXNet 1.3.0
 - numpy
 - pandas
@@ -28,8 +31,7 @@ Sockeye requires:
 ```
 
 ### GPU
-If you want to run sockeye on a GPU you need to make sure your version of Apache MXNet Incubating contains the GPU
-bindings.
+If you want to run DataWig on a GPU you need to make sure your version of Apache MXNet Incubating contains the GPU bindings.
 Depending on your version of CUDA, you can do this by running the following:
 
 ```bash
