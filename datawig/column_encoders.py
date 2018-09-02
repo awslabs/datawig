@@ -590,9 +590,9 @@ class NumericalEncoder(ColumnEncoder):
         if not isinstance(data_frame, pd.core.frame.DataFrame):
             raise ValueError("Only pandas data frames are supported")
 
-        if self.normalize:
-            self.scaler = StandardScaler().fit(
-                data_frame[self.input_columns].fillna(data_frame[self.input_columns].mean()).values)
+        mean = data_frame[self.input_columns].mean()
+        data_frame[self.input_columns] = data_frame[self.input_columns].fillna(mean)
+        self.scaler = StandardScaler().fit(data_frame[self.input_columns].values)
 
         return self
 
@@ -609,14 +609,15 @@ class NumericalEncoder(ColumnEncoder):
         if not isinstance(data_frame, pd.core.frame.DataFrame):
             raise ValueError("Only pandas data frames are supported")
 
-        data_frame[self.input_columns] = data_frame[self.input_columns].fillna(
-            data_frame[self.input_columns].mean())
+        mean = pd.Series(dict(zip(self.input_columns,self.scaler.mean_)))
+        data_frame[self.input_columns] = data_frame[self.input_columns].fillna(mean)
 
-        logger.info("Concatenating numeric columns %s into %s", self.input_columns,
+        logger.info("Concatenating numeric columns %s into %s",
+                    self.input_columns,
                     self.output_column)
 
         if self.normalize:
-            logger.info("Normalizing with min-max scaling")
+            logger.info("Normalizing with StandardScaler")
             encoded = self.scaler.transform(data_frame[self.input_columns].values).astype(
                 np.float32)
         else:
