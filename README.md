@@ -6,16 +6,16 @@ DataWig - Imputation for Tables
 [![GitHub issues](https://img.shields.io/github/issues/awslabs/datawig.svg)](https://github.com/awslabs/datawig/issues)
 
 
-DataWig learns models to impute missing values in tables. 
+DataWig learns models to impute missing values in tables.
 
 For each to-be-imputed column, DataWig trains a supervised machine learning model
 to predict the observed values in that column using the data from other columns.
 
 ## Dependencies
 
-Sockeye requires:
+DataWig requires:
 
-- **Python3.6**
+- **Python3**
 - MXNet 1.3.0
 - numpy
 - pandas
@@ -24,11 +24,11 @@ Sockeye requires:
 ## Installation with pip
 ### CPU
 ```bash
-> pip install datawig
+> pip3 install datawig
 ```
 
 ### GPU
-If you want to run sockeye on a GPU you need to make sure your version of Apache MXNet Incubating contains the GPU
+If you want to run DataWig on a GPU you need to make sure your version of Apache MXNet Incubating contains the GPU
 bindings.
 Depending on your version of CUDA, you can do this by running the following:
 
@@ -42,7 +42,7 @@ where `${CUDA_VERSION}` can be `75` (7.5), `80` (8.0), `90` (9.0), or `91` (9.1)
 ## Running DataWig
 The DataWig API expects your data as a [pandas DataFrame](https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.html).
 
-For most use cases, the `SimpleImputer` class is the best starting point. DataWig expects you to provide the column name of the column you would like to impute values for (called `output_column` below) and some column names 
+For most use cases, the `SimpleImputer` class is the best starting point. DataWig expects you to provide the column name of the column you would like to impute values for (called `output_column` below) and some column names
 that contain values that you deem useful for imputation (called `input_columns` below).
 
  ```python
@@ -58,10 +58,10 @@ that contain values that you deem useful for imputation (called `input_columns` 
         output_column='brand' #the column we'd like to impute values for
         output_path = 'imputer_model' #stores model data and metrics
         )
-    
-    #Fit an imputer model on the train data 
+
+    #Fit an imputer model on the train data
     imputer.fit(train_df=df_train)
-    
+
     #Impute missing values and return original dataframe with predictions
     imputed = imputer.predict(df_test)
 
@@ -89,6 +89,6 @@ Run tests:
 ./venv/bin/pip install -r requirements/requirements.dev.txt
 ./venv/bin/python -m pytest
 ```
- 
+
 ### Acknowledgments
-Thanks to [David Greenberg](https://github.com/dgreenberg) for the package name. 
+Thanks to [David Greenberg](https://github.com/dgreenberg) for the package name.
