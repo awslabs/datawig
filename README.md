@@ -14,7 +14,6 @@ to predict the observed values in that column using the data from other columns.
 ## Dependencies
 
 DataWig requires:
-
 - **Python3**
 - MXNet 1.3.0
 - numpy
@@ -28,8 +27,7 @@ DataWig requires:
 ```
 
 ### GPU
-If you want to run DataWig on a GPU you need to make sure your version of Apache MXNet Incubating contains the GPU
-bindings.
+If you want to run DataWig on a GPU you need to make sure your version of Apache MXNet Incubating contains the GPU bindings.
 Depending on your version of CUDA, you can do this by running the following:
 
 ```bash
@@ -40,10 +38,12 @@ Depending on your version of CUDA, you can do this by running the following:
 where `${CUDA_VERSION}` can be `75` (7.5), `80` (8.0), `90` (9.0), or `91` (9.1).
 
 ## Running DataWig
-The DataWig API expects your data as a [pandas DataFrame](https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.html).
+The DataWig API expects your data as a [pandas DataFrame](https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.html). Here is an example of how the dataframe might look:
 
-For most use cases, the `SimpleImputer` class is the best starting point. DataWig expects you to provide the column name of the column you would like to impute values for (called `output_column` below) and some column names
-that contain values that you deem useful for imputation (called `input_columns` below).
+![datawig dataframe example](https://s3.amazonaws.com/datawig/example_data/df_example_image.png)
+
+
+For most use cases, the `SimpleImputer` class is the best starting point. DataWig expects you to provide the column name of the column you would like to impute values for (called `output_column` below) and some column names that contain values that you deem useful for imputation (called `input_columns` below).
 
  ```python
     from datawig import SimpleImputer
@@ -55,19 +55,20 @@ that contain values that you deem useful for imputation (called `input_columns` 
     #Initialize a SimpleImputer model
     imputer = SimpleImputer(
         input_columns=['item_name', 'description'], #columns containing information about the column we want to impute
-        output_column='brand' #the column we'd like to impute values for
+        output_column='brand', #the column we'd like to impute values for
         output_path = 'imputer_model' #stores model data and metrics
         )
-
+    
     #Fit an imputer model on the train data
     imputer.fit(train_df=df_train)
 
     #Impute missing values and return original dataframe with predictions
     imputed = imputer.predict(df_test)
-
  ```
 
-In order to have more control over the types of models and preprocessings, the `Imputer` class allows directly specifying all relevant model features and parameters. For usage examples, refer to the [unit test cases](https://github.com/awslabs/datawig/blob/master/test/test_imputer.py#L278).
+In order to have more control over the types of models and preprocessings, the `Imputer` class allows directly specifying all relevant model features and parameters. 
+
+For details on usage, refer to the provided [examples](./examples).
 
 ## Executing Tests
 
