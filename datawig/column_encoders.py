@@ -29,7 +29,7 @@ from sklearn.feature_extraction.text import HashingVectorizer
 from sklearn.preprocessing import StandardScaler
 import mxnet as mx
 
-from .utils import logger, pad_to_square
+from .utils import logger, pad_to_square, stringify_list
 
 random.seed(0)
 np.random.seed(42)
@@ -69,9 +69,20 @@ class ColumnEncoder():
                  input_columns,
                  output_column=None,
                  output_dim=1):
+
+        if not isinstance(input_columns, list):
+            input_columns = [input_columns]
+
+        if output_column is None:
+            output_column = "-".join(stringify_list(input_columns))
+            logstr = "No output column name provided for ColumnEncoder " \
+                     "using {}".format(output_column)
+            logger.info(logstr)
+
         self.input_columns = input_columns
         self.output_column = output_column
         self.output_dim = output_dim
+
 
     @abstractmethod
     def transform(self, data_frame: pd.DataFrame) -> np.array:
@@ -141,17 +152,9 @@ class CategoricalEncoder(ColumnEncoder):
                  token_to_idx: Dict[str, int] = None,
                  max_tokens: int = int(1e4)) -> None:
 
-        if isinstance(input_columns, str):
-            input_columns = [input_columns]
-
         if len(input_columns) != 1:
             raise ValueError("CategoricalEncoder can only encode single columns, got {}: {}".format(
                 len(input_columns), ", ".join(input_columns)))
-
-        if output_column is None:
-            output_column = input_columns[0]
-            logger.info("No output column name provided for CategoricalEncoder and input ' \
-                        'column {}, using {}".format(input_columns[0], output_column))
 
         ColumnEncoder.__init__(self, input_columns, output_column, 1)
 
@@ -289,18 +292,9 @@ class SequentialEncoder(ColumnEncoder):
                  max_tokens: int = int(1e3),
                  seq_len: int = 500) -> None:
 
-        if isinstance(input_columns, str):
-            input_columns = [input_columns]
-
         if len(input_columns) != 1:
             raise ValueError("SequentialEncoder can only encode single columns, got {}: {}".format(
                 len(input_columns), ", ".join(input_columns)))
-
-        if output_column is None:
-            output_column = input_columns[0]
-            logstr = "No output column name provided for SequentialEncoder " \
-                     "and input column {}, using {}".format(input_columns[0], output_column)
-            logger.info(logstr)
 
         ColumnEncoder.__init__(self, input_columns, output_column, seq_len)
 
@@ -444,15 +438,6 @@ class BowEncoder(ColumnEncoder):
                  tokens: str = 'chars',
                  prefixed_concatenation: bool = True) -> None:
 
-        if isinstance(input_columns, str):
-            input_columns = [input_columns]
-
-        if output_column is None:
-            output_column = "-".join(input_columns)
-            logstr = "No output column name provided for CategoricalEncoder and input " \
-                     "columns {}, using {}".format(", ".join(input_columns), output_column)
-            logger.info(logstr)
-
         ColumnEncoder.__init__(self, input_columns, output_column, int(max_tokens))
 
         if tokens == 'words':
@@ -549,14 +534,6 @@ class NumericalEncoder(ColumnEncoder):
                  input_columns: Any,
                  output_column: str = None,
                  normalize=True) -> None:
-
-        if isinstance(input_columns, str):
-            input_columns = [input_columns]
-
-        if output_column is None:
-            output_column = "-".join(input_columns)
-            logger.info("No output column name provided for NumericalEncoder and input \
-                        columns {}, using {}".format(", ".join(input_columns), output_column))
 
         ColumnEncoder.__init__(self, input_columns, output_column, len(input_columns))
         self.normalize = normalize
@@ -662,17 +639,9 @@ class ImageEncoder(ColumnEncoder):
                  output_column: str = None,
                  normalize: bool = True) -> None:
 
-        if isinstance(input_columns, str):
-            input_columns = [input_columns]
-
         if len(input_columns) != 1:
             raise ValueError("ImageEncoder can only encode single columns, got {}: {}".format(
                 len(input_columns), ", ".join(input_columns)))
-
-        if output_column is None:
-            output_column = input_columns[0]
-            logger.info("No output column name provided for ImageEncoder and input "
-                        "column %s, using %s", input_columns[0], output_column)
 
         ColumnEncoder.__init__(self, input_columns, output_column, 1)
 
