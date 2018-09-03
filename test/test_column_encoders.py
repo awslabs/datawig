@@ -166,6 +166,13 @@ def test_categorical_encoder_numeric_nan():
     except TypeError:
         pytest.fail("fitting categorical encoder on integers with nulls should not fail")
 
+def test_column_encoder_no_list_input_column():
+     column_encoder = column_encoders.ColumnEncoder("0")
+     assert column_encoder.input_columns == ['0']
+     assert column_encoder.output_column == '0'
+     column_encoder = column_encoders.ColumnEncoder(0)
+     assert column_encoder.input_columns == [0]
+     assert column_encoder.output_column == '0'
 
 def test_numeric_encoder():
     df = pd.DataFrame({'a': [1, 2, 3, np.nan, None], 'b': [.1, -.1, np.nan, None, 10.5]})

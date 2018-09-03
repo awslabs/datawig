@@ -27,7 +27,7 @@ import mxnet as mx
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
-from .utils import logger, gpu_device, random_split, rand_string
+from .utils import logger, gpu_device, random_split, rand_string, stringify_list
 from .imputer import Imputer
 from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ImageEncoder, \
     ColumnEncoder
@@ -135,11 +135,11 @@ class SimpleImputer():
 
         logger.info(
             "Assuming {} numeric input columns: {}".format(len(self.numeric_columns),
-                                                           ", ".join(self.numeric_columns)))
+                                                           ", ".join(stringify_list(self.numeric_columns))))
         logger.info("Assuming {} string input columns: {}".format(len(self.string_columns),
-                                                                  ", ".join(self.string_columns)))
+                                                                  ", ".join(stringify_list(self.string_columns))))
         logger.info("Assuming {} image input columns: {}".format(len(self.image_columns),
-                                                                 ", ".join(self.image_columns)))
+                                                                 ", ".join(stringify_list(self.image_columns))))
 
     def fit_hpo(self,
                 train_df: pd.DataFrame,
