@@ -6,7 +6,7 @@ DataWig - Imputation for Tables
 [![GitHub issues](https://img.shields.io/github/issues/awslabs/datawig.svg)](https://github.com/awslabs/datawig/issues)
 
 
-DataWig learns models to impute missing values in tables. 
+DataWig learns models to impute missing values in tables.
 
 For each to-be-imputed column, DataWig trains a supervised machine learning model
 to predict the observed values in that column using the data from other columns.
@@ -42,6 +42,7 @@ The DataWig API expects your data as a [pandas DataFrame](https://pandas.pydata.
 
 ![datawig dataframe example](https://s3.amazonaws.com/datawig/example_data/df_example_image.png)
 
+
 For most use cases, the `SimpleImputer` class is the best starting point. DataWig expects you to provide the column name of the column you would like to impute values for (called `output_column` below) and some column names that contain values that you deem useful for imputation (called `input_columns` below).
 
  ```python
@@ -60,7 +61,7 @@ For most use cases, the `SimpleImputer` class is the best starting point. DataWi
     
     #Fit an imputer model on the train data
     imputer.fit(train_df=df_train)
-    
+
     #Impute missing values and return original dataframe with predictions
     imputed = imputer.predict(df_test)
  ```
