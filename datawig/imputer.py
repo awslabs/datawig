@@ -31,7 +31,7 @@ import pandas as pd
 import numpy as np
 
 from .mxnet_output_symbols import make_categorical_loss, make_numerical_loss
-from .utils import timing, MeanSymbol, LogMetricCallBack, logger, stringify_list, \
+from .utils import timing, MeanSymbol, LogMetricCallBack, logger, \
     random_split, AccuracyMetric, gpu_device, ColumnOverwriteException, merge_dicts
 from .column_encoders import ColumnEncoder, NumericalEncoder, CategoricalEncoder
 from .iterators import ImputerIterDf
@@ -384,7 +384,7 @@ class Imputer:
                 encoder_type = type(encoder)
                 logger.info(
                     "Fitting data encoder {} on columns {} and {} rows of training data".format(
-                        encoder_type, ", ".join(stringify_list(encoder.input_columns)), len(train_df)))
+                        encoder_type, ", ".join(encoder.input_columns), len(train_df)))
 
                 encoder.fit(train_df)
 
@@ -696,7 +696,7 @@ class Imputer:
                     "DataFrame contains column {}; remove column and try again".format(
                         imputation_col))
 
-            if label not in stringify_list(numerical_outputs):
+            if label not in numerical_outputs:
                 imputation_proba_col = label + score_suffix
                 if data_frame.columns.contains(imputation_proba_col):
                     raise ColumnOverwriteException(
@@ -770,7 +770,7 @@ class Imputer:
             if col_enc.input_columns[0] not in data_frame.columns:
                 raise ValueError(
                     "Cannot compute metrics: Label Column {} not found in \
-                    input DataFrame with columns {}".format(col_enc.output_column, ", ".join(stringify_list(data_frame.columns))))
+                    input DataFrame with columns {}".format(col_enc.output_column, ", ".join(data_frame.columns)))
 
         mxnet_iter = self.__mxnet_iter_from_df(data_frame)
         return self.__transform_and_compute_metrics_mxnet_iter(mxnet_iter,

@@ -40,13 +40,15 @@ def impute_mf(X):
 
 def impute_datawig(X):
     df = pd.DataFrame(X)
+    df.colums = [str(c) for c in df.columns]
     df_imputed = {}
     for output_col in df.columns:
         input_cols = sorted(list(set(df.columns) - set([output_col])))
         idx_missing = df[output_col].isnull()
         imputer = SimpleImputer(input_columns = input_cols,
-                                output_column = output_col)\
-                                .fit_hpo(df.loc[~idx_missing,:])
+                                output_column = output_col) \
+                                .fit(df.loc[~idx_missing, :])
+                                # .fit_hpo(df.loc[~idx_missing,:])
         df_imputed[output_col] = imputer.predict(df.loc[idx_missing,:])
 
     for output_col in df.columns:
