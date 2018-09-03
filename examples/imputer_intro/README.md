@@ -9,7 +9,7 @@ Open the [python file](./imputer_intro.py)  in this directory to see the code us
 First, let's load the data into a pandas DataFrame and split the data into train (80%) and test (20%) subsets.
 
  ```python
-df = pd.read_csv('../finish_mae_dataset.csv')
+df = pd.read_csv('../finish_val_data_sample.csv')
 df_train, df_test = random_split(df, split_ratios=[0.8, 0.2])
  ```
 

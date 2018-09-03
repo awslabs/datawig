@@ -7,7 +7,7 @@ import pandas as pd
 '''
 Load Data
 '''
-df = pd.read_csv('../finish_val_data.csv')
+df = pd.read_csv('../finish_val_data_sample.csv')
 df_train, df_test = random_split(df, split_ratios=[0.8, 0.2])
 
 #------------------------------------------------------------------------------------

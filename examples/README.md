@@ -18,11 +18,18 @@ Unless otherwise specified, these examples will make use of the [Multimodal Attr
 
 This data contains columns for *title*, *text*, and *finish*. The title and text columns contain string data that will be used to impute the finish attribute. Note, the dataset is extremely noisy, but still provides a good example for real-world use cases of DataWig.
 
-Run the following in this directory to download the dataset:
+To speed up run-time, all examples will use a smaller version of this finish dataset that contains only 500 samples. Run the following in this directory to download this dataset:
 
 ```bash
-> wget https://www.dropbox.com/s/1scdnb60kvilkuf/finish_val_data.csv
+> wget https://www.dropbox.com/s/nw6jf4inin83tb9/finish_val_data_sample.csv
 ```
+
+To get the complete finish dataset with all data, run the following (we highly recommend running with a gpu to speed up computation):
+
+```bash
+> wget https://www.dropbox.com/s/1scdnb60kvilkuf/finish_val_data_all.csv
+```
+
 
 If you'd like to use this data in your own experiments, please remember to cite the original MAE paper:
 
