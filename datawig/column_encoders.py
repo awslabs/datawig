@@ -535,7 +535,8 @@ class NumericalEncoder(ColumnEncoder):
                  output_column: str = None,
                  normalize=True) -> None:
 
-        ColumnEncoder.__init__(self, input_columns, output_column, len(input_columns))
+        ColumnEncoder.__init__(self, input_columns, output_column, 0)
+        self.output_dim = len(self.input_columns)
         self.normalize = normalize
         self.scaler = None
 

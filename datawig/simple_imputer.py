@@ -340,15 +340,15 @@ class SimpleImputer():
                 logger.info(
                     "Trained numerical imputer for hps {} on {} samples, MSE: {}".format(
                         hyper_param.to_dict(), len(train_df_hpo),
-                        metrics[self.output_column]))
-                hyper_param['mse'] = metrics[self.output_column]
+                        metrics[str(self.output_column)]))
+                hyper_param['mse'] = metrics[str(self.output_column)]
             else:
                 logger.info(
                     "Trained categorical imputer for hps {} on {} samples, F1: {}".format(
                         hyper_param.to_dict(), len(train_df_hpo),
-                        metrics[self.output_column][
+                        metrics[str(self.output_column)][
                             'avg_f1']))
-                hyper_param['f1'] = metrics[self.output_column]['avg_f1']
+                hyper_param['f1'] = metrics[str(self.output_column)]['avg_f1']
 
             hpo_results.append(hyper_param)
 
