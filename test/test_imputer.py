@@ -386,7 +386,7 @@ def test_imputer_real_data_all_featurizers():
     )
 
     df_test = df_test.reset_index()
-    predictions_df = not_so_precise_imputer.predict(df_test, precision_threshold=.9,
+    predictions_df = not_so_precise_imputer.predict(df_test, precision_threshold=.5,
                                                     imputation_suffix="_imputed")
 
     assert predictions_df.columns.contains(label_col + "_imputed")
