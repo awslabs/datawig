@@ -124,7 +124,7 @@ class SimpleImputer():
         valid_ext = ['.jpg', '.png', '.gif']
 
         for col in other_cols:
-            if os.path.exists(data_frame[col].values[1]) and any(
+            if os.path.exists(str(data_frame[col].values[1])) and any(
                     x in data_frame[col].values[1] for x in valid_ext):
                 image_cols.append(col)
             else:
