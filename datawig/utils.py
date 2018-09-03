@@ -289,3 +289,11 @@ def pad_to_square(src: mx.ndarray,
                     src[h - 1, :, :], 0)
 
     return src_padded
+
+
+def softmax(x):
+    """
+    Compute softmax values for each sets of scores in x.
+    """
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
