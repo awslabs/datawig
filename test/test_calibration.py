@@ -1,30 +1,40 @@
+# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not
+# use this file except in compliance with the License. A copy of the License
+# is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+# or in the "license" file accompanying this file. This file is distributed on
+# an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+# express or implied. See the License for the specific language governing
+# permissions and limitations under the License.
+
+"""
+
+DataWig calibration tests
+
+"""
+
 import numpy as np
-from scipy.optimize import minimize
 from datawig import calibration
+from datawig.column_encoders import SequentialEncoder, CategoricalEncoder, BowEncoder
+from datawig.mxnet_input_symbols import LSTMFeaturizer, EmbeddingFeaturizer, BowFeaturizer
+from datawig.imputer import Imputer
+from datawig.utils import random_split
+from test_imputer import generate_string_data_frame
 
 
-def generate_synthetic_data(K=None, N=None, p_correct=None):
+def generate_synthetic_data(K: int=5, N: int=100, p_correct: float=.8):
     """
-    Generate synthetic data of probabili
+    Generate synthetic data of class probabilities
 
     :param K: number of classes
-    :type K: int
     :param N: number of samples
-    :type N: int
     :param p_correct: fraction of correct predictions
-    :type p_correct:
-    :return:
-    :rtype:
+    :return: tuple of training data and training labels
     """
-
-    if p_correct is None:
-        p_correct = .8
-
-    if K is None:
-        K = 5
-
-    if N is None:
-        N = 100
 
     # generate labels
     train_labels = np.array([np.random.randint(5) for n in range(N)])
@@ -54,18 +64,23 @@ def generate_synthetic_data(K=None, N=None, p_correct=None):
     return train_data, train_labels
 
 
-def test_calibration():
+def test_calibration_synthetic():
+    """
+    For simple training data, fit the temperature scaling model and assert that the
+    expected calibration error is reduced.
+    """
     train_data, train_labels = generate_synthetic_data(p_correct=.7, N=50, K=10)
 
     temperature = calibration.fit_temperature(train_data, train_labels)
 
-    assert calibration.compute_ece(train_data, train_labels, temperature=temperature) < \
+    assert calibration.compute_ece(train_data, train_labels, lbda=temperature) < \
            calibration.compute_ece(train_data, train_labels)
 
 
 def test_automatic_calibration():
     """
-    Fit a simple model with synthetic data and assert that calibration improves the expected calibration error
+    Fit model with all featurisers and assert
+    that calibration improves the expected calibration error.
     """
 
     feature_col = "string_feature"
@@ -118,8 +133,6 @@ def test_automatic_calibration():
             vocab_size=num_labels)
     ]
 
-    output_path = os.path.join(dir_path, "resources", "tmp", "imputer_experiment_synthetic_data")
-
     num_epochs = 20
     batch_size = 32
     learning_rate = 1e-2
@@ -127,8 +140,7 @@ def test_automatic_calibration():
     imputer = Imputer(
         data_featurizers=data_cols,
         label_encoders=label_encoder_cols,
-        data_encoders=data_encoder_cols,
-        output_path=output_path
+        data_encoders=data_encoder_cols
     ).fit(
         train_df=df_train,
         test_df=df_val,
@@ -138,5 +150,3 @@ def test_automatic_calibration():
     )
 
     assert imputer.calibration_info['ece_pre'] > imputer.calibration_info['ece_post']
-
-

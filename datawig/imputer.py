@@ -81,6 +81,7 @@ class Imputer:
         self.calibration_temperature = None
 
         self.precision_recall_curves = {}
+        self.calibration_info = {}
 
         if len(self.data_featurizers) != len(self.data_encoders):
             raise ValueError("Argument Number of data_featurizers ({}) \
@@ -915,19 +916,16 @@ class Imputer:
             batch_size=self.batch_size
         )
 
-
-    def calibrate(self, test_iter):
+    def calibrate(self, test_iter: ImputerIterDf):
         """
-        Cecks model calibration and fits temperature scaling, if the expected calibration error (ece)
-        is above a threshold. If the fit improves model calibration, the temperature parameter is assigned
-        as property self and used for all further predictions in self.predict_mxnet_iter()
-        Writes calibration information to dictionary.
+        Cecks model calibration and fits temperature scaling.
+        If the fit improves model calibration, the temperature parameter is assigned
+        as property to self and used for all further predictions in self.predict_mxnet_iter().
+        Saves calibration information to dictionary.
 
         :param test_iter: iterator, see ImputerIter in iterators.py
-        :return:
+        :return: None
         """
-
-        self.calibration_info = {}
 
         test_iter.reset()
         proba = self.__predict_mxnet_iter(test_iter)
@@ -950,14 +948,14 @@ class Imputer:
         self.calibration_info['reliability_pre'] = calibration.reliability(scores, labels)
         logger.info('Expected calibration error: {:.1f}%'.format(100*ece_pre))
 
-        if ece_pre > -.005:
-            temperature = calibration.fit_temperature(scores, labels)
-            ece_post = calibration.compute_ece(scores, labels, temperature)
-            self.calibration_info['ece_post'] = ece_post
-            logger.info('Expected calibration error after calibration: {:.1f}%'.format(100*ece_post))
+        temperature = calibration.fit_temperature(scores, labels)
+        ece_post = calibration.compute_ece(scores, labels, temperature)
+        self.calibration_info['ece_post'] = ece_post
+        logger.info('Expected calibration error after calibration: {:.1f}%'.format(100*ece_post))
 
-            if ece_pre - ece_post > -.01:
-                self.calibration_info['reliability_post'] = calibration.reliability(
-                    calibration.calibrate(scores, temperature), labels)
-                self.calibration_info['ece_post'] = calibration.compute_ece(scores, labels, temperature)
-                self.calibration_temperature = temperature
+        # check whether calibration improves at all and apply
+        if ece_pre - ece_post > 0:
+            self.calibration_info['reliability_post'] = calibration.reliability(
+                calibration.calibrate(scores, temperature), labels)
+            self.calibration_info['ece_post'] = calibration.compute_ece(scores, labels, temperature)
+            self.calibration_temperature = temperature
