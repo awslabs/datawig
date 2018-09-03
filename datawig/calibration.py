@@ -68,7 +68,7 @@ def probas_from_logits(scores, temperature=1, force=False):
     """
 
     # check whether rows of input are probabilities
-    if np.all(np.sum(scores, 1) - 1 < 1e-12) and np.all(scores <= 1) and force is False:
+    if np.all(np.sum(scores, 1) - 1 < 1e-2) and np.all(scores <= 1) and force is False:
         return scores
     else:
         return np.array([softmax(temperature * row) for row in scores])
@@ -76,14 +76,13 @@ def probas_from_logits(scores, temperature=1, force=False):
 
 def calibrate(scores, temperature):
 
-    logits = logits_from_probas(scores)
+    logits = logits_from_probas(scores, force=True)
 
     return np.array([softmax(temperature * row) for row in logits])
 
 
 def reliability(scores, labels, step=.05):
 
-    print('here')
     # transform scores to probabilities if applicable
     probas = probas_from_logits(scores)
 
