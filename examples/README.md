@@ -21,7 +21,7 @@ This data contains columns for *title*, *text*, and *finish*. The title and text
 Run the following in this directory to download the dataset:
 
 ```bash
-> wget https://s3.amazonaws.com/datawig/example_data/finish_val_data.csv
+> wget https://www.dropbox.com/s/1scdnb60kvilkuf/finish_val_data.csv
 ```
 
 If you'd like to use this data in your own experiments, please remember to cite the original MAE paper:
