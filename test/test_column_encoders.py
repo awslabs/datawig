@@ -20,12 +20,14 @@ DataWig ColumnEncoder tests
 import pytest
 import os
 import random
+import shutil
 import pandas as pd
 import numpy as np
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 from datawig import column_encoders
+from test_imputer import create_test_image
 
 random.seed(1)
 np.random.seed(42)
@@ -168,25 +170,34 @@ def test_column_encoder_no_list_input_column():
      column_encoder = column_encoders.ColumnEncoder("0")
      assert column_encoder.input_columns == ['0']
      assert column_encoder.output_column == '0'
-     column_encoder = column_encoders.ColumnEncoder(0)
-     assert column_encoder.input_columns == [0]
-     assert column_encoder.output_column == '0'
+     with pytest.raises(ValueError):
+        column_encoders.ColumnEncoder(0)
+     with pytest.raises(ValueError):
+         column_encoders.ColumnEncoder([0])
+
 
 def test_numeric_encoder():
     df = pd.DataFrame({'a': [1, 2, 3, np.nan, None], 'b': [.1, -.1, np.nan, None, 10.5]})
     unfitted_numerical_encoder = column_encoders.NumericalEncoder(["a", 'b'], normalize=False)
     assert unfitted_numerical_encoder.is_fitted() == True
-    df_unnormalized = unfitted_numerical_encoder.fit(df).transform(df)
+    fitted_unnormalized_numerical_encoder = unfitted_numerical_encoder.fit(df)
+    df_unnormalized = fitted_unnormalized_numerical_encoder.transform(df.copy())
 
     assert np.array_equal(df_unnormalized, np.array([[1., 0.1],
                                                      [2., -0.1],
                                                      [3., 3.5],
-                                                     [2., 3.5],
-                                                     [2., 10.5]], dtype=np.float32))
+                                                     [2.0, 3.5],
+                                                     [2.0, 10.5]], dtype=np.float32))
+    df_nans = pd.DataFrame({'a': [None], 'b': [np.nan]})
+    df_unnormalized_nans = fitted_unnormalized_numerical_encoder.transform(df_nans.copy())
+    assert np.array_equal(df_unnormalized_nans, np.array([[2., 3.5]], dtype=np.float32))
 
     normalized_numerical_encoder = column_encoders.NumericalEncoder(["a", 'b'], normalize=True)
     assert normalized_numerical_encoder.is_fitted() == False
-    df_normalized = normalized_numerical_encoder.fit(df).transform(df)
+    normalized_numerical_encoder_fitted = normalized_numerical_encoder.fit(df)
+    df_normalized = normalized_numerical_encoder_fitted.transform(df)
+    df_normalized_nans = normalized_numerical_encoder_fitted.transform(df_nans)
+
     assert normalized_numerical_encoder.is_fitted() == True
     assert np.array_equal(df_normalized, np.array([[-1.58113885, -0.88666826],
                                                    [0., -0.93882525],
@@ -196,8 +207,23 @@ def test_numeric_encoder():
 
 
 def test_image_encoder():
-    df = pd.DataFrame({"test_uris": [dir_path + '/resources/test_images/B00A4VEK06.jpg',
-                                     dir_path + '/resources/test_images/B00A5H2Y9S.jpg']})
+
+    img_path = os.path.join(dir_path, "resources", "test_images")
+    os.makedirs(img_path, exist_ok=True)
+
+    colors = ['red', 'green']
+    img_filenames = ['not-existent.jpg']
+    for color in colors:
+        filename = os.path.join(img_path, color + ".png")
+        create_test_image(filename, color)
+        img_filenames.append(filename)
+
+    df = pd.DataFrame({"test_uris": img_filenames})
 
     untransformed_image_encoder = column_encoders.ImageEncoder(['test_uris'])
     tensor = untransformed_image_encoder.transform(df)
+    assert tensor[:,:,1,1] == pytest.approx(np.array([[ 0.,  0., 0.],
+       [ 0.53643285, -2.03571422, -1.80444444],
+       [-2.11790397,  0.67787113, -1.80444444]]), 1e-5)
+
+    shutil.rmtree(img_path)

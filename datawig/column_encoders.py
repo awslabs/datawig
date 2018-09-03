@@ -29,7 +29,7 @@ from sklearn.feature_extraction.text import HashingVectorizer
 from sklearn.preprocessing import StandardScaler
 import mxnet as mx
 
-from .utils import logger, pad_to_square, stringify_list
+from .utils import logger, pad_to_square
 
 random.seed(0)
 np.random.seed(42)
@@ -73,8 +73,12 @@ class ColumnEncoder():
         if not isinstance(input_columns, list):
             input_columns = [input_columns]
 
+        for col in input_columns:
+            if not isinstance(col, str):
+                raise ValueError("ColumnEncoder.input_columns must be str type, was {}".format(type(col)))
+
         if output_column is None:
-            output_column = "-".join(stringify_list(input_columns))
+            output_column = "-".join(input_columns)
             logstr = "No output column name provided for ColumnEncoder " \
                      "using {}".format(output_column)
             logger.info(logstr)
@@ -152,11 +156,11 @@ class CategoricalEncoder(ColumnEncoder):
                  token_to_idx: Dict[str, int] = None,
                  max_tokens: int = int(1e4)) -> None:
 
-        if len(input_columns) != 1:
-            raise ValueError("CategoricalEncoder can only encode single columns, got {}: {}".format(
-                len(input_columns), ", ".join(input_columns)))
-
         ColumnEncoder.__init__(self, input_columns, output_column, 1)
+
+        if len(self.input_columns) != 1:
+            raise ValueError("CategoricalEncoder can only encode single columns, got {}: {}".format(
+                len(self.input_columns), ", ".join(self.input_columns)))
 
         self.max_tokens = int(max_tokens)
         self.token_to_idx = token_to_idx
@@ -292,11 +296,11 @@ class SequentialEncoder(ColumnEncoder):
                  max_tokens: int = int(1e3),
                  seq_len: int = 500) -> None:
 
-        if len(input_columns) != 1:
-            raise ValueError("SequentialEncoder can only encode single columns, got {}: {}".format(
-                len(input_columns), ", ".join(input_columns)))
-
         ColumnEncoder.__init__(self, input_columns, output_column, seq_len)
+
+        if len(self.input_columns) != 1:
+            raise ValueError("SequentialEncoder can only encode single columns, got {}: {}".format(
+                len(self.input_columns), ", ".join(self.input_columns)))
 
         self.token_to_idx = token_to_idx
         self.idx_to_token = None
@@ -536,6 +540,7 @@ class NumericalEncoder(ColumnEncoder):
                  normalize=True) -> None:
 
         ColumnEncoder.__init__(self, input_columns, output_column, 0)
+
         self.output_dim = len(self.input_columns)
         self.normalize = normalize
         self.scaler = None
@@ -571,7 +576,7 @@ class NumericalEncoder(ColumnEncoder):
         mean = data_frame[self.input_columns].mean()
         data_frame[self.input_columns] = data_frame[self.input_columns].fillna(mean)
         self.scaler = StandardScaler().fit(data_frame[self.input_columns].values)
-        
+
         return self
 
     def transform(self, data_frame: pd.DataFrame) -> np.array:
@@ -590,7 +595,8 @@ class NumericalEncoder(ColumnEncoder):
         mean = pd.Series(dict(zip(self.input_columns,self.scaler.mean_)))
         data_frame[self.input_columns] = data_frame[self.input_columns].fillna(mean)
 
-        logger.info("Concatenating numeric columns %s into %s", self.input_columns,
+        logger.info("Concatenating numeric columns %s into %s",
+                    self.input_columns,
                     self.output_column)
 
         if self.normalize:

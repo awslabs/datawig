@@ -24,7 +24,7 @@ import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
 from .column_encoders import ColumnEncoder
-from .utils import logger, stringify_list
+from .utils import logger
 
 
 class ImputerIter(mx.io.DataIter):
@@ -110,7 +110,7 @@ class ImputerIter(mx.io.DataIter):
                         {} with {} into \
                         {} of shape {} \
                         and then into shape {}".format(len(data_frame),
-                        ",".join(stringify_list(col_enc.input_columns)), col_enc.__class__, type(data_array_numpy), data_array_numpy.shape, data[col_enc.output_column].shape))
+                        ",".join(col_enc.input_columns), col_enc.__class__, type(data_array_numpy), data_array_numpy.shape, data[col_enc.output_column].shape))
 
         # transform labels into mxnet nd arrays
         labels = {}
