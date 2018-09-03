@@ -1,5 +1,6 @@
 import numpy as np
-import itertools
+import pandas as pd
+from datawig import SimpleImputer
 
 from sklearn.datasets import (
     make_low_rank_matrix,
@@ -39,17 +40,21 @@ def impute_mf(X):
 
 def impute_datawig(X):
     df = pd.DataFrame(X)
+    df_imputed = {}
     for output_col in df.columns:
-        input_cols = list(set(df.columns) - set([output_col]))
+        input_cols = sorted(list(set(df.columns) - set([output_col])))
         idx_missing = df[output_col].isnull()
         imputer = SimpleImputer(input_columns = input_cols,
                                 output_column = output_col)\
                                 .fit_hpo(df.loc[~idx_missing,:])
-        df_ = imputer.predict(df.loc[idx_missing,:])
-        df.loc[idx_missing, output_col] = df_.loc[idx_missing, output_col + "_imputed"]
+        df_imputed[output_col] = imputer.predict(df.loc[idx_missing,:])
 
+    for output_col in df.columns:
+        idx_missing = df[output_col].isnull()
+        df.loc[idx_missing, output_col] = \
+            df_imputed[output_col].loc[idx_missing, output_col + "_imputed"]
 
-    return ""
+    return df.values
 
 
 def get_data(data_fn):
@@ -76,19 +81,19 @@ def run_imputation(X, mask, imputation_fn):
 def experiment(percent_missing=10):
 
     DATA_LOADERS = [
-        make_low_rank_matrix,
-        load_diabetes,
-        load_wine,
+        # make_low_rank_matrix,
+        # load_diabetes,
+        # load_wine,
         make_swiss_roll
         ]
 
     imputers = [
-        impute_mean,
-        impute_knn,
+        # impute_mean,
+        # impute_knn,
         # impute_nnm,
-        impute_mice,
-        impute_mf,
-        # impute_datawig
+        # impute_mice,
+        # impute_mf,
+        impute_datawig
     ]
 
     results = []
