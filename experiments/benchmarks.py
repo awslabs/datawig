@@ -4,7 +4,6 @@ from datawig import SimpleImputer
 
 from sklearn.datasets import (
     make_low_rank_matrix,
-    load_digits,
     load_diabetes,
     load_wine,
     make_swiss_roll
@@ -27,11 +26,6 @@ def impute_knn(X):
     # Use 3 nearest rows which have a feature to fill in each row's missing features
     return KNN(k=3).complete(X)
 
-def impute_nnm(X):
-    # matrix completion using convex optimization to find low-rank solution
-    # that still matches observed values. Slow!
-    return NuclearNormMinimization().complete(X)
-
 def impute_mice(X):
     return MICE().complete(X)
 
@@ -40,7 +34,7 @@ def impute_mf(X):
 
 def impute_datawig(X):
     df = pd.DataFrame(X)
-    df.colums = [str(c) for c in df.columns]
+    df.columns = [str(c) for c in df.columns]
     df_imputed = {}
     for output_col in df.columns:
         input_cols = sorted(list(set(df.columns) - set([output_col])))
@@ -83,18 +77,17 @@ def run_imputation(X, mask, imputation_fn):
 def experiment(percent_missing=10):
 
     DATA_LOADERS = [
-        # make_low_rank_matrix,
-        # load_diabetes,
-        # load_wine,
+        make_low_rank_matrix,
+        load_diabetes,
+        load_wine,
         make_swiss_roll
         ]
 
     imputers = [
-        # impute_mean,
-        # impute_knn,
-        # impute_nnm,
-        # impute_mice,
-        # impute_mf,
+        impute_mean,
+        impute_knn,
+        impute_mice,
+        impute_mf,
         impute_datawig
     ]
 
