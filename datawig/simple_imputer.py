@@ -91,7 +91,7 @@ class SimpleImputer():
                  num_labels: int = 100,
                  tokens: str = 'chars',
                  latent_dim: int = 100,
-                 hidden_layers: int = 1
+                 hidden_layers: int = 1,
                  ) -> None:
 
         self.input_columns = input_columns
@@ -422,7 +422,8 @@ class SimpleImputer():
             weight_decay: float = 0.,
             batch_size: int = 16,
             layer_dim: List[int] = None,
-            final_fc_hidden_units: List[int] = None) -> Any:
+            final_fc_hidden_units: List[int] = None,
+            calibrate: bool = True) -> Any:
         """
 
         Trains and stores imputer model
@@ -499,7 +500,8 @@ class SimpleImputer():
         self.imputer = self.imputer.fit(train_df, test_df, ctx, learning_rate, num_epochs, patience,
                                         test_split,
                                         weight_decay, batch_size,
-                                        final_fc_hidden_units=final_fc_hidden_units)
+                                        final_fc_hidden_units=final_fc_hidden_units,
+                                        calibrate=calibrate)
         self.save()
 
         return self

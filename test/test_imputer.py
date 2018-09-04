@@ -347,7 +347,8 @@ def test_imputer_real_data_all_featurizers():
         test_df=df_val,
         learning_rate=learning_rate,
         num_epochs=num_epochs,
-        batch_size=batch_size
+        batch_size=batch_size,
+        calibrate=False
     )
 
     len_df_before_predict = len(df_test)
@@ -380,11 +381,12 @@ def test_imputer_real_data_all_featurizers():
         test_df=df_test,
         learning_rate=learning_rate,
         num_epochs=num_epochs,
-        batch_size=batch_size
+        batch_size=batch_size,
+        calibrate=False
     )
 
     df_test = df_test.reset_index()
-    predictions_df = not_so_precise_imputer.predict(df_test, precision_threshold=.9,
+    predictions_df = not_so_precise_imputer.predict(df_test, precision_threshold=.5,
                                                     imputation_suffix="_imputed")
 
     assert predictions_df.columns.contains(label_col + "_imputed")
@@ -691,3 +693,5 @@ def test_imputer_unrepresentative_test_df():
                                                   precision_threshold=.99)['labels']
     assert all([x == () for x in imputations])
     shutil.rmtree(output_path)
+
+test_imputer_real_data_all_featurizers()

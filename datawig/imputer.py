@@ -37,6 +37,7 @@ from .column_encoders import ColumnEncoder, NumericalEncoder, CategoricalEncoder
 from .iterators import ImputerIterDf
 from .mxnet_input_symbols import Featurizer, ImageFeaturizer
 from .evaluation import evaluate_and_persist_metrics
+from . import calibration
 
 
 class Imputer:
@@ -77,8 +78,10 @@ class Imputer:
         self.test_losses = None
 
         self.training_time = 0.
+        self.calibration_temperature = None
 
         self.precision_recall_curves = {}
+        self.calibration_info = {}
 
         if len(self.data_featurizers) != len(self.data_encoders):
             raise ValueError("Argument Number of data_featurizers ({}) \
@@ -176,7 +179,8 @@ class Imputer:
             test_split: float = .1,
             weight_decay: float = 0.,
             batch_size: int = 16,
-            final_fc_hidden_units: List[int] = None):
+            final_fc_hidden_units: List[int] = None,
+            calibrate: bool = True):
         """
         Trains and stores imputer model
 
@@ -219,6 +223,12 @@ class Imputer:
 
         self.__build_module(iter_train)
         self.__fit_module(iter_train, iter_test, learning_rate, num_epochs, patience, weight_decay)
+
+        # Check whether calibration is needed, if so ompute and set internal parameter
+        # for temperature scaling that is supplied to self.__predict_mxnet_iter()
+        if calibrate is True:
+            self.calibrate(iter_test)
+
         _, metrics = self.__transform_and_compute_metrics_mxnet_iter(iter_test,
                                                                      metrics_path=self.metrics_path)
 
@@ -560,6 +570,9 @@ class Imputer:
             if isinstance(label_encoder, NumericalEncoder):
                 output[label_encoder.output_column] = label_encoder.decode(pred)
             else:
+                # apply temperature scaling calibration if a temperature was fit.
+                if self.calibration_temperature is not None:
+                    pred = calibration.calibrate(pred, self.calibration_temperature)
                 output[label_encoder.output_column] = pred
         return output
 
@@ -902,3 +915,47 @@ class Imputer:
             label_columns=self.label_encoders,
             batch_size=self.batch_size
         )
+
+    def calibrate(self, test_iter: ImputerIterDf):
+        """
+        Cecks model calibration and fits temperature scaling.
+        If the fit improves model calibration, the temperature parameter is assigned
+        as property to self and used for all further predictions in self.predict_mxnet_iter().
+        Saves calibration information to dictionary.
+
+        :param test_iter: iterator, see ImputerIter in iterators.py
+        :return: None
+        """
+
+        test_iter.reset()
+        proba = self.__predict_mxnet_iter(test_iter)
+
+        test_iter.reset()
+        labels = mx.nd.concat(*[mx.nd.concat(*[l for l in b.label], dim=1) for b in test_iter], dim=0)
+
+        if len(test_iter.label_columns) != 1:
+            logger.warning('Aborting calibration. Can only calibrate one output column.')
+            return
+
+        output_label = test_iter.label_columns[0].output_column
+        n_labels = proba[output_label].shape[0]
+
+        scores = proba[output_label]
+        labels = labels.asnumpy().squeeze()[:n_labels]
+
+        ece_pre = calibration.compute_ece(scores, labels)
+        self.calibration_info['ece_pre'] = ece_pre
+        self.calibration_info['reliability_pre'] = calibration.reliability(scores, labels)
+        logger.info('Expected calibration error: {:.1f}%'.format(100*ece_pre))
+
+        temperature = calibration.fit_temperature(scores, labels)
+        ece_post = calibration.compute_ece(scores, labels, temperature)
+        self.calibration_info['ece_post'] = ece_post
+        logger.info('Expected calibration error after calibration: {:.1f}%'.format(100*ece_post))
+
+        # check whether calibration improves at all and apply
+        if ece_pre - ece_post > 0:
+            self.calibration_info['reliability_post'] = calibration.reliability(
+                calibration.calibrate(scores, temperature), labels)
+            self.calibration_info['ece_post'] = calibration.compute_ece(scores, labels, temperature)
+            self.calibration_temperature = temperature
