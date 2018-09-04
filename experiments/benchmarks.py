@@ -40,9 +40,16 @@ def impute_datawig(X):
         input_cols = sorted(list(set(df.columns) - set([output_col])))
         idx_missing = df[output_col].isnull()
         imputer = SimpleImputer(input_columns = input_cols,
-                                output_column = output_col) \
-                                .fit(df.loc[~idx_missing, :])
-                                # .fit_hpo(df.loc[~idx_missing,:])
+                                output_column = output_col).fit_hpo(df.loc[~idx_missing,:],
+                                         learning_rate_candidates=[1e-3, 1e-4],
+                                         num_epochs=20,
+                                         patience=3,
+                                         hidden_layers_candidates=[1],
+                                         final_fc_hidden_units=[[0]],
+                                         latent_dim_candidates=[100])
+        # .fit(df.loc[~idx_missing, :])
+
+
         df_imputed[output_col] = imputer.predict(df.loc[idx_missing,:])
 
     for output_col in df.columns:
@@ -55,7 +62,7 @@ def impute_datawig(X):
 
 def get_data(data_fn):
     if data_fn.__name__ is 'make_low_rank_matrix':
-        X = data_fn(n_samples=1000, random_state=0)
+        X = data_fn(n_samples=1000, n_features=10, effective_rank = 5, random_state=0)
     elif data_fn.__name__ is 'make_swiss_roll':
         X, t = data_fn(n_samples=1000, random_state=0)
         X = np.vstack([X.T, t]).T
@@ -84,10 +91,10 @@ def experiment(percent_missing=10):
         ]
 
     imputers = [
-        impute_mean,
-        impute_knn,
-        impute_mice,
-        impute_mf,
+        # impute_mean,
+        # impute_knn,
+        # impute_mice,
+        # impute_mf,
         impute_datawig
     ]
 

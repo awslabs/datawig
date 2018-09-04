@@ -225,7 +225,7 @@ class SimpleImputer():
             final_fc_hidden_units = [[100]]
 
         if not learning_rate_candidates:
-            learning_rate_candidates = [1e-1, 1e-2, 1e-3]
+            learning_rate_candidates = [1e-2, 1e-3, 1e-4]
 
         self.check_data_types(train_df)
 
