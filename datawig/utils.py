@@ -94,7 +94,7 @@ def random_split(data_frame: pd.DataFrame,
     :param seed: seed of random number generator
     :return:
     """
-    if not split_ratios:
+    if split_ratios is None:
         split_ratios = [.8,.2]
     sections = np.array([int(r * len(data_frame)) for r in split_ratios]).cumsum()
     return np.split(data_frame.sample(frac=1, random_state=seed), sections)[:len(split_ratios)]
@@ -296,3 +296,11 @@ def pad_to_square(src: mx.ndarray,
                     src[h - 1, :, :], 0)
 
     return src_padded
+
+
+def softmax(x):
+    """
+    Compute softmax values for each sets of scores in x.
+    """
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()

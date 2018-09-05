@@ -47,7 +47,7 @@ def evaluate_and_persist_metrics(true_labels_string,
     :return:
     '''
 
-    if not missing_symbol:
+    if missing_symbol is None:
         missing_symbol = {k: "MISSING" for k in true_labels_string.keys()}
 
     if len(true_labels_string) > 0:

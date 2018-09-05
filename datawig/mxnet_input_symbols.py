@@ -72,7 +72,7 @@ class ImageFeaturizer(Featurizer):
                  fine_tune: bool = False,
                  layer_dim: List[int] = None,
                  model_name: str = 'densenet121') -> None:
-        if not layer_dim:
+        if layer_dim is None:
             layer_dim = [1024]
 
         super(ImageFeaturizer, self).__init__(field_name, layer_dim[-1])
