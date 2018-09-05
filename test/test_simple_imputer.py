@@ -21,6 +21,7 @@ import os
 import random
 import warnings
 import shutil
+import pytest
 import numpy as np
 import pandas as pd
 import mxnet as mx
@@ -43,6 +44,12 @@ mx.random.seed(1)
 np.random.seed(42)
 random.seed(1)
 
+
+def test_simple_imputer_no_string_column_name():
+    with pytest.raises(ValueError):
+        SimpleImputer([0], '1')
+    with pytest.raises(ValueError):
+        SimpleImputer(['0'], 1)
 
 def test_simple_imputer_real_data_default_args():
     """

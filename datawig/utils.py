@@ -47,6 +47,13 @@ class ColumnOverwriteException(Exception):
     """Raised when an existing column of a pandas dataframe is about to be overwritten"""
     pass
 
+
+def stringify_list(cols):
+    """
+    Returns list with elements stringified
+    """
+    return [str(c) for c in cols]
+
 def merge_dicts(d1: dict, d2: dict):
     """
 

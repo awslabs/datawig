@@ -780,10 +780,10 @@ class Imputer:
         :return:
         """
         for col_enc in self.label_encoders:
-            if col_enc.output_column not in data_frame.columns:
+            if col_enc.input_columns[0] not in data_frame.columns:
                 raise ValueError(
                     "Cannot compute metrics: Label Column {} not found in \
-                    input DataFrame with columns {}".format(col_enc.output_column, ", ".join(df.columns)))
+                    input DataFrame with columns {}".format(col_enc.output_column, ", ".join(data_frame.columns)))
 
         mxnet_iter = self.__mxnet_iter_from_df(data_frame)
         return self.__transform_and_compute_metrics_mxnet_iter(mxnet_iter,

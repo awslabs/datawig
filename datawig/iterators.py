@@ -109,7 +109,8 @@ class ImputerIter(mx.io.DataIter):
             logger.info("Data Encoding - Encoded {} rows of column \
                         {} with {} into \
                         {} of shape {} \
-                        and then into shape {}".format(len(data_frame), ",".join(col_enc.input_columns), col_enc.__class__, type(data_array_numpy), data_array_numpy.shape, data[col_enc.output_column].shape))
+                        and then into shape {}".format(len(data_frame),
+                        ",".join(col_enc.input_columns), col_enc.__class__, type(data_array_numpy), data_array_numpy.shape, data[col_enc.output_column].shape))
 
         # transform labels into mxnet nd arrays
         labels = {}
