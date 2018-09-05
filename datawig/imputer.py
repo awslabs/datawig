@@ -488,7 +488,10 @@ class Imputer:
                              precision_threshold: float,
                              precision_recall_curve: dict) -> dict:
         """
-        Filters predictions below precision threshold
+        Filters predictions such that the aggregated precision is above a threshold.
+        In a calibrated model, the softmax output probability can be interpreted as sample precision.
+        This filtering will include predictions with softmax output probability below the threshold,
+        because it considers the aggregate statistic.
 
         :param predictions:  predictions
         :param precision_threshold: precision threshold
