@@ -87,7 +87,7 @@ def random_split(data_frame: pd.DataFrame,
     :param seed: seed of random number generator
     :return:
     """
-    if not split_ratios:
+    if split_ratios is None:
         split_ratios = [.8,.2]
     sections = np.array([int(r * len(data_frame)) for r in split_ratios]).cumsum()
     return np.split(data_frame.sample(frac=1, random_state=seed), sections)[:len(split_ratios)]

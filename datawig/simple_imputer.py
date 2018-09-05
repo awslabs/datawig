@@ -196,28 +196,28 @@ class SimpleImputer():
         :return: trained SimpleImputer model
         """
 
-        if not weight_decay:
+        if weight_decay is None:
             weight_decay = [0]
 
-        if not num_hash_bucket_candidates:
+        if num_hash_bucket_candidates is None:
             num_hash_bucket_candidates = [2 ** 10, 2 ** 15, 2 ** 20]
 
-        if not tokens_candidates:
+        if tokens_candidates is None:
             tokens_candidates = ['words', 'chars']
 
-        if not latent_dim_candidates:
+        if latent_dim_candidates is None:
             latent_dim_candidates = [10, 50, 100]
 
-        if not hidden_layers_candidates:
+        if hidden_layers_candidates is None:
             hidden_layers_candidates = [0, 1, 2]
 
-        if not layer_dim:
+        if layer_dim is None:
             layer_dim = [[1024]]
 
-        if not final_fc_hidden_units:
+        if final_fc_hidden_units is None:
             final_fc_hidden_units = [[100]]
 
-        if not learning_rate_candidates:
+        if learning_rate_candidates is None:
             learning_rate_candidates = [1e-1, 1e-2, 1e-3]
 
         self.check_data_types(train_df)
@@ -445,10 +445,10 @@ class SimpleImputer():
 
         """
 
-        if not layer_dim:
+        if layer_dim is None:
             layer_dim = [100]
 
-        if not final_fc_hidden_units:
+        if final_fc_hidden_units is None:
             final_fc_hidden_units = [100]
 
         self.check_data_types(train_df)

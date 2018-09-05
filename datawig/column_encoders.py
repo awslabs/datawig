@@ -748,10 +748,10 @@ class ImageEncoder(ColumnEncoder):
 
         """
 
-        if not mean:
+        if mean is None:
             mean = [0.485, 0.456, 0.406]
 
-        if not std:
+        if std is None:
             std = [0.229, 0.224, 0.225]
 
         if img.shape != (224, 224, 3):

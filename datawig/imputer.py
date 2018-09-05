@@ -199,7 +199,7 @@ class Imputer:
         :param final_fc_hidden_units: list of dimensions for the final fully connected layer.
         :return: trained imputer model
         """
-        if not final_fc_hidden_units:
+        if final_fc_hidden_units is None:
             final_fc_hidden_units = []
 
         # make sure the output directory is writable
