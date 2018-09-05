@@ -1,3 +1,6 @@
+import os
+import shutil
+import json
 import numpy as np
 import pandas as pd
 from datawig import SimpleImputer
@@ -7,7 +10,7 @@ from sklearn.datasets import (
     load_diabetes,
     load_wine,
     make_swiss_roll
-    )
+)
 
 from fancyimpute import (
     MatrixFactorization,
@@ -17,20 +20,25 @@ from fancyimpute import (
 )
 
 np.random.seed(0)
+dir_path = os.path.dirname(os.path.realpath(__file__))
 
 
 def impute_mean(X):
     return SimpleFill("mean").complete(X)
 
+
 def impute_knn(X):
     # Use 3 nearest rows which have a feature to fill in each row's missing features
     return KNN(k=3).complete(X)
 
+
 def impute_mice(X):
     return MICE().complete(X)
 
+
 def impute_mf(X):
     return MatrixFactorization().complete(X)
+
 
 def impute_datawig(X):
     df = pd.DataFrame(X)
@@ -39,18 +47,12 @@ def impute_datawig(X):
     for output_col in df.columns:
         input_cols = sorted(list(set(df.columns) - set([output_col])))
         idx_missing = df[output_col].isnull()
-        imputer = SimpleImputer(input_columns = input_cols,
-                                output_column = output_col).fit_hpo(df.loc[~idx_missing,:],
-                                         learning_rate_candidates=[1e-3, 1e-4],
-                                         num_epochs=20,
-                                         patience=3,
-                                         hidden_layers_candidates=[1],
-                                         final_fc_hidden_units=[[0]],
-                                         latent_dim_candidates=[100])
-        # .fit(df.loc[~idx_missing, :])
-
-
-        df_imputed[output_col] = imputer.predict(df.loc[idx_missing,:])
+        output_path = os.path.join(dir_path, output_col)
+        imputer = SimpleImputer(input_columns=input_cols,
+                                output_column=output_col,
+                                output_path=output_path).fit(df.loc[~idx_missing, :])
+        df_imputed[output_col] = imputer.predict(df.loc[idx_missing, :])
+        shutil.rmtree(output_path)
 
     for output_col in df.columns:
         idx_missing = df[output_col].isnull()
@@ -70,8 +72,8 @@ def get_data(data_fn):
         X, _ = data_fn(return_X_y=True)
     return X
 
-def run_imputation(X, mask, imputation_fn):
 
+def run_imputation(X, mask, imputation_fn):
     # X is a data matrix which we're going to randomly drop entries from
     X_incomplete = X.copy()
     # missing entries indicated with NaN
@@ -82,19 +84,18 @@ def run_imputation(X, mask, imputation_fn):
 
 
 def experiment(percent_missing=10):
-
     DATA_LOADERS = [
         make_low_rank_matrix,
         load_diabetes,
         load_wine,
         make_swiss_roll
-        ]
+    ]
 
     imputers = [
-        # impute_mean,
-        # impute_knn,
-        # impute_mice,
-        # impute_mf,
+        impute_mean,
+        impute_knn,
+        impute_mice,
+        impute_mf,
         impute_datawig
     ]
 
@@ -114,3 +115,8 @@ def experiment(percent_missing=10):
             print(result)
             results.append(result)
     return results
+
+
+if __name__ == "__main__":
+    results = experiment()
+    json.dump(results, open(os.path.join(dir_path, 'benchmark_results.json'), 'w'))
