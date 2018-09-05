@@ -604,7 +604,7 @@ def test_imputer_image_data():
     df = pd.DataFrame({"image_files": color_labels,
                        "label": color_labels})
 
-    df['image_files'] = img_path + "/" + df['image_files'] + ".png"
+    df['image_files'] = os.path.join(img_path, df['image_files'] + ".png")
 
     output_path = os.path.join(dir_path, "resources", "tmp", "experiment_images")
 

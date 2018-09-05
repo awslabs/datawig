@@ -107,7 +107,7 @@ def create_test_image(filename, color='red'):
     return file
 
 #Create synthetic image data
-img_path = './example_test_images'
+img_path = os.path.join(os.getcwd(), 'example_test_images')
 os.makedirs(img_path, exist_ok=True)
 colors = ['red', 'green', 'blue']
 
@@ -120,7 +120,7 @@ color_labels = [random.choice(colors) for _ in range(n_samples)]
 df = pd.DataFrame({"image_files": color_labels,
                    "label": color_labels})
 
-df['image_files'] = img_path + "/" + df['image_files'] + ".png"
+df['image_files'] = os.path.join(img_path, df['image_files'] + ".png")
 df_train, df_test = random_split(df, split_ratios=[0.8, 0.2])
 
 #Fit a model with HPO
