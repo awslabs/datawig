@@ -35,7 +35,7 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 
 mx.random.seed(10)
 random.seed(10)
-np.random.seed(41)
+np.random.seed(43)
 
 from datawig.column_encoders import SequentialEncoder, CategoricalEncoder, BowEncoder, \
     NumericalEncoder, ImageEncoder
@@ -285,7 +285,7 @@ def test_imputer_real_data_all_featurizers():
     categorical_col = "categorical_feature"
     label_col = "label"
 
-    n_samples = 2000
+    n_samples = 3000
     num_labels = 3
     seq_len = 20
     vocab_size = int(2 ** 10)
