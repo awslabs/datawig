@@ -285,7 +285,7 @@ def test_imputer_real_data_all_featurizers():
     categorical_col = "categorical_feature"
     label_col = "label"
 
-    n_samples = 3000
+    n_samples = 5000
     num_labels = 3
     seq_len = 20
     vocab_size = int(2 ** 10)
@@ -599,7 +599,7 @@ def test_imputer_image_data():
     for color in colors:
         create_test_image(os.path.join(img_path, color + ".png"), color)
 
-    n_samples = 10
+    n_samples = 4
     color_labels = [random.choice(colors) for _ in range(n_samples)]
 
     df = pd.DataFrame({"image_files": color_labels,
@@ -625,7 +625,7 @@ def test_imputer_image_data():
         learning_rate=1e-3,
         num_epochs=2,
         patience=5,
-        test_split=.1,
+        test_split=.5,
         weight_decay=.0001,
         batch_size=16
     )
@@ -651,7 +651,7 @@ def test_imputer_image_data():
         learning_rate=1e-3,
         num_epochs=2,
         patience=5,
-        test_split=.1,
+        test_split=.5,
         weight_decay=.0001,
         batch_size=16
     )
