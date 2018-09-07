@@ -206,7 +206,7 @@ def test_imputer_duplicate_encoder_output_columns():
     categorical_col = "categorical_feature"
     label_col = "label"
 
-    n_samples = 200
+    n_samples = 1000
     num_labels = 10
     seq_len = 100
     vocab_size = int(2 ** 10)
@@ -285,7 +285,7 @@ def test_imputer_real_data_all_featurizers():
     categorical_col = "categorical_feature"
     label_col = "label"
 
-    n_samples = 200
+    n_samples = 2000
     num_labels = 3
     seq_len = 20
     vocab_size = int(2 ** 10)
@@ -391,9 +391,8 @@ def test_imputer_real_data_all_featurizers():
 
     assert predictions_df.columns.contains(label_col + "_imputed")
     assert predictions_df.columns.contains(label_col + "_imputed_proba")
-    #Commenting out b/c build fails due to issue with randomization
-    #assert predictions_df.loc[0, label_col + '_imputed'] == df_test.loc[0, label_col]
-    #assert np.isnan(predictions_df.loc[0, label_col + '_imputed_proba']) == False
+    assert predictions_df.loc[0, label_col + '_imputed'] == df_test.loc[0, label_col]
+    assert np.isnan(predictions_df.loc[0, label_col + '_imputed_proba']) == False
     assert len(predictions_df.dropna(subset=[label_col + "_imputed_proba"])) < n_samples
 
     shutil.rmtree(output_path)
@@ -442,7 +441,7 @@ def test_imputer_without_test_set_random_split():
     feature_col = "string_feature"
     label_col = "label"
 
-    n_samples = 200
+    n_samples = 5000
     num_labels = 3
     seq_len = 20
     vocab_size = int(2 ** 10)
@@ -549,7 +548,7 @@ def test_imputer_numeric_data():
 
     """
     # Training data
-    N = 200
+    N = 1000
     x = np.random.uniform(-np.pi, np.pi, (N,))
     df = pd.DataFrame({
         'x': x,

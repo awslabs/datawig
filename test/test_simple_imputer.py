@@ -59,7 +59,7 @@ def test_simple_imputer_real_data_default_args():
     feature_col = "string_feature"
     label_col = "label"
 
-    n_samples = 200
+    n_samples = 2000
     num_labels = 3
     seq_len = 100
     vocab_size = int(2 ** 15)
@@ -150,7 +150,7 @@ def test_numeric_or_text_imputer():
     feature_col = "string_feature"
     label_col = "label"
 
-    n_samples = 200
+    n_samples = 1000
     num_labels = 3
     seq_len = 30
     vocab_size = int(2 ** 10)
@@ -265,7 +265,7 @@ def test_imputer_hpo_text():
     feature_col = "string_feature"
     label_col = "label"
 
-    n_samples = 200
+    n_samples = 1000
     num_labels = 3
     seq_len = 20
 
