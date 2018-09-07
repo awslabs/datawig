@@ -206,7 +206,7 @@ def test_imputer_duplicate_encoder_output_columns():
     categorical_col = "categorical_feature"
     label_col = "label"
 
-    n_samples = 1000
+    n_samples = 200
     num_labels = 10
     seq_len = 100
     vocab_size = int(2 ** 10)
@@ -285,7 +285,7 @@ def test_imputer_real_data_all_featurizers():
     categorical_col = "categorical_feature"
     label_col = "label"
 
-    n_samples = 5000
+    n_samples = 200
     num_labels = 3
     seq_len = 20
     vocab_size = int(2 ** 10)
@@ -442,7 +442,7 @@ def test_imputer_without_test_set_random_split():
     feature_col = "string_feature"
     label_col = "label"
 
-    n_samples = 5000
+    n_samples = 200
     num_labels = 3
     seq_len = 20
     vocab_size = int(2 ** 10)
@@ -549,7 +549,7 @@ def test_imputer_numeric_data():
 
     """
     # Training data
-    N = 1000
+    N = 200
     x = np.random.uniform(-np.pi, np.pi, (N,))
     df = pd.DataFrame({
         'x': x,

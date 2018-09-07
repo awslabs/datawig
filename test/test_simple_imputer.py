@@ -59,7 +59,7 @@ def test_simple_imputer_real_data_default_args():
     feature_col = "string_feature"
     label_col = "label"
 
-    n_samples = 2000
+    n_samples = 200
     num_labels = 3
     seq_len = 100
     vocab_size = int(2 ** 15)
@@ -150,7 +150,7 @@ def test_numeric_or_text_imputer():
     feature_col = "string_feature"
     label_col = "label"
 
-    n_samples = 1000
+    n_samples = 200
     num_labels = 3
     seq_len = 30
     vocab_size = int(2 ** 10)
@@ -265,7 +265,7 @@ def test_imputer_hpo_text():
     feature_col = "string_feature"
     label_col = "label"
 
-    n_samples = 1000
+    n_samples = 200
     num_labels = 3
     seq_len = 20
 
@@ -315,7 +315,7 @@ def test_imputer_image_hpo():
     for color in colors:
         create_test_image(os.path.join(img_path, color + ".png"), color)
 
-    n_samples = 16
+    n_samples = 10
     color_labels = [random.choice(colors) for _ in range(n_samples)]
 
     df = pd.DataFrame({"image_files": color_labels,
