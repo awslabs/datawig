@@ -33,9 +33,9 @@ from PIL import Image
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-mx.random.seed(1)
-random.seed(1)
-np.random.seed(42)
+mx.random.seed(10)
+random.seed(10)
+np.random.seed(41)
 
 from datawig.column_encoders import SequentialEncoder, CategoricalEncoder, BowEncoder, \
     NumericalEncoder, ImageEncoder
@@ -598,13 +598,14 @@ def test_imputer_image_data():
     for color in colors:
         create_test_image(os.path.join(img_path, color + ".png"), color)
 
-    n_samples = 32
+    n_samples = 16
     color_labels = [random.choice(colors) for _ in range(n_samples)]
 
     df = pd.DataFrame({"image_files": color_labels,
                        "label": color_labels})
 
-    df['image_files'] = os.path.join(img_path, df['image_files'] + ".png")
+    for index, row in df.iterrows():
+        row['image_files'] = os.path.join(img_path, row['image_files'] + ".png")
 
     output_path = os.path.join(dir_path, "resources", "tmp", "experiment_images")
 
