@@ -623,7 +623,7 @@ def test_imputer_image_data():
     ).fit(
         train_df=df,
         learning_rate=1e-3,
-        num_epochs=2,
+        num_epochs=1,
         patience=5,
         test_split=.5,
         weight_decay=.0001,
@@ -649,7 +649,7 @@ def test_imputer_image_data():
     ).fit(
         train_df=df,
         learning_rate=1e-3,
-        num_epochs=2,
+        num_epochs=1,
         patience=5,
         test_split=.5,
         weight_decay=.0001,
