@@ -599,7 +599,7 @@ def test_imputer_image_data():
     for color in colors:
         create_test_image(os.path.join(img_path, color + ".png"), color)
 
-    n_samples = 16
+    n_samples = 10
     color_labels = [random.choice(colors) for _ in range(n_samples)]
 
     df = pd.DataFrame({"image_files": color_labels,
