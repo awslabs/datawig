@@ -4,7 +4,7 @@ DataWig - Imputation for Tables
 [![PyPI version](https://badge.fury.io/py/datawig.svg)](https://badge.fury.io/py/datawig.svg)
 [![GitHub license](https://img.shields.io/github/license/awslabs/datawig.svg)](https://github.com/awslabs/datawig/blob/master/LICENSE)
 [![GitHub issues](https://img.shields.io/github/issues/awslabs/datawig.svg)](https://github.com/awslabs/datawig/issues)
-
+[![Build Status](https://travis-ci.org/awslabs/datawig.svg?branch=master)](https://travis-ci.org/awslabs/datawig)
 
 DataWig learns models to impute missing values in tables.
 
