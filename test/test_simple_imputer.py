@@ -40,9 +40,9 @@ warnings.filterwarnings("ignore")
 
 logger.setLevel("INFO")
 
-mx.random.seed(1)
-np.random.seed(42)
-random.seed(1)
+mx.random.seed(10)
+np.random.seed(41)
+random.seed(10)
 
 
 def test_simple_imputer_no_string_column_name():
@@ -314,13 +314,14 @@ def test_imputer_image_hpo():
     for color in colors:
         create_test_image(os.path.join(img_path, color + ".png"), color)
 
-    n_samples = 32
+    n_samples = 10
     color_labels = [random.choice(colors) for _ in range(n_samples)]
 
     df = pd.DataFrame({"image_files": color_labels,
                        "label": color_labels})
 
-    df['image_files'] = img_path + "/" + df['image_files'] + ".png"
+    for index, row in df.iterrows():
+        row['image_files'] = os.path.join(img_path, row['image_files'] + ".png")
 
     output_path = os.path.join(dir_path, "resources", "tmp", "experiment_images_hpo")
 
@@ -337,6 +338,7 @@ def test_imputer_image_hpo():
         weight_decay=.0,
         num_hash_bucket_candidates=[2 ** 10],
         tokens_candidates=['words'],
-        latent_dim_candidates=[10, 100],
+        latent_dim_candidates=[10],
+        learning_rate_candidates=[1e-3],
         hpo_max_train_samples=1000
     )

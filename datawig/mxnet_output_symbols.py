@@ -41,7 +41,7 @@ def make_categorical_loss(latents: mx.symbol,
 
     '''
     fully_connected = None
-    if final_fc_hidden_units is None:
+    if len(final_fc_hidden_units) == 0:
         # generate prediction symbol
         fully_connected = mx.sym.FullyConnected(
             data=latents,

@@ -592,6 +592,9 @@ class NumericalEncoder(ColumnEncoder):
         if not isinstance(data_frame, pd.core.frame.DataFrame):
             raise ValueError("Only pandas data frames are supported")
 
+        if self.scaler is None:
+            self.scaler = StandardScaler().fit(data_frame[self.input_columns].values)
+
         mean = pd.Series(dict(zip(self.input_columns,self.scaler.mean_)))
         data_frame[self.input_columns] = data_frame[self.input_columns].fillna(mean)
 
