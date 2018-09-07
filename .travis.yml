@@ -1,12 +1,17 @@
 language: python
-
-
 python:
- - "3.4"
-
+- '3.4'
 install:
-  - pip install -r requirements/requirements.txt
-  - pip install -r requirements/requirements.dev.txt
-
+- pip install -r requirements/requirements.txt
+- pip install -r requirements/requirements.dev.txt
 script:
-   - python -m py.test
+- python -m py.test
+deploy:
+  provider: pypi
+  distributions: sdist bdist_wheel
+  user: tdhd
+  password:
+    secure: P/sF4OJOOgQJFHcDeDmSjjqgssIduZEnlz/gcE5pQ0tvRyxlLWFTTAnV/lAuSDTQUVbWJ5ukpxlTMZw6Zk5Hx6AeQNGWYpnV6f+p0oLLw5FhHOt8DRZ6DVVQybluY6BVfHPB+/Hhr/QNqNtD2cRPP2068EvNvzQFDaFQAmR/pbCCqOqHkuQQZlZWea0zk8rj88snxzvZuXHq4FN87Ndvev5LoIIpIdwNcPhCvk62XTqpjdoQwBH2lmcVsw7cZr6O0rseS0ymEY1fmC3wMZmlJoYsk5TagGmIHRvC1SqB3HuSTgB3QTw56sIfRkRmPFLbmncxmOUJAQotXVS0+HNaib0u/s+rP1eDHGo9w+6tlSMgQBU8QtyNQP9iIVbymQIdZMwP0DogY8FQHvNph8UMxAi49fV4cWtK3y5v4yuMMs8Xvb6PQPmwMt6JXViY/DqIdsBBNhwWVptDiDpEaFVaNAnTfpcSE+BJ4TwjJ5nokuHh1xmrFNubz4DQuKRUvDvjDORpXBgLZH9l2iqNpY0lzc4D43q3uerHTMWn5/eiCbWrnb0MuFWjbNcsYIcd/tR6OR/bMHW/46ImsZZ5+sh1t6Oifc8X1U2xtsi6wmWOvVzoBR31it2aCDfsnc9iLMPqvuQKy0uaNJ89XtQDXWU4reyRWSaRUZv5UAnBa91g2vQ=
+  on:
+    tags: true
+
