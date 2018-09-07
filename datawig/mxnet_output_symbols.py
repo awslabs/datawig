@@ -40,7 +40,7 @@ def make_categorical_loss(latents: mx.symbol,
     :return: mxnet symbols for predictions and loss
 
     '''
-
+    fully_connected = None
     if final_fc_hidden_units is None:
         # generate prediction symbol
         fully_connected = mx.sym.FullyConnected(
