@@ -270,8 +270,25 @@ class BowFeaturizer(Featurizer):
 
     def __init__(self,
                  field_name: str,
-                 vocab_size: int = 2 ** 15) -> None:
-        super(BowFeaturizer, self).__init__(field_name, vocab_size)
+                 vocab_size: int = 2 ** 15,
+                 bow_FC_hidden_units: List[int] = None,) -> None:
+        
+        if bow_FC_hidden_units is None:
+            bow_FC_hidden_units = []
+
+        dim = vocab_size if len(bow_FC_hidden_units) == 0 else bow_FC_hidden_units[-1]
+        super(BowFeaturizer, self).__init__(field_name, dim)
+
+        self.bow_FC_hidden_units = [int(x) for x in bow_FC_hidden_units]
 
         with mx.name.Prefix(field_name + "_"):
-            self.symbol = mx.sym.Variable("{}".format(field_name), stype='csr')
+            symbol = mx.sym.Variable("{}".format(field_name), stype='csr')
+
+            for hidden_dim in self.bow_FC_hidden_units:
+                symbol = mx.sym.FullyConnected(
+                    data=symbol,
+                    num_hidden=hidden_dim
+                )
+                symbol = mx.symbol.Activation(data=symbol, act_type="softrelu")
+
+            self.symbol = symbol
