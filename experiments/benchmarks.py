@@ -50,7 +50,7 @@ def impute_datawig(X):
         output_path = os.path.join(dir_path, output_col)
         imputer = SimpleImputer(input_columns=input_cols,
                                 output_column=output_col,
-                                output_path=output_path).fit(df.loc[~idx_missing, :])
+                                output_path=output_path).fit(df.loc[~idx_missing, :], num_epochs=50, patience=5)
         df_imputed[output_col] = imputer.predict(df.loc[idx_missing, :])
         shutil.rmtree(output_path)
 
@@ -83,7 +83,7 @@ def run_imputation(X, mask, imputation_fn):
     return mse
 
 
-def experiment(percent_missing=10):
+def experiment(percent_missing_list=[10]):
     DATA_LOADERS = [
         make_low_rank_matrix,
         load_diabetes,
@@ -101,22 +101,23 @@ def experiment(percent_missing=10):
 
     results = []
 
-    for data_fn in DATA_LOADERS:
-        X = get_data(data_fn)
-        missing_mask = np.random.rand(*X.shape) < percent_missing / 100.
-        for imputer_fn in imputers:
-            mse = run_imputation(X, missing_mask, imputer_fn)
-            result = {
-                'data': data_fn.__name__,
-                'imputer': imputer_fn.__name__,
-                'percent_missing': percent_missing,
-                'mse': mse
-            }
-            print(result)
-            results.append(result)
+    for percent_missing in percent_missing_list:
+        for data_fn in DATA_LOADERS:
+            X = get_data(data_fn)
+            missing_mask = np.random.rand(*X.shape) < percent_missing / 100.
+            for imputer_fn in imputers:
+                mse = run_imputation(X, missing_mask, imputer_fn)
+                result = {
+                    'data': data_fn.__name__,
+                    'imputer': imputer_fn.__name__,
+                    'percent_missing': percent_missing,
+                    'mse': mse
+                }
+                print(result)
+                results.append(result)
     return results
 
 
 if __name__ == "__main__":
-    results = experiment()
+    results = experiment(percent_missing_list=[10, 30, 50])
     json.dump(results, open(os.path.join(dir_path, 'benchmark_results.json'), 'w'))
