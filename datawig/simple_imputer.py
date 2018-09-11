@@ -152,6 +152,7 @@ class SimpleImputer():
                 train_df: pd.DataFrame,
                 test_df: pd.DataFrame = None,
                 ctx: mx.context = mx.gpu() if gpu_device() else mx.cpu(),
+                num_gpus: int = 1,
                 learning_rate: float = 1e-3,
                 num_epochs: int = 10,
                 patience: int = 3,
@@ -319,6 +320,7 @@ class SimpleImputer():
                     .fit(train_df_hpo.copy(),
                          None,
                          ctx,
+                         num_gpus,
                          learning_rate,
                          num_epochs,
                          patience,
@@ -334,6 +336,7 @@ class SimpleImputer():
                     .fit(train_df_hpo.copy(),
                          None,
                          ctx,
+                         num_gpus,
                          hyper_param['learning_rate'],
                          num_epochs,
                          patience,
@@ -404,12 +407,12 @@ class SimpleImputer():
 
         # Create and fit imputer with best HPs
         if len(self.image_columns) > 0:
-            self.imputer = self.imputer.fit(train_df, test_df, ctx, learning_rate, num_epochs,
+            self.imputer = self.imputer.fit(train_df, test_df, ctx, num_gpus, learning_rate, num_epochs,
                                             patience, test_split,
                                             best_hps['weight_decay'], batch_size,
                                             best_hps['final_fc_dim'])
         else:
-            self.imputer = self.imputer.fit(train_df, test_df, ctx, learning_rate, num_epochs,
+            self.imputer = self.imputer.fit(train_df, test_df, ctx, num_gpus, learning_rate, num_epochs,
                                             patience, test_split, weight_decay[0])
 
         self.hpo_results = hpo_results
@@ -422,6 +425,7 @@ class SimpleImputer():
             train_df: pd.DataFrame,
             test_df: pd.DataFrame = None,
             ctx: mx.context = mx.gpu() if gpu_device() else mx.cpu(),
+            num_gpus: int = 1,
             learning_rate: float = 4e-3,
             num_epochs: int = 10,
             patience: int = 3,
@@ -504,7 +508,7 @@ class SimpleImputer():
 
         self.output_path = self.imputer.output_path
 
-        self.imputer = self.imputer.fit(train_df, test_df, ctx, learning_rate, num_epochs, patience,
+        self.imputer = self.imputer.fit(train_df, test_df, ctx, num_gpus, learning_rate, num_epochs, patience,
                                         test_split,
                                         weight_decay, batch_size,
                                         final_fc_hidden_units=final_fc_hidden_units,

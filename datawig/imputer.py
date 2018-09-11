@@ -173,6 +173,7 @@ class Imputer:
             train_df: pd.DataFrame,
             test_df: pd.DataFrame = None,
             ctx: mx.context = mx.gpu() if gpu_device() else mx.cpu(),
+            num_gpus: int = 1,
             learning_rate: float = 1e-3,
             num_epochs: int = 100,
             patience: int = 3,
@@ -209,7 +210,17 @@ class Imputer:
         self.batch_size = batch_size
         self.final_fc_hidden_units = final_fc_hidden_units
 
-        self.ctx = ctx
+        gpu_list = []
+        if num_gpus > 1:
+            for i in range(num_gpus):
+                gpu_ctx = gpu_device(gpu_number=i)
+                if gpu_ctx is not None:
+                    gpu_list.append(gpu_ctx)
+        
+        if len(gpu_list) == 0:
+            gpu_list.append(ctx)
+
+        self.ctx = gpu_list
 
         if (train_df is None) or (not isinstance(train_df, pd.core.frame.DataFrame)):
             raise ValueError("Need a non-empty DataFrame for fitting Imputer model")
