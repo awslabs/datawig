@@ -91,5 +91,11 @@ Run tests:
 ./venv/bin/python -m pytest
 ```
 
+## Citation
+
+If you would like to cite this package in a research paper, please use:
+
+Sebastian Schelter, Dustin Lange, Philipp Schmidt, Meltem Celikel, Felix Biessmann, and Andreas Grafberger. 2018. [Automating large-scale data quality verification](http://www.vldb.org/pvldb/vol11/p1781-schelter.pdf). Proc. VLDB Endow. 11, 12 (August 2018), 1781-1794. 
+
 ### Acknowledgments
 Thanks to [David Greenberg](https://github.com/dgreenberg) for the package name.
