@@ -27,7 +27,7 @@ import mxnet as mx
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
-from .utils import logger, gpu_device, random_split, rand_string
+from .utils import logger, get_context, random_split, rand_string
 from .imputer import Imputer
 from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ImageEncoder, \
     ColumnEncoder
@@ -151,7 +151,7 @@ class SimpleImputer():
     def fit_hpo(self,
                 train_df: pd.DataFrame,
                 test_df: pd.DataFrame = None,
-                ctx: mx.context = gpu_device(),
+                ctx: mx.context = get_context(),
                 learning_rate: float = 1e-3,
                 num_epochs: int = 10,
                 patience: int = 3,
@@ -422,7 +422,7 @@ class SimpleImputer():
     def fit(self,
             train_df: pd.DataFrame,
             test_df: pd.DataFrame = None,
-            ctx: mx.context = gpu_device(),
+            ctx: mx.context = get_context(),
             learning_rate: float = 4e-3,
             num_epochs: int = 10,
             patience: int = 3,
