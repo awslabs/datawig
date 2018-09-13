@@ -242,6 +242,16 @@ class Imputer:
 
         return self
 
+    def explain(self, label: str, k: int):
+        """
+        Returns a k-element list of input tokens that best explain the given label.
+        :param label: string label to explain
+        :param k: number of explanations for the given label to return
+        :return: maximally k-element list of feature tokens explaining the target `label`
+        """
+        # TODO: G-test/LIME
+        return []
+
     def __fit_module(self,
                      iter_train: ImputerIterDf,
                      iter_test: ImputerIterDf,

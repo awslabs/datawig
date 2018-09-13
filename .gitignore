@@ -1,3 +1,14 @@
 *DS_Store
 .DS_Store
 /venv/
+dist/
+.idea
+
+label/
+datawig.egg-info
+datawig/__pycache__
+test/__pycache__
+test/resources
+.cache
+build
+.pytest_cache/

@@ -695,5 +695,3 @@ def test_imputer_unrepresentative_test_df():
                                                   precision_threshold=.99)['labels']
     assert all([x == () for x in imputations])
     shutil.rmtree(output_path)
-
-test_imputer_real_data_all_featurizers()
