@@ -228,5 +228,17 @@ def test_tfidf_encoder():
     assert tfidf_encoder.is_fitted() is True
     assert true == pytest.approx(bow, 1e-4)
 
+    shutil.rmtree(img_path)
+
+
+def test_tfidf_encoder():
+    tfidf_encoder = column_encoders.TfIdfEncoder("features", max_tokens=5)
+    assert tfidf_encoder.is_fitted() is False
+    tfidf_encoder.fit(df)
+    bow = tfidf_encoder.transform(df)[0].toarray()[0]
+    true = np.array([0.75592893, 0.5669467, 0.18898223, 0.18898223, 0.18898223])
+    assert tfidf_encoder.is_fitted() is True
+    assert true == pytest.approx(bow, 1e-4)
+
     decoded_indices = tfidf_encoder.decode(pd.Series([0, 1, 2]))
     assert np.array_equal(decoded_indices.values, np.array([' ', 'c', 'e']))

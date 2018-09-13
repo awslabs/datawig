@@ -668,3 +668,5 @@ def test_mxnet_module_wrapper(data_frame):
     assert mod.data_names == [feature_col]
     # weights and biases
     assert len(mod._arg_params) == 2
+
+    shutil.rmtree(output_path)
