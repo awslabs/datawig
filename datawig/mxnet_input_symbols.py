@@ -21,7 +21,7 @@ extract features or pass on encoded numerical representations of rows
 from typing import List, Any
 import mxnet as mx
 
-from .utils import gpu_device
+from .utils import get_context
 
 
 class Featurizer():
@@ -199,7 +199,7 @@ class LSTMFeaturizer(Featurizer):
                  num_hidden: int = 50,
                  num_layers: int = 2,
                  latent_dim: int = 50,
-                 use_gpu: bool = mx.gpu() if gpu_device() else mx.cpu()) -> None:
+                 use_gpu: bool = False if mx.cpu() in get_context() else True) -> None:
         super(LSTMFeaturizer, self).__init__(field_name, latent_dim)
 
         self.vocab_size = int(vocab_size)

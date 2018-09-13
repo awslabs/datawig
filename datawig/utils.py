@@ -65,22 +65,28 @@ def merge_dicts(d1: dict, d2: dict):
     """
     return dict(itertools.chain(d1.items(), d2.items()))
 
-def gpu_device(gpu_number: int = 0) -> mx.context:
+def get_context() -> mx.context:
     """
 
-    Returns the gpu context for a given gpu device or None if that context is not available.
-    Use it for auto-detecting whether a gpu is available on a machine with
-    ctx = mx.gpu() if gpu_device() else mx.cpu()
+    Returns the a list of all available gpu contexts for a given machine.
+    If no gpus are available, returns [mx.cpu()].
+    Use it to automatically return MxNet contexts (uses max number of gpus or cpu)
 
-    :param gpu_number: number of the gpu, default 0
-    :return: mxnet context of a gpu or none if not available
+    :return: List of mxnet contexts of a gpu or [mx.cpu()] if gpu not available
 
     """
-    try:
-        _ = mx.nd.array([1, 2, 3], ctx=mx.gpu(gpu_number))
-    except mx.MXNetError:
-        return None
-    return mx.gpu(gpu_number)
+    context_list = []
+    for gpu_number in range(16):
+        try:
+            _ = mx.nd.array([1, 2, 3], ctx=mx.gpu(gpu_number))
+            context_list.append(mx.gpu(gpu_number))
+        except mx.MXNetError:
+            pass
+    
+    if len(context_list) == 0:
+        context_list.append(mx.cpu())
+
+    return context_list
 
 def random_split(data_frame: pd.DataFrame,
                  split_ratios: List[float] = None,

@@ -32,7 +32,7 @@ import numpy as np
 
 from .mxnet_output_symbols import make_categorical_loss, make_numerical_loss
 from .utils import timing, MeanSymbol, LogMetricCallBack, logger, \
-    random_split, AccuracyMetric, gpu_device, ColumnOverwriteException, merge_dicts
+    random_split, AccuracyMetric, get_context, ColumnOverwriteException, merge_dicts
 from .column_encoders import ColumnEncoder, NumericalEncoder, CategoricalEncoder
 from .iterators import ImputerIterDf
 from .mxnet_input_symbols import Featurizer, ImageFeaturizer
@@ -172,7 +172,7 @@ class Imputer:
     def fit(self,
             train_df: pd.DataFrame,
             test_df: pd.DataFrame = None,
-            ctx: mx.context = mx.gpu() if gpu_device() else mx.cpu(),
+            ctx: mx.context = get_context(),
             learning_rate: float = 1e-3,
             num_epochs: int = 100,
             patience: int = 3,
@@ -187,7 +187,8 @@ class Imputer:
         :param train_df: training data as dataframe
         :param test_df: test data as dataframe; if not provided, [test_split] % of the training
                         data are used as test data
-        :param ctx: mxnet context (default mx.cpu())
+        :param ctx: List of mxnet contexts (if no gpu's available, defaults to [mx.cpu()])
+                    User can also pass in a list gpus to be used, ex. [mx.gpu(0), mx.gpu(2), mx.gpu(4)]
         :param learning_rate: learning rate for stochastic gradient descent (default 1e-4)
         :param num_epochs: maximal number of training epochs (default 100)
         :param patience: used for early stopping; after [patience] epochs with no improvement,
@@ -210,6 +211,7 @@ class Imputer:
         self.final_fc_hidden_units = final_fc_hidden_units
 
         self.ctx = ctx
+        logger.info('Using [{}] as the context for training'.format(ctx))
 
         if (train_df is None) or (not isinstance(train_df, pd.core.frame.DataFrame)):
             raise ValueError("Need a non-empty DataFrame for fitting Imputer model")
