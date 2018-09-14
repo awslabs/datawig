@@ -29,11 +29,12 @@ import mxnet as mx
 from mxnet.callback import save_checkpoint
 import pandas as pd
 import numpy as np
+from sklearn.preprocessing import StandardScaler
 
 from .mxnet_output_symbols import make_categorical_loss, make_numerical_loss
 from .utils import timing, MeanSymbol, LogMetricCallBack, logger, \
     random_split, AccuracyMetric, get_context, ColumnOverwriteException, merge_dicts
-from .column_encoders import ColumnEncoder, NumericalEncoder, CategoricalEncoder
+from .column_encoders import ColumnEncoder, NumericalEncoder, CategoricalEncoder, TfIdfEncoder
 from .iterators import ImputerIterDf
 from .mxnet_input_symbols import Featurizer, ImageFeaturizer
 from .evaluation import evaluate_and_persist_metrics
@@ -241,6 +242,15 @@ class Imputer:
         self.__prune_models()
         self.save()
 
+        # todo
+        # save training encoding + label probabilities
+        iter_train.reset()
+        self.__pp = self.predict(train_df)
+        iter_train.reset()
+        self.__iter_train_probas = self.__predict_mxnet_iter(iter_train)
+        import scipy.sparse
+        self.__X_train = scipy.sparse.vstack([enc.transform(train_df) for enc in self.data_encoders])
+
         return self
 
     def explain(self, label: str, k: int):
@@ -250,8 +260,49 @@ class Imputer:
         :param k: number of explanations for the given label to return
         :return: maximally k-element list of feature tokens explaining the target `label`
         """
+        # TODO: include 'method' param (auto, covar, lime, ...)
         # TODO: G-test/LIME
-        return []
+
+        if label not in self.label_encoders[0].token_to_idx.keys():
+            logger.warn("Specified label {} not observed in label encoder".format(label))
+            return []
+
+        for encoder in self.data_encoders:
+            if not isinstance(encoder, TfIdfEncoder) and not isinstance(encoder, CategoricalEncoder):
+                logger.warn("Data encoder type {} incompatible for explaining classes".format(type(encoder)))
+                return []
+
+        arg_params, aux_params = self.module.get_params()
+        if len(arg_params) != 2:
+            logger.warn("Too many model parameters")
+            return []
+
+        # weights (KxD) and intercepts (Kx1)
+        # fixme: K is nunique labels + 1?
+        W, b = list(arg_params.values())
+        # todo: intercept first or last?
+        # W = np.concatenate((W.asnumpy(), b.asnumpy().reshape(len(b), -1)), axis=1)
+
+        self.__pp.to_csv("/tmp/1.csv")
+        p = self.__iter_train_probas['label']
+        X = self.__X_train
+
+        # standardscaler
+        data_scaled = StandardScaler(with_mean=False).fit_transform(X)
+        labels_normalized = StandardScaler().fit_transform(p)
+
+        # D x K
+        class_patterns = data_scaled.T.dot(labels_normalized)
+        # fixme: just one encoder
+        idx2word = {idx: word for word, idx in self.data_encoders[0].vectorizer.vocabulary_.items()}
+
+        l = self.label_encoders[0]
+        pattern = class_patterns[:, l.token_to_idx[label]]
+
+        top_words_of_pattern = pattern.argsort()[-k:][::-1]
+        class_words_without_sample = [idx2word[w_idx] for w_idx in top_words_of_pattern]
+
+        return class_words_without_sample
 
     def __fit_module(self,
                      iter_train: ImputerIterDf,
@@ -647,7 +698,7 @@ class Imputer:
         true_labels_numerical = {}
 
         for l_idx, col_enc in enumerate(mxnet_iter.label_columns):
-             # pylint: disable=invalid-sequence-index
+            # pylint: disable=invalid-sequence-index
             n_predictions = len(all_predictions[col_enc.output_column])
             if isinstance(col_enc, CategoricalEncoder):
                 predictions_categorical[col_enc.output_column] = all_predictions[
