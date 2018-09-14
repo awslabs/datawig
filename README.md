@@ -40,7 +40,7 @@ where `${CUDA_VERSION}` can be `75` (7.5), `80` (8.0), `90` (9.0), or `91` (9.1)
 ## Running DataWig
 The DataWig API expects your data as a [pandas DataFrame](https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.html). Here is an example of how the dataframe might look:
 
-![datawig dataframe example](https://s3.amazonaws.com/datawig/example_data/df_example_image.png)
+![datawig dataframe example](https://s3.amazonaws.com/datawig/example_data/df_image_resize.png)
 
 
 For most use cases, the `SimpleImputer` class is the best starting point. DataWig expects you to provide the column name of the column you would like to impute values for (called `output_column` below) and some column names that contain values that you deem useful for imputation (called `input_columns` below).
