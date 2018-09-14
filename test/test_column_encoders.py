@@ -27,7 +27,7 @@ import numpy as np
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 from datawig import column_encoders
-from test_imputer import create_test_image
+from test.test_imputer import create_test_image
 
 random.seed(1)
 np.random.seed(42)

@@ -7,6 +7,9 @@ install:
 - pip install -r requirements/requirements.dev.txt
 script:
 - python -m py.test
+- pylint --version
+- pylint --rcfile=pylintrc datawig -E
+- pylint --rcfile=pylintrc test -E
 deploy:
   provider: pypi
   distributions: sdist bdist_wheel

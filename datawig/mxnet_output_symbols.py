@@ -81,7 +81,7 @@ def make_categorical_loss(latents: mx.symbol,
     positive_mask = mx.sym.broadcast_greater(label, missing_labels)
 
     # compute the cross entropy only when labels are positive
-    cross_entropy = mx.sym.pick(mx.sym.log_softmax(fully_connected), label) * -positive_mask
+    cross_entropy = mx.sym.pick(mx.sym.log_softmax(fully_connected), label) * -1 * positive_mask
 
     # normalize the cross entropy by the number of positive label
     num_positive_indices = mx.sym.sum(positive_mask)

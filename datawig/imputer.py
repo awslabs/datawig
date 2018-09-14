@@ -637,6 +637,7 @@ class Imputer:
         true_labels_numerical = {}
 
         for l_idx, col_enc in enumerate(mxnet_iter.label_columns):
+             # pylint: disable=invalid-sequence-index
             n_predictions = len(all_predictions[col_enc.output_column])
             if isinstance(col_enc, CategoricalEncoder):
                 predictions_categorical[col_enc.output_column] = all_predictions[
@@ -803,7 +804,7 @@ class Imputer:
 
         """
         n_samples = len(data_frame)
-        missing_idx = None
+        missing_idx = -1
         for col_enc in self.label_encoders:
             if isinstance(col_enc, CategoricalEncoder):
                 # for CategoricalEncoders, exclude rows that are either nan or not in the
@@ -818,7 +819,7 @@ class Imputer:
             logger.info("Detected {} rows with missing labels \
                         for column {}".format(col_missing_idx.sum(), col_enc.input_columns[0]))
 
-            if missing_idx is None:
+            if missing_idx == -1:
                 missing_idx = col_missing_idx
             elif how == 'all':
                 missing_idx = missing_idx & col_missing_idx

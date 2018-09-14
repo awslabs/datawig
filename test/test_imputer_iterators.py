@@ -28,7 +28,7 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 
 from datawig.column_encoders import SequentialEncoder, CategoricalEncoder, BowEncoder
 from datawig.iterators import ImputerIterDf
-from test_imputer import generate_string_data_frame
+from test.test_imputer import generate_string_data_frame
 
 random.seed(0)
 np.random.seed(0)
@@ -75,6 +75,7 @@ def test_iter_df_bow():
 
 def test_iter_provide_label_or_data_df():
     it = get_new_iterator_df()
+     # pylint: disable=unsubscriptable-object
     assert (it.provide_data[0][0] == label_col)
     assert (it.provide_data[0][1] == (2, 2))
     assert (it.provide_label[0][0] == label_col)

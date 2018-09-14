@@ -52,7 +52,7 @@ class ImputerIter(mx.io.DataIter):
         self._provide_data = None
         self._provide_label = None
         self.df_iterator = None
-        self.indices = None
+        self.indices = []
         self.start_padding_idx = 0
 
     def __iter__(self):
