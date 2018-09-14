@@ -38,7 +38,7 @@ random.seed(10)
 np.random.seed(43)
 
 from datawig.column_encoders import SequentialEncoder, CategoricalEncoder, BowEncoder, \
-    NumericalEncoder, ImageEncoder
+    NumericalEncoder, ImageEncoder, TfIdfEncoder
 from datawig.mxnet_input_symbols import LSTMFeaturizer, EmbeddingFeaturizer, BowFeaturizer, \
     NumericalFeaturizer, ImageFeaturizer
 from datawig.imputer import Imputer
@@ -694,4 +694,60 @@ def test_imputer_unrepresentative_test_df():
     imputations = imputer.predict_above_precision(only_excluded_df,
                                                   precision_threshold=.99)['labels']
     assert all([x == () for x in imputations])
+    shutil.rmtree(output_path)
+
+
+def test_imputer_tfidf_explain():
+    """
+    Test that the imputer is able to explain labels with the TfIdfEncoder
+    """
+
+    feature_col = "string_feature"
+    label_col = "label"
+
+    n_samples = 500
+    num_labels = 3
+    seq_len = 20
+    vocab_size = int(2 ** 10)
+
+    # generate some random data
+    df_train = generate_string_data_frame(feature_col=feature_col,
+                                             label_col=label_col,
+                                             vocab_size=vocab_size,
+                                             num_labels=num_labels,
+                                             num_words=seq_len,
+                                             n_samples=n_samples)
+
+
+    num_epochs = 1
+    batch_size = 64
+    learning_rate = 1e-3
+
+    data_encoder_cols = [TfIdfEncoder(feature_col, max_tokens=vocab_size)]
+    label_encoder_cols = [CategoricalEncoder(label_col, max_tokens=num_labels)]
+
+    data_cols = [
+        BowFeaturizer(feature_col, vocab_size=vocab_size)
+    ]
+
+    output_path = os.path.join(dir_path, "resources", "tmp", "real_data_experiment")
+
+    imputer = Imputer(
+        data_featurizers=data_cols,
+        label_encoders=label_encoder_cols,
+        data_encoders=data_encoder_cols,
+        output_path=output_path
+    )
+
+    try:
+        imputer.fit(
+            train_df=df_train,
+            learning_rate=learning_rate,
+            num_epochs=num_epochs,
+            batch_size=batch_size
+        )
+        imputer.explain(df_train[label_col].values[0], k=3)
+    except TypeError:
+        pytest.fail("Didn't expect a TypeError exception with missing test data")
+
     shutil.rmtree(output_path)
