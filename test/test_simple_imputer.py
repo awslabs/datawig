@@ -34,7 +34,7 @@ from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
 
-from test_imputer import generate_string_data_frame, create_test_image
+from test.test_imputer import generate_string_data_frame, create_test_image
 
 warnings.filterwarnings("ignore")
 

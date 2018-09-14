@@ -23,7 +23,7 @@ from datawig.column_encoders import SequentialEncoder, CategoricalEncoder, BowEn
 from datawig.mxnet_input_symbols import LSTMFeaturizer, EmbeddingFeaturizer, BowFeaturizer
 from datawig.imputer import Imputer
 from datawig.utils import random_split
-from test_imputer import generate_string_data_frame
+from test.test_imputer import generate_string_data_frame
 
 
 def generate_synthetic_data(K: int=5, N: int=100, p_correct: float=.8):

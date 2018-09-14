@@ -204,7 +204,7 @@ class LogMetricCallBack(object):
 
         if self.patience < len(errors):
             # check that the metric has improved, e.g. that all recent metrics were worse
-            metric_before_patience = errors[- self.patience - 1]
+            metric_before_patience = errors[(-1 * self.patience) - 1]
 
             no_improvement = all(
                 [errors[-i] >= metric_before_patience for i in range(0, self.patience)]

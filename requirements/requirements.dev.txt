@@ -1,7 +1,7 @@
 setuptools==40.2.0
 wheel==0.31.1
 pylint==2.1.1
-ipython==6.2.1
+typing==3.6.6
 mypy==0.620
 sphinx==1.7.6
 pillow==5.2.0
