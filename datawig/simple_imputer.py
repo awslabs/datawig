@@ -54,7 +54,7 @@ class SimpleImputer():
                         input columns, ignored otherwise
     :param tokens: string, 'chars' or 'words' (default 'chars'), determines tokenization strategy
                 for n-grams, only used for non-numerical input columns, ignored otherwise
-    :param latent_dim: int, number of latent dimensions for hidden layer of NumericalFeaturizers;
+    :param numeric_latent_dim: int, number of latent dimensions for hidden layer of NumericalFeaturizers;
                 only used for numerical input columns, ignored otherwise
 
 
@@ -90,8 +90,8 @@ class SimpleImputer():
                  num_hash_buckets: int = int(2 ** 15),
                  num_labels: int = 100,
                  tokens: str = 'chars',
-                 latent_dim: int = 100,
-                 hidden_layers: int = 1
+                 numeric_latent_dim: int = 100,
+                 numeric_hidden_layers: int = 1
                  ) -> None:
 
         for col in input_columns:
@@ -106,8 +106,8 @@ class SimpleImputer():
         self.num_hash_buckets = num_hash_buckets
         self.num_labels = num_labels
         self.tokens = tokens
-        self.latent_dim = latent_dim
-        self.hidden_layers = hidden_layers
+        self.numeric_latent_dim = numeric_latent_dim
+        self.numeric_hidden_layers = numeric_hidden_layers
         self.output_path = output_path
         self.imputer = None
         self.hpo_results = None
@@ -160,11 +160,11 @@ class SimpleImputer():
                 batch_size: int = 16,
                 num_hash_bucket_candidates: List[float] = None,
                 tokens_candidates: List[str] = None,
-                latent_dim_candidates: List[int] = None,
-                hidden_layers_candidates: List[int] = None,
+                numeric_latent_dim_candidates: List[int] = None,
+                numeric_hidden_layers_candidates: List[int] = None,
                 hpo_max_train_samples: int = 10000,
                 normalize_numeric: bool = True,
-                layer_dim: List[List[int]] = None,
+                image_fc_hidden_units: List[List[int]] = None,
                 final_fc_hidden_units: List[List[int]] = None,
                 learning_rate_candidates: List[float] = None) -> Any:
 
@@ -190,14 +190,14 @@ class SimpleImputer():
         :param num_hash_bucket_candidates: candidates for gridsearch hyperparameter
                             optimization (default [2**10, 2**13, 2**15, 2**18, 2**20])
         :param tokens_candidates: candidates for tokenization (default ['words', 'chars'])
-        :param latent_dim_candidates: candidates for latent dimensionality of
+        :param numeric_latent_dim_candidates: candidates for latent dimensionality of
                             numerical features (default [10, 50, 100])
-        :param hidden_layers_candidates: candidates for number of hidden layers of
+        :param numeric_hidden_layers_candidates: candidates for number of hidden layers of
                             numerical features (default [0, 1, 2])
         :param learning_rate_candidates: candidates for learning rate (default [1e-1, 1e-2, 1e-3])
         :param hpo_max_train_samples: training set size for hyperparameter optimization
         :param normalize_numeric: boolean indicating whether or not to normalize numeric values
-        :param layer_dim: list of lists w/ dimensions for FC layers after the image
+        :param image_fc_hidden_units: list of lists w/ dimensions for FC layers after the image
                             featurization network (NOTE: for HPO, this expects a list of lists)
         :param final_fc_hidden_units: list of lists w/ dimensions for FC layers after the
                             final concatenation (NOTE: for HPO, this expects a list of lists)
@@ -213,14 +213,14 @@ class SimpleImputer():
         if tokens_candidates is None:
             tokens_candidates = ['words', 'chars']
 
-        if latent_dim_candidates is None:
-            latent_dim_candidates = [10, 50, 100]
+        if numeric_latent_dim_candidates is None:
+            numeric_latent_dim_candidates = [10, 50, 100]
 
-        if hidden_layers_candidates is None:
-            hidden_layers_candidates = [0, 1, 2]
+        if numeric_hidden_layers_candidates is None:
+            numeric_hidden_layers_candidates = [0, 1, 2]
 
-        if layer_dim is None:
-            layer_dim = [[1024]]
+        if image_fc_hidden_units is None:
+            image_fc_hidden_units = [[1024]]
 
         if final_fc_hidden_units is None:
             final_fc_hidden_units = [[100]]
@@ -244,26 +244,26 @@ class SimpleImputer():
                     columns=['num_hash_buckets', 'tokens', 'learning_rate'])
             else:
                 hps = pd.DataFrame(
-                    list(itertools.product(num_hash_bucket_candidates, tokens_candidates, layer_dim,
+                    list(itertools.product(num_hash_bucket_candidates, tokens_candidates, image_fc_hidden_units,
                                            final_fc_hidden_units, weight_decay,
                                            learning_rate_candidates)),
-                    columns=['num_hash_buckets', 'tokens', 'layer_dim', 'final_fc_dim',
+                    columns=['num_hash_buckets', 'tokens', 'image_fc_hidden_units', 'final_fc_dim',
                              'weight_decay', 'learning_rate'])
 
         elif len(self.string_columns) == 0:
             hps = pd.DataFrame(
-                list(itertools.product(latent_dim_candidates, hidden_layers_candidates,
+                list(itertools.product(numeric_latent_dim_candidates, numeric_hidden_layers_candidates,
                                        learning_rate_candidates)),
-                columns=['latent_dim', 'hidden_layers', 'learning_rate'])
+                columns=['numeric_latent_dim', 'numeric_hidden_layers', 'learning_rate'])
         else:
             hps = pd.DataFrame(
                 list(itertools.product(
                     num_hash_bucket_candidates,
                     tokens_candidates,
-                    latent_dim_candidates,
-                    hidden_layers_candidates,
+                    numeric_latent_dim_candidates,
+                    numeric_hidden_layers_candidates,
                     learning_rate_candidates)),
-                columns=['num_hash_buckets', 'tokens', 'latent_dim', 'hidden_layers',
+                columns=['num_hash_buckets', 'tokens', 'numeric_latent_dim', 'numeric_hidden_layers',
                          'learning_rate'])
 
         label_column = []
@@ -300,8 +300,8 @@ class SimpleImputer():
                                                    output_column=numerical_feature_column,
                                                    normalize=normalize_numeric)]
                 data_columns += [NumericalFeaturizer(field_name=numerical_feature_column,
-                                                     latent_dim=hyper_param['latent_dim'],
-                                                     hidden_layers=hyper_param['hidden_layers'])]
+                                                     numeric_latent_dim=hyper_param['numeric_latent_dim'],
+                                                     numeric_hidden_layers=hyper_param['numeric_hidden_layers'])]
 
             if len(self.image_columns) > 0:
                 image_feature_column = "image_features-" + rand_string(10)
@@ -309,7 +309,7 @@ class SimpleImputer():
                                                output_column=image_feature_column)]
                 data_columns += [
                     ImageFeaturizer(field_name=image_feature_column,
-                                    layer_dim=hyper_param['layer_dim'])]
+                                    image_fc_hidden_units=hyper_param['image_fc_hidden_units'])]
 
                 # Create and fit imputer
             if len(self.image_columns) > 0:
@@ -384,15 +384,15 @@ class SimpleImputer():
                                                output_column=numerical_feature_column,
                                                normalize=True)]
             data_columns += [NumericalFeaturizer(field_name=numerical_feature_column,
-                                                 latent_dim=best_hps['latent_dim'],
-                                                 hidden_layers=best_hps['hidden_layers']
+                                                 numeric_latent_dim=best_hps['numeric_latent_dim'],
+                                                 numeric_hidden_layers=best_hps['numeric_hidden_layers']
                                                  )]
 
         if len(self.image_columns) > 0:
             data_encoders += [ImageEncoder(input_columns=self.image_columns,
                                            output_column=image_feature_column)]
             data_columns += [
-                ImageFeaturizer(field_name=image_feature_column, layer_dim=best_hps['layer_dim'])]
+                ImageFeaturizer(field_name=image_feature_column, image_fc_hidden_units=best_hps['image_fc_hidden_units'])]
 
         self.imputer = Imputer(data_encoders=data_encoders,
                                data_featurizers=data_columns,
@@ -429,7 +429,7 @@ class SimpleImputer():
             test_split: float = .1,
             weight_decay: float = 0.,
             batch_size: int = 16,
-            layer_dim: List[int] = None,
+            image_fc_hidden_units: List[int] = None,
             final_fc_hidden_units: List[int] = None,
             calibrate: bool = True) -> Any:
         """
@@ -449,13 +449,13 @@ class SimpleImputer():
                             separate for determining model convergence
         :param weight_decay: regularizer (default 0)
         :param batch_size (default 16)
-        :param layer_dim: list dimensions for FC layers after the image featurization network
+        :param image_fc_hidden_units: list dimensions for FC layers after the image featurization network
         :param final_fc_hidden_units: list dimensions for FC layers after the final concatenation
 
         """
 
-        if layer_dim is None:
-            layer_dim = [100]
+        if image_fc_hidden_units is None:
+            image_fc_hidden_units = [100]
 
         if final_fc_hidden_units is None:
             final_fc_hidden_units = [100]
@@ -481,14 +481,14 @@ class SimpleImputer():
                                                output_column=numerical_feature_column)]
 
             data_columns += [
-                NumericalFeaturizer(field_name=numerical_feature_column, latent_dim=self.latent_dim,
-                                    hidden_layers=self.hidden_layers)]
+                NumericalFeaturizer(field_name=numerical_feature_column, numeric_latent_dim=self.numeric_latent_dim,
+                                    numeric_hidden_layers=self.numeric_hidden_layers)]
 
         if len(self.image_columns) > 0:
             image_feature_column = "image_features-" + rand_string(10)
             data_encoders += [ImageEncoder(input_columns=self.image_columns,
                                            output_column=image_feature_column)]
-            data_columns += [ImageFeaturizer(field_name=image_feature_column, layer_dim=layer_dim)]
+            data_columns += [ImageFeaturizer(field_name=image_feature_column, image_fc_hidden_units=image_fc_hidden_units)]
 
         label_column = []
 
