@@ -61,7 +61,7 @@ class ImageFeaturizer(Featurizer):
 
     :param field_name: name of the column
     :param fine_tune: boolean that determines if entire image feature extraction model will be tuned
-    :layer_dim: list containing dimensions of fully connected layer after fwd pass through image
+    :image_fc_hidden_units: list containing dimensions of fully connected layer after fwd pass through image
                 extraction network. The length of this list corresponds to the number of FC layers,
                 and the contents of the list are integers with corresponding hidden layer size
 
@@ -70,23 +70,23 @@ class ImageFeaturizer(Featurizer):
     def __init__(self,
                  field_name: str,
                  fine_tune: bool = False,
-                 layer_dim: List[int] = None,
+                 image_fc_hidden_units: List[int] = None,
                  model_name: str = 'densenet121') -> None:
-        if layer_dim is None:
-            layer_dim = [1024]
+        if image_fc_hidden_units is None:
+            image_fc_hidden_units = [1024]
 
-        super(ImageFeaturizer, self).__init__(field_name, layer_dim[-1])
+        super(ImageFeaturizer, self).__init__(field_name, image_fc_hidden_units[-1])
 
         self.fine_tune = fine_tune
         self.model_name = model_name
-        self.layer_dim = [int(x) for x in layer_dim]
+        self.image_fc_hidden_units = [int(x) for x in image_fc_hidden_units]
 
         with mx.name.Prefix(self.prefix):
             symbol, arg_params = self.__get_pretrained_model(self.input_symbol,
                                                              self.model_name)
             self.params = arg_params
 
-            for hidden_dim in self.layer_dim:
+            for hidden_dim in self.image_fc_hidden_units:
                 symbol = mx.sym.FullyConnected(
                     data=symbol,
                     num_hidden=hidden_dim
@@ -151,25 +151,26 @@ class NumericalFeaturizer(Featurizer):
     NumericFeaturizer, a one hidden layer neural network with relu activations
 
     :param field_name: name of the column
-    :param latent_dim: number of hidden units
-    :param hidden_layers: number of hidden layers
+    :param numeric_latent_dim: number of hidden units
+    :param numeric_hidden_layers: number of hidden layers
     :return:
     '''
 
     def __init__(self,
                  field_name: str,
-                 latent_dim: int = 100,
-                 hidden_layers: int = 1) -> None:
-        super(NumericalFeaturizer, self).__init__(field_name, latent_dim)
+                 numeric_latent_dim: int = 100,
+                 numeric_hidden_layers: int = 1) -> None:
+        super(NumericalFeaturizer, self).__init__(field_name, numeric_latent_dim)
 
-        self.hidden_layers = int(hidden_layers)
+        self.numeric_hidden_layers = int(numeric_hidden_layers)
+        self.numeric_latent_dim = int(numeric_latent_dim)
 
         with mx.name.Prefix(self.prefix):
             self.symbol = self.input_symbol
-            for _ in range(self.hidden_layers):
+            for _ in range(self.numeric_hidden_layers):
                 symbol = mx.sym.FullyConnected(
                     data=self.symbol,
-                    num_hidden=self.latent_dim
+                    num_hidden=self.numeric_latent_dim
                 )
                 self.symbol = mx.symbol.Activation(data=symbol, act_type="relu")
 
