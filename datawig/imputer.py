@@ -278,14 +278,14 @@ class Imputer:
                 logger.warn("Data encoder type {} incompatible for explaining classes".format(type(encoder)))
                 return []
 
+        # get_params() returns categorical inputs but not tdidf embedded text inputs, why?
         arg_params, aux_params = self.module.get_params()
         if len(arg_params) != 2:
             logger.warn("Too many model parameters")
-            return []
 
         # weights (KxD) and intercepts (Kx1)
         # fixme: K is nunique labels + 1?
-        W, b = list(arg_params.values())
+        # W, b = list(arg_params.values())
         # todo: intercept first or last?
         # W = np.concatenate((W.asnumpy(), b.asnumpy().reshape(len(b), -1)), axis=1)
 
@@ -297,10 +297,26 @@ class Imputer:
         X_scaled = [StandardScaler(with_mean=False).fit_transform(feature_matrix) for feature_matrix in X]
         labels_normalized = StandardScaler().fit_transform(p)
 
+        idx2word = []
+        for encoder in self.data_encoders:
+            if isinstance(encoder, TfIdfEncoder):
+                idx2word.append({idx: word for word, idx in encoder.vectorizer.vocabulary_.items()})
+            elif isinstance(encoder, CategoricalEncoder):
+                idx2word.append(encoder.idx_to_token)
+
         # D x K
-        class_patterns = [feature_matrix_scaled.dot(labels_normalized) for feature_matrix_scaled in X_scaled]
-        idx2word = [{idx: word for word, idx in encoder.vectorizer.vocabulary_.items()}
-                    for encoder in self.data_encoders]
+        class_patterns = []
+        for feature_matrix_scaled, encoder in zip(X_scaled, self.data_encoders):
+            if isinstance(encoder, TfIdfEncoder):
+                class_patterns.append(feature_matrix_scaled.dot(labels_normalized))
+            elif isinstance(encoder, CategoricalEncoder):
+                # compute mean class output for all input labels
+                class_patterns.append(
+                    np.array(
+                    [np.mean(labels_normalized[np.where(X_scaled[-1][0, :] == category)[0], :], axis=0)
+                        for category in self.data_encoders[-1].idx_to_token.keys()]))
+            else:
+                logger.warn("column encoder not support for explain.")
 
         l = self.label_encoders[0]
         patterns = [class_pattern[:, l.token_to_idx[label]] for class_pattern in class_patterns]
@@ -326,11 +342,11 @@ class Imputer:
         # combine into flat list with tuples (data_column, n_gram, association_strength)
         top_words = sorted([(data_column, *top_word) for data_column, top_words in top_words.items()
                            for top_word in top_words],
-                           key=lambda x: x[2])[::-1][:k]
+                           key=lambda x: x[2])[::-1] # [:k]
 
         bottom_words = sorted([(data_column, *bottom_word) for data_column, bottom_words in bottom_words.items()
                               for bottom_word in bottom_words],
-                              key=lambda x: x[2])[::-1][:k]
+                              key=lambda x: x[2])[::-1] # [:k] for debugging useful to return from all inputs
 
         return top_words, bottom_words
 
