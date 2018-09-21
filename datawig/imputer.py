@@ -249,26 +249,33 @@ class Imputer:
         iter_train.reset()
         self.__iter_train_probas = self.__predict_mxnet_iter(iter_train)
         import scipy.sparse
-        self.__X_train = scipy.sparse.vstack([enc.transform(train_df) for enc in self.data_encoders])
+
+        self.__X_train = scipy.sparse.vstack([enc.transform(train_df).transpose() for enc in self.data_encoders])
+        # maybe better to have list of representations for each encoder
+        self.__X_train = [enc.transform(train_df).transpose() for enc in self.data_encoders]
 
         return self
 
-    def explain(self, label: str, k: int):
+    def explain(self, label: str, k: int, label_name: str = None):
         """
         Returns a k-element list of input tokens that best explain the given label.
         :param label: string label to explain
         :param k: number of explanations for the given label to return
+        :param label_name: name of label column. Only relevant if multiple are present.
         :return: maximally k-element list of feature tokens explaining the target `label`
         """
         # TODO: include 'method' param (auto, covar, lime, ...)
         # TODO: G-test/LIME
+
+        if label_name is None:
+            label_name = self.label_encoders[0].output_column
 
         if label not in self.label_encoders[0].token_to_idx.keys():
             logger.warn("Specified label {} not observed in label encoder".format(label))
             return []
 
         for encoder in self.data_encoders:
-            if not isinstance(encoder, TfIdfEncoder) and not isinstance(encoder, CategoricalEncoder):
+            if not (isinstance(encoder, TfIdfEncoder) or isinstance(encoder, CategoricalEncoder)):
                 logger.warn("Data encoder type {} incompatible for explaining classes".format(type(encoder)))
                 return []
 
@@ -284,25 +291,49 @@ class Imputer:
         # W = np.concatenate((W.asnumpy(), b.asnumpy().reshape(len(b), -1)), axis=1)
 
         self.__pp.to_csv("/tmp/1.csv")
-        p = self.__iter_train_probas['label']
+        p = self.__iter_train_probas[label_name]
         X = self.__X_train
 
         # standardscaler
-        data_scaled = StandardScaler(with_mean=False).fit_transform(X)
+        X_scaled = [StandardScaler(with_mean=False).fit_transform(feature_matrix) for feature_matrix in X]
         labels_normalized = StandardScaler().fit_transform(p)
 
         # D x K
-        class_patterns = data_scaled.T.dot(labels_normalized)
-        # fixme: just one encoder
-        idx2word = {idx: word for word, idx in self.data_encoders[0].vectorizer.vocabulary_.items()}
+        class_patterns = [feature_matrix_scaled.dot(labels_normalized) for feature_matrix_scaled in X_scaled]
+        idx2word = [{idx: word for word, idx in encoder.vectorizer.vocabulary_.items()}
+                    for encoder in self.data_encoders]
 
         l = self.label_encoders[0]
-        pattern = class_patterns[:, l.token_to_idx[label]]
+        patterns = [class_pattern[:, l.token_to_idx[label]] for class_pattern in class_patterns]
 
-        top_words_of_pattern = pattern.argsort()[-k:][::-1]
-        class_words_without_sample = [idx2word[w_idx] for w_idx in top_words_of_pattern]
+        top_words_of_pattern = [pattern.argsort()[-k:][::-1] for pattern in patterns]
+        bottom_words_of_pattern = [pattern.argsort()[::-1][-k:][::-1] for pattern in patterns]
 
-        return class_words_without_sample
+        # declare dictionaries for results
+        top_words = {}
+        bottom_words = {}
+
+        # iterate over data encoders
+        for idx, data_encoder in enumerate(self.data_encoders):
+            data_column = data_encoder.output_column
+            top_words[data_column] = []
+            bottom_words[data_column] = []
+            # encode words and save to tuple with association strength
+            for w_idx, magn in zip(top_words_of_pattern[idx], patterns[idx][top_words_of_pattern[idx]]):
+                top_words[data_column].append((idx2word[idx][w_idx], magn))
+            for w_idx, magn in zip(bottom_words_of_pattern[idx], patterns[idx][bottom_words_of_pattern[idx]]):
+                bottom_words[data_column].append((idx2word[idx][w_idx], magn))
+
+        # combine into flat list with tuples (data_column, n_gram, association_strength)
+        top_words = sorted([(data_column, *top_word) for data_column, top_words in top_words.items()
+                           for top_word in top_words],
+                           key=lambda x: x[2])[::-1][:k]
+
+        bottom_words = sorted([(data_column, *bottom_word) for data_column, bottom_words in bottom_words.items()
+                              for bottom_word in bottom_words],
+                              key=lambda x: x[2])[::-1][:k]
+
+        return top_words, bottom_words
 
     def __fit_module(self,
                      iter_train: ImputerIterDf,
