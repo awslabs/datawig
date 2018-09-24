@@ -16,77 +16,50 @@
 DataWig imputer iterator tests
 
 """
+import itertools
 
-import os
 import numpy as np
 import pandas as pd
-import itertools
-import random
-import mxnet as mx
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
-
-from datawig.column_encoders import SequentialEncoder, CategoricalEncoder, BowEncoder
+from datawig.column_encoders import (BowEncoder, CategoricalEncoder,
+                                     SequentialEncoder)
 from datawig.iterators import ImputerIterDf
-from test.test_imputer import generate_string_data_frame
 
-random.seed(0)
-np.random.seed(0)
-mx.random.seed(0)
-
-dir_path = os.path.dirname(os.path.realpath(__file__))
 feature_col = "features"
 label_col = "labels"
 max_tokens = 100
 num_labels = 10
-df = generate_string_data_frame()
 
 
-def get_new_iterator_df_bow():
-    return ImputerIterDf(df,
-                         data_columns=[BowEncoder(feature_col, max_tokens=max_tokens)],
-                         label_columns=[CategoricalEncoder(label_col, max_tokens=num_labels)],
-                         batch_size=2)
-
-
-def get_new_iterator_df():
-    return ImputerIterDf(df,
-                         data_columns=[SequentialEncoder(label_col,
-                                                         max_tokens=max_tokens,
-                                                         seq_len=2)],
-                         label_columns=[CategoricalEncoder(label_col, max_tokens=max_tokens)],
-                         batch_size=2)
-
-
-def test_iter_next_df():
-    it = get_new_iterator_df()
+def test_iter_next_df(data_frame):
+    it = get_new_iterator_df(data_frame())
     _, next_batch = next(it), next(it)
-    # assert ((next_batch.data[0].asnumpy() == np.array([[31., 30.], [31., 30.]])).all())
+    print("Array : " + str(next_batch.label[0].asnumpy()))
     assert ((next_batch.label[0].asnumpy() == np.array([[9.], [9.]])).all())
 
-
-def test_iter_df_bow():
-    it = get_new_iterator_df_bow()
+def test_iter_df_bow(data_frame):
+    df = data_frame()
+    it = get_new_iterator_df_bow(df)
     tt = next(it)
     bow = tt.data[0].asnumpy()[0, :]
     true = it.data_columns[0].vectorizer.transform([df.loc[0,'features']]).toarray()[0]
     assert (true - bow).sum() < 1e-5
 
 
-def test_iter_provide_label_or_data_df():
-    it = get_new_iterator_df()
+def test_iter_provide_label_or_data_df(data_frame):
+    it = get_new_iterator_df(data_frame())
      # pylint: disable=unsubscriptable-object
-    assert (it.provide_data[0][0] == label_col)
-    assert (it.provide_data[0][1] == (2, 2))
-    assert (it.provide_label[0][0] == label_col)
-    assert (it.provide_label[0][1] == (2, 1))
+    assert it.provide_data[0][0] == label_col
+    assert it.provide_data[0][1] == (2, 2)
+    assert it.provide_label[0][0] == label_col
+    assert it.provide_label[0][1] == (2, 1)
 
 
-def test_iter_index_df():
-    it = get_new_iterator_df()
+def test_iter_index_df(data_frame):
+    it = get_new_iterator_df(data_frame())
     idx_it = list(itertools.chain(*[b.index for b in it]))
-    idx_true = df.index.tolist()
-    assert (idx_it == idx_true)
+    idx_true = data_frame().index.tolist()
+    assert idx_it == idx_true
 
 
 def test_iter_decoder_df():
@@ -117,3 +90,18 @@ def test_iter_padding_offset():
         batch_size=32
     )
     assert it.start_padding_idx == df_train.shape[0]
+
+def get_new_iterator_df_bow(df):
+    return ImputerIterDf(df,
+                         data_columns=[BowEncoder(feature_col, max_tokens=max_tokens)],
+                         label_columns=[CategoricalEncoder(label_col, max_tokens=num_labels)],
+                         batch_size=2)
+
+
+def get_new_iterator_df(df):
+    return ImputerIterDf(df,
+                         data_columns=[SequentialEncoder(label_col,
+                                                         max_tokens=max_tokens,
+                                                         seq_len=2)],
+                         label_columns=[CategoricalEncoder(label_col, max_tokens=max_tokens)],
+                         batch_size=2)

@@ -10,5 +10,22 @@
 # an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
 # express or implied. See the License for the specific language governing
 # permissions and limitations under the License.
+from io import BytesIO
 
-# the file exists only for pylint
+from PIL import Image
+
+
+def save_image_file(filename, color='red'):
+    if color == 'red':
+        color_vector = (155, 0, 0)
+    elif color == 'green':
+        color_vector = (0, 155, 0)
+    elif color == 'blue':
+        color_vector = (0, 0, 155)
+    file = BytesIO()
+    image = Image.new('RGBA', size=(50, 50), color=color_vector)
+    image.save(filename, 'png')
+    file.name = filename + '.png'
+    file.seek(0)
+
+    return file

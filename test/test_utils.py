@@ -20,7 +20,7 @@ DataWig utils tests
 import numpy as np
 import pandas as pd
 
-from datawig.utils import random_split, normalize_dataframe, merge_dicts
+from datawig.utils import merge_dicts, normalize_dataframe, random_split
 
 
 def test_random_split():

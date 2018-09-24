@@ -17,20 +17,15 @@ DataWig ColumnEncoder tests
 
 """
 
-import pytest
 import os
-import random
 import shutil
-import pandas as pd
-import numpy as np
+from test.utils import save_image_file
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
+import numpy as np
+import pandas as pd
+import pytest
 
 from datawig import column_encoders
-from test.test_imputer import create_test_image
-
-random.seed(1)
-np.random.seed(42)
 
 df = pd.DataFrame({'features': ['xwcxG pQldP Cel0n 5LaWO 2cjTu',
                                 '2cjTu YizDY u1aEa Cel0n SntTK',
@@ -41,19 +36,18 @@ categorical_encoder = column_encoders.CategoricalEncoder(['labels'], max_tokens=
 sequential_encoder = column_encoders.SequentialEncoder(['features'],
                                                        max_tokens=50, seq_len=3).fit(df)
 
-
 # CategoricalEncoder Tests
 def test_categorical_encoder_unfitted_fail():
     unfitted_categorical_encoder = column_encoders.CategoricalEncoder(["col_1"])
-    assert unfitted_categorical_encoder.is_fitted() == False
+    assert not unfitted_categorical_encoder.is_fitted()
     with pytest.raises(column_encoders.NotFittedError):
         unfitted_categorical_encoder.transform(pd.DataFrame({"col_1": ['a', 'b']}))
 
 
 def test_fit_categorical_encoder():
-    assert categorical_encoder.is_fitted() == True
-    assert (categorical_encoder.token_to_idx == {'SntTK': 1, 'xwcxG': 2})
-    assert (categorical_encoder.idx_to_token == {1: 'SntTK', 2: 'xwcxG'})
+    assert categorical_encoder.is_fitted()
+    assert categorical_encoder.token_to_idx == {'SntTK': 1, 'xwcxG': 2}
+    assert categorical_encoder.idx_to_token == {1: 'SntTK', 2: 'xwcxG'}
 
 
 def test_categorical_encoder_transform():
@@ -61,28 +55,28 @@ def test_categorical_encoder_transform():
 
 
 def test_categorical_encoder_transform_missing_token():
-    assert (categorical_encoder.transform(pd.DataFrame({'labels': ['foobar']})).flatten()[0] == 0)
+    assert categorical_encoder.transform(pd.DataFrame({'labels': ['foobar']})).flatten()[0] == 0
 
 
 def test_categorical_encoder_max_token():
     categorical_encoder = column_encoders.CategoricalEncoder(['labels'], max_tokens=1e4).fit(df)
-    assert (categorical_encoder.max_tokens == 2)
+    assert categorical_encoder.max_tokens == 2
 
 
 def test_categorical_encoder_decode_token():
-    assert (categorical_encoder.decode_token(1) == 'SntTK')
+    assert categorical_encoder.decode_token(1) == 'SntTK'
 
 
 def test_categorical_encoder_decode_missing_token():
-    assert (categorical_encoder.decode_token(0) == 'MISSING')
+    assert categorical_encoder.decode_token(0) == 'MISSING'
 
 
 def test_categorical_encoder_decode():
-    assert (categorical_encoder.decode(pd.Series([1])).values[0] == 'SntTK')
+    assert categorical_encoder.decode(pd.Series([1])).values[0] == 'SntTK'
 
 
 def test_categorical_encoder_decode_missing():
-    assert (categorical_encoder.decode(pd.Series([0])).values[0] == 'MISSING')
+    assert categorical_encoder.decode(pd.Series([0])).values[0] == 'MISSING'
 
 
 def test_categorical_encoder_non_negative_embedding_indices():
@@ -92,7 +86,7 @@ def test_categorical_encoder_non_negative_embedding_indices():
 # SequentialEncoder Tests
 def test_sequential_encoder_unfitted_fail():
     unfitted_sequential_encoder = column_encoders.SequentialEncoder(["col_1"])
-    assert unfitted_sequential_encoder.is_fitted() == False
+    assert not unfitted_sequential_encoder.is_fitted()
     with pytest.raises(column_encoders.NotFittedError):
         unfitted_sequential_encoder.transform(pd.DataFrame({'brand': ['ab']}))
 
@@ -119,8 +113,8 @@ def test_sequential_encoder_max_token():
     sequential_encoder_short = column_encoders.SequentialEncoder("features", max_tokens=1e4,
                                                                  seq_len=2)
     sequential_encoder_short.fit(df)
-    assert sequential_encoder.is_fitted() == True
-    assert (sequential_encoder_short.max_tokens == 32)
+    assert sequential_encoder.is_fitted()
+    assert sequential_encoder_short.max_tokens == 32
 
 
 def test_sequential_encoder_non_negative_embedding_indices():
@@ -129,7 +123,7 @@ def test_sequential_encoder_non_negative_embedding_indices():
 
 def test_bow_encoder():
     bow_encoder = column_encoders.BowEncoder("features", max_tokens=5)
-    assert bow_encoder.is_fitted() == True
+    assert bow_encoder.is_fitted()
     bow = bow_encoder.transform(df)[0].toarray()[0]
     true = np.array([0.615587, -0.3077935, -0.3077935, -0.41039133, 0.51298916])
     assert true == pytest.approx(bow, 1e-4)
@@ -167,19 +161,19 @@ def test_categorical_encoder_numeric_nan():
         pytest.fail("fitting categorical encoder on integers with nulls should not fail")
 
 def test_column_encoder_no_list_input_column():
-     column_encoder = column_encoders.ColumnEncoder("0")
-     assert column_encoder.input_columns == ['0']
-     assert column_encoder.output_column == '0'
-     with pytest.raises(ValueError):
+    column_encoder = column_encoders.ColumnEncoder("0")
+    assert column_encoder.input_columns == ['0']
+    assert column_encoder.output_column == '0'
+    with pytest.raises(ValueError):
         column_encoders.ColumnEncoder(0)
-     with pytest.raises(ValueError):
-         column_encoders.ColumnEncoder([0])
+    with pytest.raises(ValueError):
+        column_encoders.ColumnEncoder([0])
 
 
 def test_numeric_encoder():
     df = pd.DataFrame({'a': [1, 2, 3, np.nan, None], 'b': [.1, -.1, np.nan, None, 10.5]})
     unfitted_numerical_encoder = column_encoders.NumericalEncoder(["a", 'b'], normalize=False)
-    assert unfitted_numerical_encoder.is_fitted() == True
+    assert unfitted_numerical_encoder.is_fitted()
     fitted_unnormalized_numerical_encoder = unfitted_numerical_encoder.fit(df)
     df_unnormalized = fitted_unnormalized_numerical_encoder.transform(df.copy())
 
@@ -193,12 +187,11 @@ def test_numeric_encoder():
     assert np.array_equal(df_unnormalized_nans, np.array([[2., 3.5]], dtype=np.float32))
 
     normalized_numerical_encoder = column_encoders.NumericalEncoder(["a", 'b'], normalize=True)
-    assert normalized_numerical_encoder.is_fitted() == False
+    assert not normalized_numerical_encoder.is_fitted()
     normalized_numerical_encoder_fitted = normalized_numerical_encoder.fit(df)
     df_normalized = normalized_numerical_encoder_fitted.transform(df)
-    df_normalized_nans = normalized_numerical_encoder_fitted.transform(df_nans)
 
-    assert normalized_numerical_encoder.is_fitted() == True
+    assert normalized_numerical_encoder.is_fitted()
     assert np.array_equal(df_normalized, np.array([[-1.58113885, -0.88666826],
                                                    [0., -0.93882525],
                                                    [1.58113885, 0.],
@@ -206,24 +199,24 @@ def test_numeric_encoder():
                                                    [0., 1.82549345]], dtype=np.float32))
 
 
-def test_image_encoder():
-
-    img_path = os.path.join(dir_path, "resources", "test_images")
+def test_image_encoder(test_dir):
+    img_path = os.path.join(test_dir, "test_images")
     os.makedirs(img_path, exist_ok=True)
 
     colors = ['red', 'green']
     img_filenames = ['not-existent.jpg']
     for color in colors:
         filename = os.path.join(img_path, color + ".png")
-        create_test_image(filename, color)
+        save_image_file(filename, color)
         img_filenames.append(filename)
 
     df = pd.DataFrame({"test_uris": img_filenames})
 
     untransformed_image_encoder = column_encoders.ImageEncoder(['test_uris'])
     tensor = untransformed_image_encoder.transform(df)
-    assert tensor[:,:,1,1] == pytest.approx(np.array([[ 0.,  0., 0.],
-       [ 0.53643285, -2.03571422, -1.80444444],
-       [-2.11790397,  0.67787113, -1.80444444]]), 1e-5)
+    assert tensor[:, :, 1, 1] == pytest.approx(np.array([[0., 0., 0.],
+                                                         [0.53643285, -2.03571422, -1.80444444],
+                                                         [-2.11790397, 0.67787113, -1.80444444]]),
+                                               1e-5)
 
     shutil.rmtree(img_path)
