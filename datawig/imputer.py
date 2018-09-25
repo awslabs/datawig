@@ -249,104 +249,128 @@ class Imputer:
         self.__iter_train_probas = self.__predict_mxnet_iter(iter_train)
         import scipy.sparse
 
-        self.__X_train = scipy.sparse.vstack([enc.transform(train_df).transpose() for enc in self.data_encoders])
+        # self.__X_train = scipy.sparse.vstack([enc.transform(train_df).transpose() for enc in self.data_encoders])
         # maybe better to have list of representations for each encoder
         self.__X_train = [enc.transform(train_df).transpose() for enc in self.data_encoders]
 
         return self
 
-    def explain(self, label: str, k: int, label_name: str = None):
+    def explain(self, label: str, k: int, method: str = "covar", label_name: str = None):
         """
         Returns a k-element list of input tokens that best explain the given label.
         :param label: string label to explain
         :param k: number of explanations for the given label to return
+        :param method: name of explanation method to use. Only "covar" available.
         :param label_name: name of label column. Only relevant if multiple are present.
         :return: maximally k-element list of feature tokens explaining the target `label`
         """
-        # TODO: include 'method' param (auto, covar, lime, ...)
-        # TODO: G-test/LIME
 
+        # TODO: G-test/LIME
+        if method is not "covar":
+            logger.warn("Explain method other than cover not implemented. Falling back to covar.")
+
+        # Use 0th label column if not specified otherwise
         if label_name is None:
             label_name = self.label_encoders[0].output_column
 
+        # Check whether to-be-explained label value exists.
         if label not in self.label_encoders[0].token_to_idx.keys():
             logger.warn("Specified label {} not observed in label encoder".format(label))
             return []
+        else:
+            label_enc = [enc for enc in self.label_encoders if enc.output_column == label_name][0]
 
-        for encoder in self.data_encoders:
+        # Generate list of data encoders, with features suitable for explanation. Only TfIDf and Categorical supported.
+        explainable_data_encoders = []
+        explainable_data_encoders_idx = []
+        for encoder_idx, encoder in enumerate(self.data_encoders):
             if not (isinstance(encoder, TfIdfEncoder) or isinstance(encoder, CategoricalEncoder)):
                 logger.warn("Data encoder type {} incompatible for explaining classes".format(type(encoder)))
-                return []
+            else:
+                explainable_data_encoders.append(encoder)
+                explainable_data_encoders_idx.append(encoder_idx)
 
-        # get_params() returns categorical inputs but not tdidf embedded text inputs, why?
-        arg_params, aux_params = self.module.get_params()
-        if len(arg_params) != 2:
-            logger.warn("Too many model parameters")
+        # todo: remove
+        # # get_params() returns categorical inputs but not tdidf embedded text inputs, why?
+        # arg_params, aux_params = self.module.get_params()
+        # if len(arg_params) != 2:
+        #     logger.warn("Too many model parameters")
 
-        # weights (KxD) and intercepts (Kx1)
-        # fixme: K is nunique labels + 1?
-        # W, b = list(arg_params.values())
-        # todo: intercept first or last?
-        # W = np.concatenate((W.asnumpy(), b.asnumpy().reshape(len(b), -1)), axis=1)
+        p = self.__iter_train_probas[label_name]  # class probabilities for every item (items x labels)
+        # encoded representations of training data ([items x features] for every encoded column.)
+        X = [self.__X_train[idx] for idx in explainable_data_encoders_idx]
 
-        self.__pp.to_csv("/tmp/1.csv")
-        p = self.__iter_train_probas[label_name]
-        X = self.__X_train
-
-        # standardscaler
+        # whiten the feature matrix. Centering is not supported for sparse matrices.
+        # Doesn't do anything for categorical data where the shape is (1, num_items)
         X_scaled = [StandardScaler(with_mean=False).fit_transform(feature_matrix) for feature_matrix in X]
-        labels_normalized = StandardScaler().fit_transform(p)
 
-        idx2word = []
-        for encoder in self.data_encoders:
-            if isinstance(encoder, TfIdfEncoder):
-                idx2word.append({idx: word for word, idx in encoder.vectorizer.vocabulary_.items()})
-            elif isinstance(encoder, CategoricalEncoder):
-                idx2word.append(encoder.idx_to_token)
+        # center and whiten the class probabilities
+        p_normalized = StandardScaler().fit_transform(p)
 
-        # D x K
+        # extract mapping entries in the feature vector to interpretable tokens (categories, ngrams)
+        idx2token = []
+        for encoder in explainable_data_encoders:
+            # TODO: categorical encoder starts counting at 1. (WTF?)
+            # Later gets called with argsorted indices, so need to shift!
+            if isinstance(encoder, CategoricalEncoder):
+                keymap = {i+1: i for i in range(len(encoder.idx_to_token))} # decrease category index by 1
+                idx2token_temp = dict((keymap[key], val) for key, val in encoder.idx_to_token.items())
+            else:
+                idx2token_temp = encoder.idx_to_token
+            idx2token.append(idx2token_temp)
+
+        # compute correlation between features and labels
         class_patterns = []
-        for feature_matrix_scaled, encoder in zip(X_scaled, self.data_encoders):
+        for feature_matrix_scaled, encoder in zip(X_scaled, explainable_data_encoders):
             if isinstance(encoder, TfIdfEncoder):
-                class_patterns.append(feature_matrix_scaled.dot(labels_normalized))
+                # project features onto labels and sum across items
+                class_patterns.append(feature_matrix_scaled.dot(p_normalized))
             elif isinstance(encoder, CategoricalEncoder):
                 # compute mean class output for all input labels
-                class_patterns.append(
-                    np.array(
-                    [np.mean(labels_normalized[np.where(X_scaled[-1][0, :] == category)[0], :], axis=0)
-                        for category in self.data_encoders[-1].idx_to_token.keys()]))
+                class_patterns.append(np.array(
+                        [np.sum(p_normalized[np.where(feature_matrix_scaled[0, :] == category)[0], :], axis=0)
+                         for category in encoder.idx_to_token.keys()]))
             else:
                 logger.warn("column encoder not support for explain.")
 
-        l = self.label_encoders[0]
-        patterns = [class_pattern[:, l.token_to_idx[label]] for class_pattern in class_patterns]
+        # extract contribution of the label of interest.
+        # todo: maybe save intermediate results to speed up compuation for other labels?
+        patterns = [class_pattern[:, label_enc.token_to_idx[label]] for class_pattern in class_patterns]
 
-        top_words_of_pattern = [pattern.argsort()[-k:][::-1] for pattern in patterns]
-        bottom_words_of_pattern = [pattern.argsort()[::-1][-k:][::-1] for pattern in patterns]
+        # for each data encoder extract top-k features.
+        top_words_of_pattern = []
+        bottom_words_of_pattern = []
+        for pattern, encoder in zip(patterns, explainable_data_encoders):
+            if isinstance(encoder, TfIdfEncoder):
+                top_words_of_pattern.append(pattern.argsort()[-k:][::-1])
+                bottom_words_of_pattern.append(pattern.argsort()[:k])
+            if isinstance(encoder, CategoricalEncoder):
+                top_words_of_pattern.append(pattern.argsort()[-k:][::-1])
+                bottom_words_of_pattern.append(pattern.argsort()[:k])
 
-        # declare dictionaries for results
+        # initialize dictionaries for results
         top_words = {}
         bottom_words = {}
 
-        # iterate over data encoders
-        for idx, data_encoder in enumerate(self.data_encoders):
+        # iterate over data encoders and write top features their weights to dictionary
+        for idx, data_encoder in enumerate(explainable_data_encoders):
             data_column = data_encoder.output_column
             top_words[data_column] = []
             bottom_words[data_column] = []
             # encode words and save to tuple with association strength
             for w_idx, magn in zip(top_words_of_pattern[idx], patterns[idx][top_words_of_pattern[idx]]):
-                top_words[data_column].append((idx2word[idx][w_idx], magn))
+                top_words[data_column].append((idx2token[idx][w_idx], magn))
             for w_idx, magn in zip(bottom_words_of_pattern[idx], patterns[idx][bottom_words_of_pattern[idx]]):
-                bottom_words[data_column].append((idx2word[idx][w_idx], magn))
+                bottom_words[data_column].append((idx2token[idx][w_idx], magn))
 
         # combine into flat list with tuples (data_column, n_gram, association_strength)
         top_words = sorted([(data_column, *top_word) for data_column, top_words in top_words.items()
-                           for top_word in top_words],
-                           key=lambda x: x[2])[::-1] # [:k]
+                                   for top_word in top_words],
+                                   key=lambda x: x[2])[::-1] # [:k]
 
         bottom_words = sorted([(data_column, *bottom_word) for data_column, bottom_words in bottom_words.items()
-                              for bottom_word in bottom_words],
-                              key=lambda x: x[2])[::-1] # [:k] for debugging useful to return from all inputs
+                                      for bottom_word in bottom_words],
+                                      key=lambda x: x[2])[::-1] # [:k] for debugging useful to return from all inputs
 
         return top_words, bottom_words
 
