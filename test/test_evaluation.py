@@ -18,8 +18,11 @@ DataWig evaluation tests
 """
 
 import warnings
+
 import pandas as pd
-from datawig.evaluation import evaluate_model_outputs, evaluate_model_outputs_single_attribute
+
+from datawig.evaluation import (evaluate_model_outputs,
+                                evaluate_model_outputs_single_attribute)
 
 warnings.filterwarnings("ignore")
 
@@ -93,4 +96,4 @@ def test_evaluation():
 
     evaluation_df = evaluate_model_outputs(df)
 
-    assert (evaluation_df == wrong_df)
+    assert evaluation_df == wrong_df

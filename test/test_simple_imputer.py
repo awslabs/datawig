@@ -19,31 +19,23 @@ DataWig SimpleImputer tests
 
 import os
 import random
-import warnings
 import shutil
-import pytest
+import warnings
+from test.utils import save_image_file
+
 import numpy as np
 import pandas as pd
-import mxnet as mx
+import pytest
 from sklearn.metrics import f1_score, mean_squared_error
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
-
-from datawig.utils import rand_string, random_split, logger
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
-
-from test.test_imputer import generate_string_data_frame, create_test_image
+from datawig.utils import logger, rand_string, random_split
 
 warnings.filterwarnings("ignore")
 
 logger.setLevel("INFO")
-
-mx.random.seed(10)
-np.random.seed(41)
-random.seed(10)
-
 
 def test_simple_imputer_no_string_column_name():
     with pytest.raises(ValueError):
@@ -51,7 +43,7 @@ def test_simple_imputer_no_string_column_name():
     with pytest.raises(ValueError):
         SimpleImputer(['0'], 1)
 
-def test_simple_imputer_real_data_default_args():
+def test_simple_imputer_real_data_default_args(test_dir, data_frame):
     """
     Tests SimpleImputer with default options
 
@@ -65,7 +57,7 @@ def test_simple_imputer_real_data_default_args():
     vocab_size = int(2 ** 15)
 
     # generate some random data
-    random_data = generate_string_data_frame(feature_col=feature_col,
+    random_data = data_frame(feature_col=feature_col,
                                              label_col=label_col,
                                              vocab_size=vocab_size,
                                              num_labels=num_labels,
@@ -74,7 +66,7 @@ def test_simple_imputer_real_data_default_args():
 
     df_train, df_test, df_val = random_split(random_data, [.8, .1, .1])
 
-    output_path = os.path.join(dir_path, "resources", "tmp", "real_data_experiment_simple")
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_simple")
 
     df_train_cols_before = df_train.columns.tolist()
 
@@ -141,7 +133,7 @@ def test_simple_imputer_real_data_default_args():
     shutil.rmtree(output_path)
 
 
-def test_numeric_or_text_imputer():
+def test_numeric_or_text_imputer(test_dir, data_frame):
     """
     Tests SimpleImputer with default options
 
@@ -156,12 +148,12 @@ def test_numeric_or_text_imputer():
     vocab_size = int(2 ** 10)
 
     # generate some random data
-    random_data = generate_string_data_frame(feature_col=feature_col,
-                                             label_col=label_col,
-                                             vocab_size=vocab_size,
-                                             num_labels=num_labels,
-                                             num_words=seq_len,
-                                             n_samples=n_samples)
+    random_data = data_frame(feature_col=feature_col,
+                             label_col=label_col,
+                             vocab_size=vocab_size,
+                             num_labels=num_labels,
+                             num_words=seq_len,
+                             n_samples=n_samples)
 
     numeric_data = np.random.uniform(-np.pi, np.pi, (n_samples,))
     df = pd.DataFrame({
@@ -173,7 +165,7 @@ def test_numeric_or_text_imputer():
     })
 
     df_train, df_test = random_split(df, [.8, .2])
-    output_path = os.path.join(dir_path, "resources", "tmp", "real_data_experiment_numeric")
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_numeric")
 
     imputer_numeric_linear = SimpleImputer(
         input_columns=['x', feature_col],
@@ -216,7 +208,7 @@ def test_numeric_or_text_imputer():
     shutil.rmtree(output_path)
 
 
-def test_imputer_hpo_numeric():
+def test_imputer_hpo_numeric(test_dir):
     """
 
     Tests SimpleImputer HPO for numeric data/imputation
@@ -231,13 +223,14 @@ def test_imputer_hpo_numeric():
     })
 
     df_train, df_test = random_split(df, [.8, .2])
-    output_path = os.path.join(dir_path, "resources", "tmp", "real_data_experiment_numeric_hpo")
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_numeric_hpo")
 
     imputer_numeric = SimpleImputer(
         input_columns=['x'],
         output_column="**2",
         output_path=output_path
-    ).fit_hpo(
+    )
+    imputer_numeric.fit_hpo(
         train_df=df_train,
         learning_rate=1e-3,
         num_epochs=100,
@@ -255,7 +248,7 @@ def test_imputer_hpo_numeric():
     shutil.rmtree(output_path)
 
 
-def test_imputer_hpo_text():
+def test_imputer_hpo_text(test_dir, data_frame):
     """
 
     Tests SimpleImputer HPO with text data and categorical imputations
@@ -269,20 +262,21 @@ def test_imputer_hpo_text():
     seq_len = 20
 
     # generate some random data
-    df = generate_string_data_frame(feature_col=feature_col,
+    df = data_frame(feature_col=feature_col,
                                     label_col=label_col,
                                     num_labels=num_labels,
                                     num_words=seq_len,
                                     n_samples=n_samples)
 
     df_train, df_test = random_split(df, [.8, .2])
-    output_path = os.path.join(dir_path, "resources", "tmp", "real_data_experiment_text_hpo")
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
 
     imputer_string = SimpleImputer(
         input_columns=[feature_col],
         output_column=label_col,
         output_path=output_path
-    ).fit_hpo(
+    )
+    imputer_string.fit_hpo(
         train_df=df_train,
         num_epochs=100,
         patience=3,
@@ -299,20 +293,20 @@ def test_imputer_hpo_text():
     shutil.rmtree(output_path)
 
 
-def test_imputer_image_hpo():
+def test_imputer_image_hpo(test_dir):
     """
 
     Tests SimpleImputer HPO with image data imputing a text column
 
     """
 
-    img_path = os.path.join(dir_path, "resources", "test_images")
+    img_path = os.path.join(test_dir, "test_images")
     os.makedirs(img_path, exist_ok=True)
 
     colors = ['red', 'green', 'blue']
 
     for color in colors:
-        create_test_image(os.path.join(img_path, color + ".png"), color)
+        save_image_file(os.path.join(img_path, color + ".png"), color)
 
     n_samples = 10
     color_labels = [random.choice(colors) for _ in range(n_samples)]
@@ -320,16 +314,17 @@ def test_imputer_image_hpo():
     df = pd.DataFrame({"image_files": color_labels,
                        "label": color_labels})
 
-    for index, row in df.iterrows():
+    for _, row in df.iterrows():
         row['image_files'] = os.path.join(img_path, row['image_files'] + ".png")
 
-    output_path = os.path.join(dir_path, "resources", "tmp", "experiment_images_hpo")
+    output_path = os.path.join(test_dir, "tmp", "experiment_images_hpo")
 
     imputer_string = SimpleImputer(
         input_columns=['image_files'],
         output_column="label",
         output_path=output_path
-    ).fit_hpo(
+    )
+    imputer_string.fit_hpo(
         train_df=df,
         learning_rate=1e-3,
         num_epochs=10,

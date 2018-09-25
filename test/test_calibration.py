@@ -16,14 +16,15 @@
 DataWig calibration tests
 
 """
-
 import numpy as np
+
 from datawig import calibration
-from datawig.column_encoders import SequentialEncoder, CategoricalEncoder, BowEncoder
-from datawig.mxnet_input_symbols import LSTMFeaturizer, EmbeddingFeaturizer, BowFeaturizer
+from datawig.column_encoders import (BowEncoder, CategoricalEncoder,
+                                     SequentialEncoder)
 from datawig.imputer import Imputer
+from datawig.mxnet_input_symbols import (BowFeaturizer, EmbeddingFeaturizer,
+                                         LSTMFeaturizer)
 from datawig.utils import random_split
-from test.test_imputer import generate_string_data_frame
 
 
 def generate_synthetic_data(K: int=5, N: int=100, p_correct: float=.8):
@@ -77,7 +78,7 @@ def test_calibration_synthetic():
            calibration.compute_ece(train_data, train_labels)
 
 
-def test_automatic_calibration():
+def test_automatic_calibration(data_frame):
     """
     Fit model with all featurisers and assert
     that calibration improves the expected calibration error.
@@ -96,7 +97,7 @@ def test_automatic_calibration():
     embed_dim = 30
 
     # generate some random data
-    random_data = generate_string_data_frame(feature_col=feature_col,
+    random_data = data_frame(feature_col=feature_col,
                                              label_col=label_col,
                                              vocab_size=vocab_size,
                                              num_labels=num_labels,

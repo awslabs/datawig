@@ -18,89 +18,27 @@ DataWig imputer tests
 """
 
 import os
-import shutil
 import random
-import pytest
+import shutil
 import warnings
+from test.utils import save_image_file
 
-warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
-import mxnet as mx
+import pytest
 
-from io import BytesIO
-from PIL import Image
-
-dir_path = os.path.dirname(os.path.realpath(__file__))
-
-mx.random.seed(10)
-random.seed(10)
-np.random.seed(43)
-
-from datawig.column_encoders import SequentialEncoder, CategoricalEncoder, BowEncoder, \
-    NumericalEncoder, ImageEncoder
-from datawig.mxnet_input_symbols import LSTMFeaturizer, EmbeddingFeaturizer, BowFeaturizer, \
-    NumericalFeaturizer, ImageFeaturizer
+from datawig.column_encoders import (BowEncoder, CategoricalEncoder,
+                                     ImageEncoder, NumericalEncoder,
+                                     SequentialEncoder)
 from datawig.imputer import Imputer
-from datawig.utils import random_split, rand_string
+from datawig.mxnet_input_symbols import (BowFeaturizer, EmbeddingFeaturizer,
+                                         ImageFeaturizer, LSTMFeaturizer,
+                                         NumericalFeaturizer)
+from datawig.utils import random_split
 
+warnings.filterwarnings("ignore")
 
-def create_test_image(filename, color='red'):
-    if color == 'red':
-        color_vector = (155, 0, 0)
-    elif color == 'green':
-        color_vector = (0, 155, 0)
-    elif color == 'blue':
-        color_vector = (0, 0, 155)
-    file = BytesIO()
-    image = Image.new('RGBA', size=(50, 50), color=color_vector)
-    image.save(filename, 'png')
-    file.name = filename + '.png'
-    file.seek(0)
-    return file
-
-def generate_string_data_frame(
-        feature_col='features',
-        label_col='labels',
-        n_samples=500,
-        word_length=5,
-        num_words=100,
-        vocab_size=100,
-        num_labels=10):
-    """
-    Generates text features and categorical labels.
-    :param feature_col: name of feature column.
-    :param label_col: name of label column.
-    :param n_samples: how many rows to generate.
-    :return: pd.DataFrame with columns = [feature_col, label_col]
-    """
-
-    vocab = [rand_string(word_length) for i in range(vocab_size)]
-    labels = vocab[:num_labels]
-    words = vocab[num_labels:]
-
-    def sentence_with_label(labels=labels, words=words):
-        """
-        Generates a random token sequence containing a random label
-
-        :param labels: label set
-        :param words: vocabulary of tokens
-        :return: blank separated token sequence and label
-
-        """
-        label = random.choice(labels)
-        tokens = [random.choice(words) for _ in range(num_words)] + [label]
-        sentence = " ".join(np.random.permutation(tokens))
-        return sentence, label
-
-    sentences, labels = zip(*[sentence_with_label(labels, words) for _ in range(n_samples)])
-
-    df = pd.DataFrame({feature_col: sentences, label_col: labels})
-
-    return df
-
-
-def test_drop_missing():
+def test_drop_missing(test_dir):
     """
     Tests some private functions of the Imputer class
     """
@@ -116,7 +54,7 @@ def test_drop_missing():
     label_encoder_cols = [CategoricalEncoder('label', max_tokens=1)]
     data_cols = [BowFeaturizer('data', vocab_size=max_tokens)]
 
-    output_path = os.path.join(dir_path, "resources", "tmp", "real_data_experiment")
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment")
 
     imputer = Imputer(
         data_featurizers=data_cols,
@@ -196,7 +134,7 @@ def test_imputer_init():
 
     shutil.rmtree("b_rand")
 
-def test_imputer_duplicate_encoder_output_columns():
+def test_imputer_duplicate_encoder_output_columns(test_dir, data_frame):
     """
     Tests Imputer with sequential, bag-of-words and categorical variables as inputs
     this could be run as part of integration test suite.
@@ -215,7 +153,7 @@ def test_imputer_duplicate_encoder_output_columns():
     embed_dim = 30
 
     # generate some random data
-    random_data = generate_string_data_frame(feature_col=feature_col,
+    random_data = data_frame(feature_col=feature_col,
                                              label_col=label_col,
                                              vocab_size=vocab_size,
                                              num_labels=num_labels,
@@ -252,7 +190,7 @@ def test_imputer_duplicate_encoder_output_columns():
             vocab_size=num_labels)
     ]
 
-    output_path = os.path.join(dir_path, "resources", "tmp",
+    output_path = os.path.join(test_dir, "tmp",
                                "imputer_experiment_synthetic_data")
 
     num_epochs = 20
@@ -265,7 +203,8 @@ def test_imputer_duplicate_encoder_output_columns():
             label_encoders=label_encoder_cols,
             data_encoders=data_encoder_cols,
             output_path=output_path
-        ).fit(
+        )
+        imputer.fit(
             train_df=df_train,
             test_df=df_val,
             learning_rate=learning_rate,
@@ -275,7 +214,7 @@ def test_imputer_duplicate_encoder_output_columns():
         shutil.rmtree(output_path)
 
 
-def test_imputer_real_data_all_featurizers():
+def test_imputer_real_data_all_featurizers(test_dir, data_frame):
     """
     Tests Imputer with sequential, bag-of-words and categorical variables as inputs
     this could be run as part of integration test suite.
@@ -294,7 +233,7 @@ def test_imputer_real_data_all_featurizers():
     embed_dim = 30
 
     # generate some random data
-    random_data = generate_string_data_frame(feature_col=feature_col,
+    random_data = data_frame(feature_col=feature_col,
                                              label_col=label_col,
                                              vocab_size=vocab_size,
                                              num_labels=num_labels,
@@ -331,7 +270,7 @@ def test_imputer_real_data_all_featurizers():
             vocab_size=num_labels)
     ]
 
-    output_path = os.path.join(dir_path, "resources", "tmp", "imputer_experiment_synthetic_data")
+    output_path = os.path.join(test_dir, "tmp", "imputer_experiment_synthetic_data")
 
     num_epochs = 10
     batch_size = 32
@@ -398,7 +337,7 @@ def test_imputer_real_data_all_featurizers():
 
     shutil.rmtree(output_path)
 
-def test_imputer_without_train_df():
+def test_imputer_without_train_df(test_dir):
     """
     Test asserting that imputer.fit fails without training data or training data in wrong format
     """
@@ -413,7 +352,7 @@ def test_imputer_without_train_df():
         BowFeaturizer('item_name')
     ]
 
-    output_path = os.path.join(dir_path, "resources", "tmp", "real_data_experiment")
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment")
 
     imputer = Imputer(
         data_featurizers=data_cols,
@@ -433,7 +372,7 @@ def test_imputer_without_train_df():
         )
 
 
-def test_imputer_without_test_set_random_split():
+def test_imputer_without_test_set_random_split(test_dir, data_frame):
     """
     Test asserting that the random split is working internally
     by calling imputer.fit only with a training set.
@@ -448,7 +387,7 @@ def test_imputer_without_test_set_random_split():
     vocab_size = int(2 ** 10)
 
     # generate some random data
-    df_train = generate_string_data_frame(feature_col=feature_col,
+    df_train = data_frame(feature_col=feature_col,
                                              label_col=label_col,
                                              vocab_size=vocab_size,
                                              num_labels=num_labels,
@@ -469,7 +408,7 @@ def test_imputer_without_test_set_random_split():
         BowFeaturizer(feature_col, vocab_size=vocab_size)
     ]
 
-    output_path = os.path.join(dir_path, "resources", "tmp", "real_data_experiment")
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment")
 
     imputer = Imputer(
         data_featurizers=data_cols,
@@ -490,7 +429,7 @@ def test_imputer_without_test_set_random_split():
 
     shutil.rmtree(output_path)
 
-def test_imputer_load_read_exec_only_dir(tmpdir):
+def test_imputer_load_read_exec_only_dir(tmpdir, data_frame):
     import stat
 
     # on shared build-fleet tests fail with converting tmpdir to string
@@ -498,7 +437,7 @@ def test_imputer_load_read_exec_only_dir(tmpdir):
     feature = 'feature'
     label = 'label'
 
-    df = generate_string_data_frame(feature, label, n_samples=100)
+    df = data_frame(feature, label, n_samples=100)
     # fit and output model + metrics to tmpdir
 
     imputer = Imputer(
@@ -506,7 +445,8 @@ def test_imputer_load_read_exec_only_dir(tmpdir):
         label_encoders=[CategoricalEncoder(label)],
         data_encoders=[BowEncoder(feature)],
         output_path=tmpdir
-    ).fit(train_df=df, num_epochs=1)
+    )
+    imputer.fit(train_df=df, num_epochs=1)
 
     # make tmpdir read/exec-only by owner/group/others
     os.chmod(tmpdir,
@@ -518,14 +458,14 @@ def test_imputer_load_read_exec_only_dir(tmpdir):
         print(e)
         pytest.fail('Loading imputer from read-only directory should not fail.')
 
-def test_imputer_fit_fail_non_writable_output_dir(tmpdir):
+def test_imputer_fit_fail_non_writable_output_dir(tmpdir, data_frame):
     import stat
 
     # on shared build-fleet tests fail with converting tmpdir to string
     tmpdir = str(tmpdir)
     feature = 'feature'
     label = 'label'
-    df = generate_string_data_frame(feature, label, n_samples=100)
+    df = data_frame(feature, label, n_samples=100)
     # fit and output model + metrics to tmpdir
     imputer = Imputer(
         data_featurizers=[BowFeaturizer(feature)],
@@ -543,7 +483,7 @@ def test_imputer_fit_fail_non_writable_output_dir(tmpdir):
         imputer.fit(df, num_epochs=1)
 
 
-def test_imputer_numeric_data():
+def test_imputer_numeric_data(test_dir):
     """
     Tests numeric encoder/featurizer only
 
@@ -558,7 +498,7 @@ def test_imputer_numeric_data():
         '**2': x ** 2})
 
     df_train, df_test = random_split(df, [.6, .4])
-    output_path = os.path.join(dir_path, "resources", "tmp", "real_data_experiment_numeric")
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_numeric")
 
     data_encoder_cols = [NumericalEncoder(['x'])]
     data_cols = [NumericalFeaturizer('x', numeric_latent_dim=100)]
@@ -571,7 +511,8 @@ def test_imputer_numeric_data():
             label_encoders=label_encoder_cols,
             data_encoders=data_encoder_cols,
             output_path=output_path
-        ).fit(
+        )
+        imputer.fit(
             train_df=df_train,
             learning_rate=1e-1,
             num_epochs=100,
@@ -589,15 +530,15 @@ def test_imputer_numeric_data():
         shutil.rmtree(output_path)
 
 
-def test_imputer_image_data():
+def test_imputer_image_data(test_dir):
 
-    img_path = os.path.join(dir_path, "resources", "test_images")
+    img_path = os.path.join(test_dir, "test_images")
     os.makedirs(img_path, exist_ok=True)
 
     colors = ['red', 'green', 'blue']
 
     for color in colors:
-        create_test_image(os.path.join(img_path, color + ".png"), color)
+        save_image_file(os.path.join(img_path, color + ".png"), color)
 
     n_samples = 4
     color_labels = [random.choice(colors) for _ in range(n_samples)]
@@ -608,7 +549,7 @@ def test_imputer_image_data():
     for index, row in df.iterrows():
         row['image_files'] = os.path.join(img_path, row['image_files'] + ".png")
 
-    output_path = os.path.join(dir_path, "resources", "tmp", "experiment_images")
+    output_path = os.path.join(test_dir, "tmp", "experiment_images")
 
     data_encoder_cols = [ImageEncoder(['image_files'])]
     data_cols = [ImageFeaturizer('image_files')]
@@ -620,7 +561,8 @@ def test_imputer_image_data():
         label_encoders=label_encoder_cols,
         data_encoders=data_encoder_cols,
         output_path=output_path
-    ).fit(
+    )
+    imputer.fit(
         train_df=df,
         learning_rate=1e-3,
         num_epochs=1,
@@ -635,7 +577,7 @@ def test_imputer_image_data():
     # Test with image + numeric inputs
     df['numeric'] = np.random.uniform(-np.pi, np.pi, (n_samples,))
 
-    output_path = os.path.join(dir_path, "resources", "tmp", "experiment_images_with_num")
+    output_path = os.path.join(test_dir, "tmp", "experiment_images_with_num")
 
     data_encoder_cols = [ImageEncoder(['image_files']), NumericalEncoder(['numeric'])]
     data_cols = [ImageFeaturizer('image_files'), NumericalFeaturizer('numeric', numeric_latent_dim=100)]
@@ -646,7 +588,8 @@ def test_imputer_image_data():
         label_encoders=label_encoder_cols,
         data_encoders=data_encoder_cols,
         output_path=output_path
-    ).fit(
+    )
+    imputer.fit(
         train_df=df,
         learning_rate=1e-3,
         num_epochs=1,
@@ -659,7 +602,7 @@ def test_imputer_image_data():
     shutil.rmtree(output_path)
 
 
-def test_imputer_unrepresentative_test_df():
+def test_imputer_unrepresentative_test_df(test_dir, data_frame):
     """
 
     Tests whether the imputer runs through in cases when test data set (and hence metrics and precision/recall curves)
@@ -667,9 +610,9 @@ def test_imputer_unrepresentative_test_df():
 
     """
     # generate some random data
-    random_data = generate_string_data_frame(n_samples=100)
+    random_data = data_frame(n_samples=100)
 
-    df_train, df_test, df_val = random_split(random_data, [.8, .1, .1])
+    df_train, df_test, _ = random_split(random_data, [.8, .1, .1])
 
     excluded = df_train['labels'].values[0]
     df_test = df_test[df_test['labels'] != excluded]
@@ -678,7 +621,7 @@ def test_imputer_unrepresentative_test_df():
     label_encoder_cols = [CategoricalEncoder('labels')]
     data_cols = [BowFeaturizer('features')]
 
-    output_path = os.path.join(dir_path, "resources", "tmp", "real_data_experiment")
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment")
 
     imputer = Imputer(
         data_featurizers=data_cols,
@@ -695,5 +638,3 @@ def test_imputer_unrepresentative_test_df():
                                                   precision_threshold=.99)['labels']
     assert all([x == () for x in imputations])
     shutil.rmtree(output_path)
-
-test_imputer_real_data_all_featurizers()
