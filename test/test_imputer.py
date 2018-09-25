@@ -693,7 +693,6 @@ def test_mxnet_module_wrapper(data_frame):
 #                                              num_words=seq_len,
 #                                              n_samples=n_samples)
 #
-#
 #     num_epochs = 1
 #     batch_size = 64
 #     learning_rate = 1e-3
