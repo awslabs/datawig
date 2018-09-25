@@ -751,3 +751,6 @@ def test_imputer_tfidf_explain():
         pytest.fail("Didn't expect a TypeError exception with missing test data")
 
     shutil.rmtree(output_path)
+
+
+test_imputer_tfidf_explain()
