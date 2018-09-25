@@ -237,8 +237,8 @@ def test_imputer_hpo_numeric(test_dir):
         patience=10,
         num_hash_bucket_candidates=[2 ** 10],
         tokens_candidates=['words'],
-        latent_dim_candidates=[10, 50, 100],
-        hidden_layers_candidates=[1, 2]
+        numeric_latent_dim_candidates=[10, 50, 100],
+        numeric_hidden_layers_candidates=[1, 2]
     )
 
     imputer_numeric.predict(df_test)
@@ -282,7 +282,7 @@ def test_imputer_hpo_text(test_dir, data_frame):
         patience=3,
         num_hash_bucket_candidates=[2 ** 10, 2 ** 15],
         tokens_candidates=['words'],
-        latent_dim_candidates=[10],
+        numeric_latent_dim_candidates=[10],
         hpo_max_train_samples=1000
     )
 
@@ -333,7 +333,7 @@ def test_imputer_image_hpo(test_dir):
         weight_decay=.0,
         num_hash_bucket_candidates=[2 ** 10],
         tokens_candidates=['words'],
-        latent_dim_candidates=[10],
+        numeric_latent_dim_candidates=[10],
         learning_rate_candidates=[1e-3],
         hpo_max_train_samples=1000
     )

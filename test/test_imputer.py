@@ -501,7 +501,7 @@ def test_imputer_numeric_data(test_dir):
     output_path = os.path.join(test_dir, "tmp", "real_data_experiment_numeric")
 
     data_encoder_cols = [NumericalEncoder(['x'])]
-    data_cols = [NumericalFeaturizer('x', latent_dim=100)]
+    data_cols = [NumericalFeaturizer('x', numeric_latent_dim=100)]
 
     for target in ['*2', '**2', 'cos']:
         label_encoder_cols = [NumericalEncoder([target], normalize=False)]
@@ -580,7 +580,7 @@ def test_imputer_image_data(test_dir):
     output_path = os.path.join(test_dir, "tmp", "experiment_images_with_num")
 
     data_encoder_cols = [ImageEncoder(['image_files']), NumericalEncoder(['numeric'])]
-    data_cols = [ImageFeaturizer('image_files'), NumericalFeaturizer('numeric', latent_dim=100)]
+    data_cols = [ImageFeaturizer('image_files'), NumericalFeaturizer('numeric', numeric_latent_dim=100)]
     label_encoder_cols = [CategoricalEncoder(['label'])]
 
     imputer = Imputer(
