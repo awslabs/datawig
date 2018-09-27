@@ -156,6 +156,7 @@ class CategoricalEncoder(ColumnEncoder):
                  token_to_idx: Dict[str, int] = None,
                  max_tokens: int = int(1e4)) -> None:
 
+        # TODO: OneHotEncoder(handle_unknown='ignore')
         ColumnEncoder.__init__(self, input_columns, output_column, 1)
 
         if len(self.input_columns) != 1:
@@ -180,7 +181,7 @@ class CategoricalEncoder(ColumnEncoder):
         :return:
 
         """
-        return [token_to_idx.get(v, missing_token_idx) for v in col]
+        return [token_to_idx.get(v) for v in col]
 
     def is_fitted(self):
         """
