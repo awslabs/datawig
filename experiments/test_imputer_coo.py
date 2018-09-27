@@ -40,8 +40,8 @@ def test_coo():
 
 
     # Train
-    tr, te = random_split(df.sample(50), [.8, .2])
-    imputer.fit(train_df=tr, test_df=te, num_epochs=5)
+    tr, te = random_split(df.sample(500), [.8, .2])
+    imputer.fit(train_df=tr, test_df=te, num_epochs=20)
     predictions = imputer.predict(te)
 
 
@@ -49,6 +49,8 @@ def test_coo():
     prec = precision_score(te.coo_value_manual, te.coo_value_manual_imputed, average='weighted')
 
     print(imputer.explain('DE', 20, 'coo_value_manual'))
+
+    return imputer
 
 
 def test_simulated():
@@ -95,6 +97,7 @@ def test_simulated():
 
     return imputer
 
-imputer = test_simulated()
+imputer = test_coo()
+# imputer = test_simulated()
 imputer.explain('foo', 10, 'out_cat')
 
