@@ -14,6 +14,8 @@
 import os
 import random
 
+import shutil
+
 import mxnet as mx
 import numpy as np
 import pandas as pd
@@ -34,8 +36,9 @@ def reset_random_seed():
 @pytest.fixture
 def test_dir():
     file_dir = os.path.dirname(os.path.realpath(__file__))
-
-    return os.path.join(file_dir, "resources")
+    joined = os.path.join(file_dir, "resources")
+    yield joined
+    shutil.rmtree(joined)
 
 @pytest.fixture
 def data_frame():

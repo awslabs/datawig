@@ -19,7 +19,6 @@ DataWig SimpleImputer tests
 
 import os
 import random
-import shutil
 import warnings
 from test.utils import save_image_file
 
@@ -37,11 +36,13 @@ warnings.filterwarnings("ignore")
 
 logger.setLevel("INFO")
 
+
 def test_simple_imputer_no_string_column_name():
     with pytest.raises(ValueError):
         SimpleImputer([0], '1')
     with pytest.raises(ValueError):
         SimpleImputer(['0'], 1)
+
 
 def test_simple_imputer_real_data_default_args(test_dir, data_frame):
     """
@@ -108,8 +109,6 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
 
     new_path = imputer.output_path + "-" + rand_string()
 
-    if os.path.isdir(new_path): shutil.rmtree(new_path)
-
     os.rename(imputer.output_path, new_path)
 
     deserialized = SimpleImputer.load(new_path)
@@ -129,8 +128,6 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
     metrics = retrained_simple_imputer.load_metrics()
 
     assert f1 == metrics['weighted_f1']
-
-    shutil.rmtree(output_path)
 
 
 def test_numeric_or_text_imputer(test_dir, data_frame):
@@ -205,8 +202,6 @@ def test_numeric_or_text_imputer(test_dir, data_frame):
 
     assert f1_score(df_test[label_col], df_test[label_col + '_imputed'], average="weighted") > .7
 
-    shutil.rmtree(output_path)
-
 
 def test_imputer_hpo_numeric(test_dir):
     """
@@ -244,8 +239,6 @@ def test_imputer_hpo_numeric(test_dir):
     imputer_numeric.predict(df_test)
 
     assert mean_squared_error(df_test['**2'], df_test['**2_imputed']) < 1.0
-
-    shutil.rmtree(output_path)
 
 
 def test_imputer_hpo_text(test_dir, data_frame):
@@ -289,8 +282,6 @@ def test_imputer_hpo_text(test_dir, data_frame):
     imputer_string.predict(df_test)
 
     assert f1_score(df_test[label_col], df_test[label_col + '_imputed'], average="weighted") > .7
-
-    shutil.rmtree(output_path)
 
 
 def test_imputer_image_hpo(test_dir):

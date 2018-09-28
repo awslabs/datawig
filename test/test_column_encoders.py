@@ -18,7 +18,6 @@ DataWig ColumnEncoder tests
 """
 
 import os
-import shutil
 from test.utils import save_image_file
 
 import numpy as np
@@ -218,5 +217,3 @@ def test_image_encoder(test_dir):
                                                          [0.53643285, -2.03571422, -1.80444444],
                                                          [-2.11790397, 0.67787113, -1.80444444]]),
                                                1e-5)
-
-    shutil.rmtree(img_path)

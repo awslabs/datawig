@@ -19,7 +19,6 @@ DataWig imputer tests
 
 import os
 import random
-import shutil
 import warnings
 from test.utils import save_image_file
 
@@ -132,7 +131,6 @@ def test_imputer_init():
     )
     assert imputer.output_path == "b_rand"
 
-    shutil.rmtree("b_rand")
 
 def test_imputer_duplicate_encoder_output_columns(test_dir, data_frame):
     """
@@ -211,7 +209,6 @@ def test_imputer_duplicate_encoder_output_columns(test_dir, data_frame):
             num_epochs=num_epochs,
             batch_size=batch_size
         )
-        shutil.rmtree(output_path)
 
 
 def test_imputer_real_data_all_featurizers(test_dir, data_frame):
@@ -335,7 +332,6 @@ def test_imputer_real_data_all_featurizers(test_dir, data_frame):
     #assert np.isnan(predictions_df.loc[0, label_col + '_imputed_proba']) == False
     #assert len(predictions_df.dropna(subset=[label_col + "_imputed_proba"])) < n_samples
 
-    shutil.rmtree(output_path)
 
 def test_imputer_without_train_df(test_dir):
     """
@@ -427,7 +423,6 @@ def test_imputer_without_test_set_random_split(test_dir, data_frame):
     except TypeError:
         pytest.fail("Didn't expect a TypeError exception with missing test data")
 
-    shutil.rmtree(output_path)
 
 def test_imputer_load_read_exec_only_dir(tmpdir, data_frame):
     import stat
@@ -457,6 +452,7 @@ def test_imputer_load_read_exec_only_dir(tmpdir, data_frame):
     except AssertionError as e:
         print(e)
         pytest.fail('Loading imputer from read-only directory should not fail.')
+
 
 def test_imputer_fit_fail_non_writable_output_dir(tmpdir, data_frame):
     import stat
@@ -527,8 +523,6 @@ def test_imputer_numeric_data(test_dir):
         print("Numerical metrics: {}".format(metrics[target]))
         assert metrics[target] < 10
 
-        shutil.rmtree(output_path)
-
 
 def test_imputer_image_data(test_dir):
 
@@ -572,8 +566,6 @@ def test_imputer_image_data(test_dir):
         batch_size=16
     )
 
-    shutil.rmtree(output_path)
-
     # Test with image + numeric inputs
     df['numeric'] = np.random.uniform(-np.pi, np.pi, (n_samples,))
 
@@ -598,8 +590,6 @@ def test_imputer_image_data(test_dir):
         weight_decay=.0001,
         batch_size=16
     )
-    shutil.rmtree(img_path)
-    shutil.rmtree(output_path)
 
 
 def test_imputer_unrepresentative_test_df(test_dir, data_frame):
@@ -637,4 +627,3 @@ def test_imputer_unrepresentative_test_df(test_dir, data_frame):
     imputations = imputer.predict_above_precision(only_excluded_df,
                                                   precision_threshold=.99)['labels']
     assert all([x == () for x in imputations])
-    shutil.rmtree(output_path)
