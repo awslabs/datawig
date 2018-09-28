@@ -41,7 +41,7 @@ imputer.fit(train_df=df_train)
 predictions = imputer.predict(df_test)
 
 #Calculate f1 score for true vs predicted values
-f1 = f1_score(predictions['finish'], predictions['finish_imputed']) 
+f1 = f1_score(predictions['finish'], predictions['finish_imputed'], average='weighted')
 
 #Print overall classification report
 print(classification_report(predictions['finish'], predictions['finish_imputed']))
@@ -64,10 +64,12 @@ imputer.fit_hpo(train_df=df_train)
 #Fit an imputer model with customized HPO
 imputer.fit_hpo(
         train_df=df_train,
-        num_epochs=100,
+        num_epochs=50,
         patience=3,
-        learning_rate_candidates=[1e-3, 3e-4, 1e-4],
-        hpo_max_train_samples=1000
+        learning_rate_candidates=[1e-3, 1e-4],
+        num_hash_bucket_candidates = [2 ** 15],
+        tokens_candidates = ['words', 'chars'],
+        hpo_max_train_samples=300
     	)
 
 #------------------------------------------------------------------------------------
