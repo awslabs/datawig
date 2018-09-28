@@ -29,7 +29,7 @@ import pytest
 
 from datawig.column_encoders import (BowEncoder, CategoricalEncoder,
                                      ImageEncoder, NumericalEncoder,
-                                     SequentialEncoder)
+                                     SequentialEncoder, TfIdfEncoder)
 from datawig.imputer import Imputer
 from datawig.mxnet_input_symbols import (BowFeaturizer, EmbeddingFeaturizer,
                                          ImageFeaturizer, LSTMFeaturizer,
@@ -638,3 +638,26 @@ def test_imputer_unrepresentative_test_df(test_dir, data_frame):
                                                   precision_threshold=.99)['labels']
     assert all([x == () for x in imputations])
     shutil.rmtree(output_path)
+
+
+def test_imputer_tfidf(test_dir, data_frame):
+    label_col = 'label'
+    df = data_frame(n_samples=100, label_col=label_col)
+
+    data_encoder_cols = [TfIdfEncoder('features')]
+    label_encoder_cols = [CategoricalEncoder(label_col)]
+    data_cols = [BowFeaturizer('features')]
+
+    output_path = os.path.join(test_dir, "tmp", "out")
+
+    imputer = Imputer(
+        data_featurizers=data_cols,
+        label_encoders=label_encoder_cols,
+        data_encoders=data_encoder_cols,
+        output_path=output_path
+    ).fit(train_df=df, num_epochs=1)
+
+    shutil.rmtree(output_path)
+
+    _, metrics = imputer.transform_and_compute_metrics(df)
+    assert metrics['label']['avg_precision'] > 0.80
