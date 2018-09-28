@@ -25,7 +25,7 @@ from functools import partial
 from typing import Dict, List, Iterable, Any
 import numpy as np
 import pandas as pd
-from sklearn.feature_extraction.text import HashingVectorizer
+from sklearn.feature_extraction.text import HashingVectorizer, TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
 import mxnet as mx
 
@@ -420,6 +420,105 @@ class SequentialEncoder(ColumnEncoder):
 
         """
         return col.apply(self.decode_seq).fillna("MISSING")
+
+
+class TfIdfEncoder(ColumnEncoder):
+    """
+
+    TfIdf bag of word encoder for text data, using sklearn's TfidfVectorizer
+
+    :param input_columns: List[str] with column names to be used as input for this ColumnEncoder
+    :param output_column: Name of output field, used as field name in downstream MxNet iterator
+    :param max_tokens: Number of feature buckets (dimensionality of sparse ngram vector). default 2**18
+    :param tokens: How to tokenize the input data, supports 'words' and 'chars'.
+    :param prefixed_concatenation: whether or not to prefix values with column name before concat
+
+    """
+
+    def __init__(self,
+                 input_columns: Any,
+                 output_column: str = None,
+                 max_tokens: int = 2 ** 18,
+                 tokens: str = 'chars',
+                 prefixed_concatenation: bool = True) -> None:
+
+        ColumnEncoder.__init__(self, input_columns, output_column, int(max_tokens))
+
+        if tokens == 'words':
+            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=(1, 3))
+        elif tokens == 'chars':
+            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=(1, 5),
+                                                analyzer="char")
+        else:
+            logger.info(
+                "BowEncoder attribute tokens has to be 'words' or 'chars', defaulting to 'chars'")
+            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=(1, 5), analyzer="char")
+
+        self.prefixed_concatenation = prefixed_concatenation
+
+        self.idx_to_token = None
+
+        self.__fitted = False
+
+    def __preprocess_input(self, data_frame: pd.DataFrame) -> pd.Series:
+        if not isinstance(data_frame, pd.core.frame.DataFrame):
+            raise ValueError("Only pandas data frames are supported")
+
+        if len(self.input_columns) == 1:
+            tmp_col = data_frame[self.input_columns[0]]
+        else:
+            tmp_col = pd.Series(index=data_frame.index, data='')
+            for col in self.input_columns:
+                if self.prefixed_concatenation:
+                    tmp_col += col + " " + data_frame[col].fillna("") + " "
+                else:
+                    tmp_col += data_frame[col].fillna("") + " "
+            logstr = "Applying TfIdf BoW Encoding to columns {} {} prefix into column {}".format(
+                self.input_columns, "with" if self.prefixed_concatenation else "without",
+                self.output_column)
+            logger.info(logstr)
+
+        return tmp_col
+
+    def fit(self, data_frame: pd.DataFrame):
+        """
+        :param data_frame:
+        :return:
+
+        """
+        self.vectorizer.fit(self.__preprocess_input(data_frame))
+        self.idx_to_token = {idx: token for token, idx in self.vectorizer.vocabulary_.items()}
+        self.__fitted = True
+        return self
+
+    def is_fitted(self) -> bool:
+        """
+        :param self:
+        :return: True if the encoder is fitted
+
+        """
+        return self.__fitted
+
+    def transform(self, data_frame: pd.DataFrame) -> np.array:
+        """
+        Transforms one or more string columns into Bag-of-words vectors.
+
+        :param data_frame: pandas DataFrame with text columns
+        :return: numpy array (rows by max_features)
+
+        """
+        return self.vectorizer.transform(self.__preprocess_input(data_frame)).astype(np.float32)
+
+    def decode(self, col: pd.Series) -> pd.Series:
+        """
+
+        Given a series of indices, decode it to input tokens
+
+        :param col:
+        :return: pd.Series of tokens
+
+        """
+        return col.map(lambda index: self.idx_to_token[index])
 
 
 class BowEncoder(ColumnEncoder):
