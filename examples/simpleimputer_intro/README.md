@@ -43,7 +43,7 @@ predictions = imputer.predict(df_test)
  
  ```python
 #Calculate f1 score
-f1 = f1_score(predictions['finish'], predictions['finish_imputed']) 
+f1 = f1_score(predictions['finish'], predictions['finish_imputed'], average='weighted') 
 
 #Print overall classification report
 print(classification_report(predictions['finish'], predictions['finish_imputed']))
@@ -65,10 +65,12 @@ imputer = SimpleImputer(
 #Fit an imputer model with customized hyperparameters
 imputer.fit_hpo(
         train_df=df_train,
-        num_epochs=100,
+        num_epochs=50,
         patience=3,
-        learning_rate_candidates=[1e-3, 3e-4, 1e-4],
-        hpo_max_train_samples=1000
+        learning_rate_candidates=[1e-3, 1e-4],
+        num_hash_bucket_candidates = [2 ** 15],
+        tokens_candidates = ['words', 'chars'],
+        hpo_max_train_samples=300
     	)
 ```
 See the [`SimpleImputer` code](https://github.com/awslabs/datawig/blob/97e259d6fde9e38f66c59e82a068172c54060c04/datawig/simple_imputer.py#L144-L162) for more details on parameters.
