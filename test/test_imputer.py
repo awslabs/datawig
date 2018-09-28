@@ -650,7 +650,7 @@ def test_imputer_tfidf(test_dir, data_frame):
     assert metrics['label']['avg_precision'] > 0.80
 
 
-def test_imputer_tfidf_explain():
+def test_imputer_tfidf_explain(test_dir, data_frame):
     """
     Test that the imputer is able to explain labels with the TfIdfEncoder
     """
@@ -664,13 +664,14 @@ def test_imputer_tfidf_explain():
     vocab_size = int(2 ** 10)
 
     # generate some random data
-    df_train = generate_string_data_frame(feature_col=feature_col,
-                                             label_col=label_col,
-                                             vocab_size=vocab_size,
-                                             num_labels=num_labels,
-                                             num_words=seq_len,
-                                             n_samples=n_samples)
-
+    df_train = data_frame(
+        feature_col=feature_col,
+        label_col=label_col,
+        vocab_size=vocab_size,
+        num_labels=num_labels,
+        num_words=seq_len,
+        n_samples=n_samples
+    )
 
     num_epochs = 1
     batch_size = 64
@@ -683,7 +684,7 @@ def test_imputer_tfidf_explain():
         BowFeaturizer(feature_col, vocab_size=vocab_size)
     ]
 
-    output_path = os.path.join(dir_path, "resources", "tmp", "real_data_experiment")
+    output_path = os.path.join(test_dir, "resources", "tmp", "real_data_experiment")
 
     imputer = Imputer(
         data_featurizers=data_cols,
@@ -702,8 +703,3 @@ def test_imputer_tfidf_explain():
         imputer.explain(df_train[label_col].values[0], k=3)
     except TypeError:
         pytest.fail("Didn't expect a TypeError exception with missing test data")
-
-    shutil.rmtree(output_path)
-
-
-test_imputer_tfidf_explain()
