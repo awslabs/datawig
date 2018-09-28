@@ -482,9 +482,6 @@ class TfIdfEncoder(ColumnEncoder):
 
     def fit(self, data_frame: pd.DataFrame):
         """
-
-        WRITEME
-
         :param data_frame:
         :return:
 
@@ -504,10 +501,7 @@ class TfIdfEncoder(ColumnEncoder):
 
     def transform(self, data_frame: pd.DataFrame) -> np.array:
         """
-
-        WRITEME
-        Transforms one or more string columns into Bag-of-words vectors, hashed into a max_features
-        dimensional feature space. Nans and missing values will be replaced by zero vectors.
+        Transforms one or more string columns into Bag-of-words vectors.
 
         :param data_frame: pandas DataFrame with text columns
         :return: numpy array (rows by max_features)
