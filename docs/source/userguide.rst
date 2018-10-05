@@ -367,7 +367,7 @@ In this case, the model will use one fully connected layer with size 256, or two
 .. _`installation instructions in the readme`: https://github.com/awslabs/datawig/blob/master/README.md
 .. _`unit test cases`: https://github.com/awslabs/datawig/blob/master/test/test_imputer.py#L278
 .. _`Multimodal Attribute Extraction (MAE) dataset`: https://arxiv.org/pdf/1711.11118.pdf
-.. _`Imputer intro`: https://github.com/awslabs/datawig/blob/master/examples/imputer_intro/imputer_intro.py
-.. _`SimpleImputer intro`: https://github.com/awslabs/datawig/blob/master/examples/simpleimputer_intro/simpleimputer_intro.py
+.. _`Imputer intro`: https://github.com/awslabs/datawig/blob/master/examples/imputer_intro.py
+.. _`SimpleImputer intro`: https://github.com/awslabs/datawig/blob/master/examples/simpleimputer_intro.py
 .. _SimpleImputer: https://github.com/awslabs/datawig/blob/97e259d6fde9e38f66c59e82a068172c54060c04/datawig/simple_imputer.py#L144-L162
-.. _`parameter tutorial`: https://github.com/awslabs/datawig/blob/master/examples/params_tutorial/params_tutorial.py
+.. _`parameter tutorial`: https://github.com/awslabs/datawig/blob/master/examples/params_tutorial.py
