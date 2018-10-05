@@ -11,6 +11,8 @@ DataWig learns models to impute missing values in tables.
 For each to-be-imputed column, DataWig trains a supervised machine learning model
 to predict the observed values in that column using the data from other columns.
 
+See our user-guide and extended documentation [here](https://datawig.readthedocs.io/en/stable).
+
 ## Dependencies
 
 DataWig requires:
@@ -23,7 +25,7 @@ DataWig requires:
 ## Installation with pip
 ### CPU
 ```bash
-> pip3 install datawig
+pip3 install datawig
 ```
 
 ### GPU
@@ -31,9 +33,9 @@ If you want to run DataWig on a GPU you need to make sure your version of Apache
 Depending on your version of CUDA, you can do this by running the following:
 
 ```bash
-> wget https://raw.githubusercontent.com/awslabs/datawig/master/requirements/requirements.gpu-cu${CUDA_VERSION}.txt
-> pip install datawig --no-deps -r requirements.gpu-cu${CUDA_VERSION}.txt
-> rm requirements.gpu-cu${CUDA_VERSION}.txt
+wget https://raw.githubusercontent.com/awslabs/datawig/master/requirements/requirements.gpu-cu${CUDA_VERSION}.txt
+pip install datawig --no-deps -r requirements.gpu-cu${CUDA_VERSION}.txt
+rm requirements.gpu-cu${CUDA_VERSION}.txt
 ```
 where `${CUDA_VERSION}` can be `75` (7.5), `80` (8.0), `90` (9.0), or `91` (9.1).
 
@@ -45,7 +47,7 @@ The DataWig API expects your data as a [pandas DataFrame](https://pandas.pydata.
 
 For most use cases, the `SimpleImputer` class is the best starting point. DataWig expects you to provide the column name of the column you would like to impute values for (called `output_column` below) and some column names that contain values that you deem useful for imputation (called `input_columns` below).
 
- ```python
+```python
     from datawig import SimpleImputer
     import pandas as pd
 
@@ -64,7 +66,7 @@ For most use cases, the `SimpleImputer` class is the best starting point. DataWi
 
     #Impute missing values and return original dataframe with predictions
     imputed = imputer.predict(df_test)
- ```
+```
 
 In order to have more control over the types of models and preprocessings, the `Imputer` class allows directly specifying all relevant model features and parameters. 
 
@@ -93,3 +95,12 @@ Run tests:
 
 ### Acknowledgments
 Thanks to [David Greenberg](https://github.com/dgreenberg) for the package name.
+
+### Building documentation
+
+```bash
+git clone git@github.com:awslabs/datawig.git
+cd datawig/docs
+make html
+open _build/html/index.html
+```
