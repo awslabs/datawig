@@ -11,7 +11,7 @@ DataWig learns models to impute missing values in tables.
 For each to-be-imputed column, DataWig trains a supervised machine learning model
 to predict the observed values in that column using the data from other columns.
 
-See our user-guide and extended documentation [here](https://datawig.readthedocs.io/en/stable).
+See our user-guide and extended documentation [here](https://datawig.readthedocs.io/en/latest).
 
 ## Dependencies
 
