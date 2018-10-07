@@ -14,3 +14,4 @@ Table of Contents
    source/intro
    source/userguide
    source/contributing
+   source/API
