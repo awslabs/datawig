@@ -30,7 +30,6 @@ from mxnet.callback import save_checkpoint
 import pandas as pd
 import numpy as np
 
-from .mxnet_output_symbols import make_categorical_loss, make_numerical_loss
 from .utils import timing, MeanSymbol, LogMetricCallBack, logger, \
     random_split, AccuracyMetric, get_context, ColumnOverwriteException, merge_dicts
 from .column_encoders import ColumnEncoder, NumericalEncoder, CategoricalEncoder
@@ -40,7 +39,7 @@ from .evaluation import evaluate_and_persist_metrics
 from . import calibration
 
 
-class Imputer:
+class Imputer(object):
     """
 
     Imputer model based on deep learning trained with MxNet
@@ -196,8 +195,9 @@ class Imputer:
         :param test_split: if no test_df is provided this is the ratio of test data to be held
                         separate for determining model convergence
         :param weight_decay: regularizer (default 0)
-        :batch_size: default 16
+        :param batch_size: default 16
         :param final_fc_hidden_units: list of dimensions for the final fully connected layer.
+        :param calibrate: whether to calibrate predictions
         :return: trained imputer model
         """
         if final_fc_hidden_units is None:
@@ -223,7 +223,7 @@ class Imputer:
 
         self.__check_data(test_df)
 
-        self.__build_module(iter_train)
+        self.module = self.__build_mod(iter_train)
         self.__fit_module(iter_train, iter_test, learning_rate, num_epochs, patience, weight_decay)
 
         # Check whether calibration is needed, if so ompute and set internal parameter
@@ -311,37 +311,9 @@ class Imputer:
         self.train_losses, self.test_losses = train_cb.metrics[metric_name], test_cb.metrics[
             metric_name]
 
-    def __build_module(self, iter_train: ImputerIterDf) -> None:
-
-        # construct the losses
-        predictions, loss = self.__make_loss()
-
-        logger.info("Building output symbols")
-        output_symbols = []
-        for col_enc, output in zip(self.label_encoders, predictions):
-            output_symbols.append(
-                mx.sym.BlockGrad(output, name="pred-{}".format(col_enc.output_column)))
-
-        # Get params to fix assuming we don't want to fine tune
-        fine_tune = any([isinstance(feat, ImageFeaturizer) for feat in self.data_featurizers])
-
-        fixed_params = []
-        if not fine_tune:
-            for name in loss.list_arguments():
-                if "image_featurizer" in name:
-                    fixed_params.append(name)
-        else:
-            fixed_params = None
-
-        self.module = mx.mod.Module(
-            mx.sym.Group([loss] + output_symbols),
-            context=self.ctx,
-            data_names=[name for name, dim in iter_train.provide_data],
-            label_names=[name for name, dim in iter_train.provide_label],
-            fixed_param_names=fixed_params
-        )
-
-        self.module.bind(data_shapes=iter_train.provide_data, label_shapes=iter_train.provide_label)
+    def __build_mod(self, iter_train: ImputerIterDf) -> mx.mod.Module:
+        mod = _MXNetModule(self.ctx, self.label_encoders, self.data_featurizers, self.final_fc_hidden_units)
+        return mod.get(iter_train)
 
     def __build_iterators(self,
                           train_df: pd.DataFrame,
@@ -417,55 +389,6 @@ class Imputer:
         )
 
         return iter_train, iter_test
-
-    def __make_loss(self, eps: float = 1e-5) -> Tuple[Any, Any]:
-
-        logger.info("Concatenating all {} latent symbols".format(len(self.data_featurizers)))
-
-        unique_input_field_names = set([feat.field_name for feat in self.data_featurizers])
-        if len(unique_input_field_names) < len(self.data_featurizers):
-            raise ValueError("Input fields of Featurizers outputs of ColumnEncoders must be unique but \
-                there were duplicates in {}, consider \
-                explicitly providing output column names to ColumnEncoders".format(", ".join(unique_input_field_names)))
-
-        # construct mxnet symbols for the data columns
-        latents = mx.sym.concat(*[f.latent_symbol() for f in self.data_featurizers], dim=1)
-
-        # build predictions and loss for each single output
-        outputs = []
-        for output_col in self.label_encoders:
-            if isinstance(output_col, CategoricalEncoder):
-                logger.info("Constructing categorical loss for column {} and {} labels".format(
-                    output_col.output_column, output_col.max_tokens))
-                outputs.append(make_categorical_loss(latents, output_col.output_column,
-                                                     output_col.max_tokens + 1,
-                                                     self.final_fc_hidden_units))
-            elif isinstance(output_col, NumericalEncoder):
-                logger.info(
-                    "Constructing numerical loss for column {}".format(output_col.output_column))
-                outputs.append(make_numerical_loss(latents, output_col.output_column))
-
-        predictions, losses = zip(*outputs)
-
-        # compute mean loss for each output
-        mean_batch_losses = [mx.sym.mean(l) + eps for l in losses]
-
-        # normalize the loss contribution of each label by the mean over the batch
-        normalized_losses = [mx.sym.broadcast_div(l, mean_loss) for l, mean_loss in
-                             zip(losses, mean_batch_losses)]
-
-        # multiply the loss by the mean of all losses of all labels to preserve the gradient norm
-        mean_label_batch_loss = mx.sym.ElementWiseSum(*mean_batch_losses) / float(
-            len(mean_batch_losses))
-
-        # normalize batch
-        loss = mx.sym.broadcast_mul(
-            mx.sym.ElementWiseSum(*normalized_losses) / float(len(mean_batch_losses)),
-            mean_label_batch_loss
-        )
-        loss = mx.sym.MakeLoss(loss, normalization='valid', valid_thresh=1e-6)
-
-        return predictions, loss
 
     def __transform_mxnet_iter(self, mxnet_iter: ImputerIterDf) -> dict:
         """
@@ -627,7 +550,9 @@ class Imputer:
         all_predictions_proba = self.__predict_mxnet_iter(mxnet_iter)
         mxnet_iter.reset()
         true_labels_idx_array = mx.nd.concat(
-            *[mx.nd.concat(*[l for l in b.label], dim=1) for b in mxnet_iter], dim=0)
+            *[mx.nd.concat(*[l for l in b.label], dim=1) for b in mxnet_iter],
+            dim=0
+        )
         true_labels_string = {}
         true_labels_idx = {}
         predictions_categorical = {}
@@ -962,3 +887,210 @@ class Imputer:
                 calibration.calibrate(scores, temperature), labels)
             self.calibration_info['ece_post'] = calibration.compute_ece(scores, labels, temperature)
             self.calibration_temperature = temperature
+
+
+class _MXNetModule(object):
+    def __init__(
+            self,
+            ctx: mx.context,
+            label_encoders: List[ColumnEncoder],
+            data_featurizers: List[Featurizer],
+            final_fc_hidden_units: List[int]
+    ):
+        """
+        Wrapper of internal DataWig MXNet module
+
+        :param ctx: MXNet execution context
+        :param label_encoders: list of label column encoders
+        :param data_featurizers: list of data featurizers
+        :param final_fc_hidden_units: list of number of hidden parameters
+        """
+        self.ctx = ctx
+        self.data_featurizers = data_featurizers
+        self.label_encoders = label_encoders
+        self.final_fc_hidden_units = final_fc_hidden_units
+
+    def get(self, iter_train: ImputerIterDf) -> mx.mod.Module:
+        """
+        Given a training iterator, build MXNet module and return it
+
+        :param iter_train: Training data iterator
+        :return: mx.mod.Module
+        """
+
+        predictions, loss = self.__make_loss()
+
+        logger.info("Building output symbols")
+        output_symbols = []
+        for col_enc, output in zip(self.label_encoders, predictions):
+            output_symbols.append(
+                mx.sym.BlockGrad(output, name="pred-{}".format(col_enc.output_column)))
+
+        # Get params to fix assuming we don't want to fine tune
+        fine_tune = any([isinstance(feat, ImageFeaturizer) for feat in self.data_featurizers])
+
+        fixed_params = []
+        if not fine_tune:
+            for name in loss.list_arguments():
+                if "image_featurizer" in name:
+                    fixed_params.append(name)
+        else:
+            fixed_params = None
+
+        mod = mx.mod.Module(
+            mx.sym.Group([loss] + output_symbols),
+            context=self.ctx,
+            data_names=[name for name, dim in iter_train.provide_data],
+            label_names=[name for name, dim in iter_train.provide_label],
+            fixed_param_names=fixed_params
+        )
+        mod.bind(data_shapes=iter_train.provide_data, label_shapes=iter_train.provide_label)
+
+        return mod
+
+    @staticmethod
+    def __make_categorical_loss(latents: mx.symbol,
+                                label_field_name: str,
+                                num_labels: int,
+                                final_fc_hidden_units: List[int] = None) -> Tuple[Any, Any]:
+        """
+        Generate output symbol for categorical loss
+
+        :param latents: MxNet symbol containing the concantenated latents from all featurizers
+        :param label_field_name: name of the label column
+        :param num_labels: number of labels contained in the label column (for prediction)
+        :param final_fc_hidden_units: list of dimensions for the final fully connected layer.
+                                The length of this list corresponds to the number of FC
+                                layers, and the contents of the list are integers with
+                                corresponding hidden layer size.
+        :return: mxnet symbols for predictions and loss
+        """
+
+        fully_connected = None
+        if len(final_fc_hidden_units) == 0:
+            # generate prediction symbol
+            fully_connected = mx.sym.FullyConnected(
+                data=latents,
+                num_hidden=num_labels,
+                name="label_{}".format(label_field_name))
+        else:
+            layer_size = final_fc_hidden_units
+            with mx.name.Prefix("label_{}".format(label_field_name)):
+                for i, layer in enumerate(layer_size):
+                    if i == len(layer_size) - 1:
+                        fully_connected = mx.sym.FullyConnected(
+                            data=latents,
+                            num_hidden=layer)
+                    else:
+                        latents = mx.sym.FullyConnected(
+                            data=latents,
+                            num_hidden=layer)
+
+        pred = mx.sym.softmax(fully_connected)
+        label = mx.sym.Variable(label_field_name)
+
+        # assign to 0.0 the label values larger than number of classes so that they
+        # do not contribute to the loss
+
+        logger.info("Building output of label {} with {} classes \
+                     (including missing class)".format(label, num_labels))
+
+        num_labels_vec = label * 0.0 + num_labels
+        indices = mx.sym.broadcast_lesser(label, num_labels_vec)
+        label = label * indices
+
+        # goes from (batch, 1) to (batch,) as it is required for softmax output
+        label = mx.sym.split(label, axis=1, num_outputs=1, squeeze_axis=1)
+
+        # mask entries when label is 0 (missing value)
+        missing_labels = mx.sym.zeros_like(label)
+        positive_mask = mx.sym.broadcast_greater(label, missing_labels)
+
+        # compute the cross entropy only when labels are positive
+        cross_entropy = mx.sym.pick(mx.sym.log_softmax(fully_connected), label) * -1 * positive_mask
+
+        # normalize the cross entropy by the number of positive label
+        num_positive_indices = mx.sym.sum(positive_mask)
+        cross_entropy = mx.sym.broadcast_div(cross_entropy, num_positive_indices + 1.0)
+
+        # todo because MakeLoss normalize even with normalization='null' argument is used,
+        # we have to multiply by batch_size here
+        batch_size = mx.sym.sum(mx.sym.ones_like(label))
+        cross_entropy = mx.sym.broadcast_mul(cross_entropy, batch_size)
+
+        return pred, cross_entropy
+
+    @staticmethod
+    def __make_numerical_loss(latents: mx.symbol, label_field_name: str) -> Tuple[Any, Any]:
+        """
+        Generate output symbol for univariate numeric loss
+
+        :param latents:
+        :param label_field_name:
+        :return: mxnet symbols for predictions and loss
+        """
+
+        # generate prediction symbol
+        pred = mx.sym.FullyConnected(
+            data=latents,
+            num_hidden=1,
+            name="label_{}".format(label_field_name))
+
+        target = mx.sym.Variable(label_field_name)
+
+        # squared loss
+        loss = mx.sym.sum((pred - target) ** 2.0)
+
+        return pred, loss
+
+    def __make_loss(self, eps: float = 1e-5) -> Tuple[Any, Any]:
+
+        logger.info("Concatenating all {} latent symbols".format(len(self.data_featurizers)))
+
+        unique_input_field_names = set([feat.field_name for feat in self.data_featurizers])
+        if len(unique_input_field_names) < len(self.data_featurizers):
+            raise ValueError("Input fields of Featurizers outputs of ColumnEncoders must be unique but \
+                there were duplicates in {}, consider \
+                explicitly providing output column names to ColumnEncoders".format(", ".join(unique_input_field_names)))
+
+        # construct mxnet symbols for the data columns
+        latents = mx.sym.concat(*[f.latent_symbol() for f in self.data_featurizers], dim=1)
+
+        # build predictions and loss for each single output
+        outputs = []
+        for output_col in self.label_encoders:
+            if isinstance(output_col, CategoricalEncoder):
+                logger.info("Constructing categorical loss for column {} and {} labels".format(
+                    output_col.output_column, output_col.max_tokens))
+                outputs.append(
+                    self.__make_categorical_loss(
+                        latents,
+                        output_col.output_column,
+                        output_col.max_tokens + 1,
+                        self.final_fc_hidden_units
+                    )
+                )
+            elif isinstance(output_col, NumericalEncoder):
+                logger.info(
+                    "Constructing numerical loss for column {}".format(output_col.output_column))
+                outputs.append(self.__make_numerical_loss(latents, output_col.output_column))
+
+        predictions, losses = zip(*outputs)
+
+        # compute mean loss for each output
+        mean_batch_losses = [mx.sym.mean(l) + eps for l in losses]
+
+        # normalize the loss contribution of each label by the mean over the batch
+        normalized_losses = [mx.sym.broadcast_div(l, mean_loss) for l, mean_loss in zip(losses, mean_batch_losses)]
+
+        # multiply the loss by the mean of all losses of all labels to preserve the gradient norm
+        mean_label_batch_loss = mx.sym.ElementWiseSum(*mean_batch_losses) / float(len(mean_batch_losses))
+
+        # normalize batch
+        loss = mx.sym.broadcast_mul(
+            mx.sym.ElementWiseSum(*normalized_losses) / float(len(mean_batch_losses)),
+            mean_label_batch_loss
+        )
+        loss = mx.sym.MakeLoss(loss, normalization='valid', valid_thresh=1e-6)
+
+        return predictions, loss
