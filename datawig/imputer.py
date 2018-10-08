@@ -223,7 +223,7 @@ class Imputer(object):
 
         self.__check_data(test_df)
 
-        self.module = self.__build_mod(iter_train)
+        self.module = self.__build_module(iter_train)
         self.__fit_module(iter_train, iter_test, learning_rate, num_epochs, patience, weight_decay)
 
         # Check whether calibration is needed, if so ompute and set internal parameter
@@ -311,7 +311,7 @@ class Imputer(object):
         self.train_losses, self.test_losses = train_cb.metrics[metric_name], test_cb.metrics[
             metric_name]
 
-    def __build_mod(self, iter_train: ImputerIterDf) -> mx.mod.Module:
+    def __build_module(self, iter_train: ImputerIterDf) -> mx.mod.Module:
         mod = _MXNetModule(self.ctx, self.label_encoders, self.data_featurizers, self.final_fc_hidden_units)
         return mod.get(iter_train)
 
