@@ -13,4 +13,5 @@ test/resources
 build
 .pytest_cache/
 experiments/
+docs/_build
 
