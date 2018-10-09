@@ -24,16 +24,14 @@ import mxnet as mx
 from .utils import get_context
 
 
-class Featurizer():
-    '''
-
+class Featurizer(object):
+    """
     Featurizer for data that is encoded into numerical format with ColumnEncoder
     Is used to feed data into mxnet compute graph
 
     :param field_name: Field name of featurizer output for mxnet variable/symbols
     :param latent_dim: Dimensionality of resulting features
-
-    '''
+    """
 
     def __init__(self,
                  field_name: str,
@@ -55,8 +53,7 @@ class Featurizer():
 
 
 class ImageFeaturizer(Featurizer):
-    '''
-
+    """
     ImageFeaturizer extracts image features given an image using a standard network architecture
 
     :param field_name: name of the column
@@ -64,8 +61,7 @@ class ImageFeaturizer(Featurizer):
     :image_fc_hidden_units: list containing dimensions of fully connected layer after fwd pass through image
                 extraction network. The length of this list corresponds to the number of FC layers,
                 and the contents of the list are integers with corresponding hidden layer size
-
-    '''
+    """
 
     def __init__(self,
                  field_name: str,
@@ -98,7 +94,7 @@ class ImageFeaturizer(Featurizer):
     @staticmethod
     def __get_pretrained_model(input_symbol: mx.symbol,
                                model_name: str = 'densenet121') -> Any:
-        '''
+        """
 
         Loads a pretrained model from gluon model zoo
 
@@ -108,7 +104,7 @@ class ImageFeaturizer(Featurizer):
                       and 'resnet18_v2' (default: densenet121)
         :return mxnet symbol, params dictionary
 
-        '''
+        """
 
         image_network_pretrained = mx.gluon.model_zoo.vision.get_model(model_name,
                                                                        prefix='image_featurizer_',
@@ -146,7 +142,7 @@ class ImageFeaturizer(Featurizer):
 
 
 class NumericalFeaturizer(Featurizer):
-    '''
+    """
 
     NumericFeaturizer, a one hidden layer neural network with relu activations
 
@@ -154,7 +150,7 @@ class NumericalFeaturizer(Featurizer):
     :param numeric_latent_dim: number of hidden units
     :param numeric_hidden_layers: number of hidden layers
     :return:
-    '''
+    """
 
     def __init__(self,
                  field_name: str,
@@ -176,7 +172,7 @@ class NumericalFeaturizer(Featurizer):
 
 
 class LSTMFeaturizer(Featurizer):
-    '''
+    """
 
     LSTMFeaturizer maps an input representing a sequence of symbols in [0, vocab_size] of shape
     (batch, seq_len) into a latent vector of shape (batch, latent_dim).
@@ -190,7 +186,7 @@ class LSTMFeaturizer(Featurizer):
     :param latent_dim: latent dimensionality (number of hidden units in fully connected
                         output layer of lstm)
 
-    '''
+    """
 
     def __init__(self,
                  field_name: str,
@@ -230,8 +226,9 @@ class LSTMFeaturizer(Featurizer):
 
             self.symbol = mx.sym.FullyConnected(data=output, num_hidden=self.latent_dim)
 
+
 class EmbeddingFeaturizer(Featurizer):
-    '''
+    """
 
     EmbeddingFeaturizer for categorical data
 
@@ -239,7 +236,7 @@ class EmbeddingFeaturizer(Featurizer):
     :param vocab_size: size of the vocabulary, defaults to 100
     :param embed_dim: dimensionality of embedding, defaults to 10
 
-    '''
+    """
 
     def __init__(self,
                  field_name: str,
@@ -260,14 +257,14 @@ class EmbeddingFeaturizer(Featurizer):
 
 
 class BowFeaturizer(Featurizer):
-    '''
+    """
 
     Bag of words Featurizer for string data
 
     :param field_name: name of the column
     :param vocab_size: size of the vocabulary (number of hash buckets), defaults to 2**15
 
-    '''
+    """
 
     def __init__(self,
                  field_name: str,

@@ -648,3 +648,23 @@ def test_imputer_tfidf(test_dir, data_frame):
 
     _, metrics = imputer.transform_and_compute_metrics(df)
     assert metrics['label']['avg_precision'] > 0.80
+
+
+def test_mxnet_module_wrapper(data_frame):
+    from datawig.imputer import _MXNetModule
+    import mxnet as mx
+    from datawig.iterators import ImputerIterDf
+
+    feature_col, label_col = "feature", "label"
+    df = data_frame(n_samples=100, feature_col=feature_col, label_col=label_col)
+    label_encoders = [CategoricalEncoder(label_col)]
+    data_encoders = [BowEncoder(feature_col)]
+    data_featurizers = [BowFeaturizer(feature_col, vocab_size=100)]
+    iter_train = ImputerIterDf(df, data_encoders, label_encoders)
+
+    mod = _MXNetModule(mx.current_context(), label_encoders, data_featurizers, final_fc_hidden_units=[])(iter_train)
+
+    assert mod._label_names == [label_col]
+    assert mod.data_names == [feature_col]
+    # weights and biases
+    assert len(mod._arg_params) == 2
