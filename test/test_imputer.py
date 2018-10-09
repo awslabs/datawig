@@ -662,7 +662,7 @@ def test_mxnet_module_wrapper(data_frame):
     data_featurizers = [BowFeaturizer(feature_col, vocab_size=100)]
     iter_train = ImputerIterDf(df, data_encoders, label_encoders)
 
-    mod = _MXNetModule(mx.current_context(), label_encoders, data_featurizers, final_fc_hidden_units=[]).get(iter_train)
+    mod = _MXNetModule(mx.current_context(), label_encoders, data_featurizers, final_fc_hidden_units=[])(iter_train)
 
     assert mod._label_names == [label_col]
     assert mod.data_names == [feature_col]

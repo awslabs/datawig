@@ -313,7 +313,7 @@ class Imputer(object):
 
     def __build_module(self, iter_train: ImputerIterDf) -> mx.mod.Module:
         mod = _MXNetModule(self.ctx, self.label_encoders, self.data_featurizers, self.final_fc_hidden_units)
-        return mod.get(iter_train)
+        return mod(iter_train)
 
     def __build_iterators(self,
                           train_df: pd.DataFrame,
@@ -910,7 +910,7 @@ class _MXNetModule(object):
         self.label_encoders = label_encoders
         self.final_fc_hidden_units = final_fc_hidden_units
 
-    def get(self, iter_train: ImputerIterDf) -> mx.mod.Module:
+    def __call__(self, iter_train: ImputerIterDf) -> mx.mod.Module:
         """
         Given a training iterator, build MXNet module and return it
 
