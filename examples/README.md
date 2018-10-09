@@ -56,7 +56,6 @@ There are a few options for ColumnEncoders (subclasses) depending on the column 
 * `BowEncoder`&mdash; bag-of-word representation for strings, as sparse vectors
 * `CategoricalEncoder`&mdash; for categorical variables (one-hot encoding)
 * `NumericalEncoder`&mdash; for numerical values
-* `ImageEncoder`&mdash; for processing images
 
 ### Featurizer (*mxnet_input\_symbol.py*)
 
@@ -68,7 +67,6 @@ There are a few options for Featurizers depending on which ColumnEncoder was use
 * `BowFeaturizer`&mdash; used with `BowEncoder` on string data
 * `EmbeddingFeaturizer`&mdash; maps encoded catagorical data into a vector representations (word-embeddings)
 * `NumericalFeaturizer`&mdash; extracts features from numerical data using fully connected layers
-* `ImageFeaturizer`&mdash; extracts image features using a standard CNN network architecture
 
 ### SimpleImputer (*simple_imputer.py*)
 Using `SimpleImputer` is the easiest way to deploy an imputation model on your dataset with DataWig. As the name suggests, the `SimpleImputer` is straightforward to call from a python script and uses default encoders and featurizers that usually yield good results on a variety of datasets.

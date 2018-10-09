@@ -17,28 +17,29 @@ DataWig SimpleImputer:
 Uses some simple default encoders and featurizers that usually yield decent imputation quality
 
 """
-import pickle
-import os
-import json
 import inspect
-from typing import List, Dict, Any
 import itertools
+import json
+import os
+import pickle
+from typing import Any, Dict, List
+
 import mxnet as mx
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
-from .utils import logger, get_context, random_split, rand_string
+from .column_encoders import (BowEncoder, CategoricalEncoder, ColumnEncoder,
+                              NumericalEncoder)
 from .imputer import Imputer
-from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ImageEncoder, \
-    ColumnEncoder
-from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, ImageFeaturizer, Featurizer
+from .mxnet_input_symbols import BowFeaturizer, Featurizer, NumericalFeaturizer
+from .utils import get_context, logger, rand_string, random_split
 
 
 class SimpleImputer():
     """
 
-    SimpleImputer model based on n-grams of concatenated strings of input columns, concatenated
-    numerical features and image features, if provided.
+    SimpleImputer model based on n-grams of concatenated strings of input columns and concatenated
+    numerical features, if provided.
 
     Given a data frame with string columns, a model is trained to predict observed values in label
     column using values observed in other columns.
@@ -113,41 +114,22 @@ class SimpleImputer():
         self.hpo_results = None
         self.numeric_columns = []
         self.string_columns = []
-        self.image_columns = []
 
     def check_data_types(self, data_frame: pd.DataFrame) -> None:
         """
 
-        Checks whether a column contains string, numeric or image file data
+        Checks whether a column contains string or numeric data
 
         :param data_frame:
         :return:
         """
         self.numeric_columns = [c for c in self.input_columns if is_numeric_dtype(data_frame[c])]
-        other_cols = list(set(self.input_columns) - set(self.numeric_columns))
+        self.string_columns = list(set(self.input_columns) - set(self.numeric_columns))
 
-        string_cols = []
-        image_cols = []
-        valid_ext = ['.jpg', '.png', '.gif']
-
-        for col in other_cols:
-            if os.path.exists(str(data_frame[col].values[1])) and any(
-                    x in data_frame[col].values[1] for x in valid_ext):
-                image_cols.append(col)
-            else:
-                string_cols.append(col)
-
-        self.string_columns = string_cols
-        self.image_columns = image_cols
-
-        logger.info(
-            "Assuming {} numeric input columns: {}".format(len(self.numeric_columns),
+        logger.info("Assuming {} numeric input columns: {}".format(len(self.numeric_columns),
                                                            ", ".join(self.numeric_columns)))
         logger.info("Assuming {} string input columns: {}".format(len(self.string_columns),
                                                                   ", ".join(self.string_columns)))
-        logger.info("Assuming {} image input columns: {}".format(len(self.image_columns),
-                                                                 ", ".join(self.image_columns)))
-
     def fit_hpo(self,
                 train_df: pd.DataFrame,
                 test_df: pd.DataFrame = None,
@@ -164,8 +146,6 @@ class SimpleImputer():
                 numeric_hidden_layers_candidates: List[int] = None,
                 hpo_max_train_samples: int = 10000,
                 normalize_numeric: bool = True,
-                image_fc_hidden_units: List[List[int]] = None,
-                final_fc_hidden_units: List[List[int]] = None,
                 learning_rate_candidates: List[float] = None) -> Any:
 
         """
@@ -197,10 +177,6 @@ class SimpleImputer():
         :param learning_rate_candidates: candidates for learning rate (default [1e-1, 1e-2, 1e-3])
         :param hpo_max_train_samples: training set size for hyperparameter optimization
         :param normalize_numeric: boolean indicating whether or not to normalize numeric values
-        :param image_fc_hidden_units: list of lists w/ dimensions for FC layers after the image
-                            featurization network (NOTE: for HPO, this expects a list of lists)
-        :param final_fc_hidden_units: list of lists w/ dimensions for FC layers after the
-                            final concatenation (NOTE: for HPO, this expects a list of lists)
         :return: trained SimpleImputer model
         """
 
@@ -219,12 +195,6 @@ class SimpleImputer():
         if numeric_hidden_layers_candidates is None:
             numeric_hidden_layers_candidates = [0, 1, 2]
 
-        if image_fc_hidden_units is None:
-            image_fc_hidden_units = [[1024]]
-
-        if final_fc_hidden_units is None:
-            final_fc_hidden_units = [[100]]
-
         if learning_rate_candidates is None:
             learning_rate_candidates = [1e-1, 1e-2, 1e-3]
 
@@ -237,34 +207,16 @@ class SimpleImputer():
             weight_decay = store_weight_decay
 
         if len(self.numeric_columns) == 0:
-            if len(self.image_columns) == 0:
                 hps = pd.DataFrame(
                     list(itertools.product(num_hash_bucket_candidates, tokens_candidates,
                                            learning_rate_candidates)),
                     columns=['num_hash_buckets', 'tokens', 'learning_rate'])
-            else:
-                hps = pd.DataFrame(
-                    list(itertools.product(num_hash_bucket_candidates, tokens_candidates, image_fc_hidden_units,
-                                           final_fc_hidden_units, weight_decay,
-                                           learning_rate_candidates)),
-                    columns=['num_hash_buckets', 'tokens', 'image_fc_hidden_units', 'final_fc_dim',
-                             'weight_decay', 'learning_rate'])
 
-        elif len(self.string_columns) == 0:
+        else:
             hps = pd.DataFrame(
                 list(itertools.product(numeric_latent_dim_candidates, numeric_hidden_layers_candidates,
                                        learning_rate_candidates)),
                 columns=['numeric_latent_dim', 'numeric_hidden_layers', 'learning_rate'])
-        else:
-            hps = pd.DataFrame(
-                list(itertools.product(
-                    num_hash_bucket_candidates,
-                    tokens_candidates,
-                    numeric_latent_dim_candidates,
-                    numeric_hidden_layers_candidates,
-                    learning_rate_candidates)),
-                columns=['num_hash_buckets', 'tokens', 'numeric_latent_dim', 'numeric_hidden_layers',
-                         'learning_rate'])
 
         label_column = []
 
@@ -303,36 +255,13 @@ class SimpleImputer():
                                                      numeric_latent_dim=hyper_param['numeric_latent_dim'],
                                                      numeric_hidden_layers=hyper_param['numeric_hidden_layers'])]
 
-            if len(self.image_columns) > 0:
-                image_feature_column = "image_features-" + rand_string(10)
-                data_encoders += [ImageEncoder(input_columns=self.image_columns,
-                                               output_column=image_feature_column)]
-                data_columns += [
-                    ImageFeaturizer(field_name=image_feature_column,
-                                    image_fc_hidden_units=hyper_param['image_fc_hidden_units'])]
-
-                # Create and fit imputer
-            if len(self.image_columns) > 0:
-                imputer = Imputer(data_encoders=data_encoders,
+            # Create and fit imputer
+            imputer = Imputer(data_encoders=data_encoders,
                                   data_featurizers=data_columns,
                                   label_encoders=label_column,
-                                  output_path=self.output_path) \
-                    .fit(train_df_hpo.copy(),
-                         None,
-                         ctx,
-                         learning_rate,
-                         num_epochs,
-                         patience,
-                         test_split,
-                         hyper_param['weight_decay'],
-                         batch_size,
-                         final_fc_hidden_units=hyper_param['final_fc_dim'])
-            else:
-                imputer = Imputer(data_encoders=data_encoders,
-                                  data_featurizers=data_columns,
-                                  label_encoders=label_column,
-                                  output_path=self.output_path) \
-                    .fit(train_df_hpo.copy(),
+                                  output_path=self.output_path)
+                    
+            imputer.fit(train_df_hpo.copy(),
                          None,
                          ctx,
                          hyper_param['learning_rate'],
@@ -388,12 +317,6 @@ class SimpleImputer():
                                                  numeric_hidden_layers=best_hps['numeric_hidden_layers']
                                                  )]
 
-        if len(self.image_columns) > 0:
-            data_encoders += [ImageEncoder(input_columns=self.image_columns,
-                                           output_column=image_feature_column)]
-            data_columns += [
-                ImageFeaturizer(field_name=image_feature_column, image_fc_hidden_units=best_hps['image_fc_hidden_units'])]
-
         self.imputer = Imputer(data_encoders=data_encoders,
                                data_featurizers=data_columns,
                                label_encoders=label_column,
@@ -403,14 +326,8 @@ class SimpleImputer():
 
         self.output_path = self.imputer.output_path
 
-        # Create and fit imputer with best HPs
-        if len(self.image_columns) > 0:
-            self.imputer = self.imputer.fit(train_df, test_df, ctx, learning_rate, num_epochs,
-                                            patience, test_split,
-                                            best_hps['weight_decay'], batch_size,
-                                            best_hps['final_fc_dim'])
-        else:
-            self.imputer = self.imputer.fit(train_df, test_df, ctx, learning_rate, num_epochs,
+        # Create and fit imputer with best HPsf
+        self.imputer = self.imputer.fit(train_df, test_df, ctx, learning_rate, num_epochs,
                                             patience, test_split, weight_decay[0])
 
         self.hpo_results = hpo_results
@@ -429,8 +346,6 @@ class SimpleImputer():
             test_split: float = .1,
             weight_decay: float = 0.,
             batch_size: int = 16,
-            image_fc_hidden_units: List[int] = None,
-            final_fc_hidden_units: List[int] = None,
             calibrate: bool = True) -> Any:
         """
 
@@ -449,16 +364,8 @@ class SimpleImputer():
                             separate for determining model convergence
         :param weight_decay: regularizer (default 0)
         :param batch_size (default 16)
-        :param image_fc_hidden_units: list dimensions for FC layers after the image featurization network
-        :param final_fc_hidden_units: list dimensions for FC layers after the final concatenation
 
         """
-
-        if image_fc_hidden_units is None:
-            image_fc_hidden_units = [100]
-
-        if final_fc_hidden_units is None:
-            final_fc_hidden_units = [100]
 
         self.check_data_types(train_df)
 
@@ -484,12 +391,6 @@ class SimpleImputer():
                 NumericalFeaturizer(field_name=numerical_feature_column, numeric_latent_dim=self.numeric_latent_dim,
                                     numeric_hidden_layers=self.numeric_hidden_layers)]
 
-        if len(self.image_columns) > 0:
-            image_feature_column = "image_features-" + rand_string(10)
-            data_encoders += [ImageEncoder(input_columns=self.image_columns,
-                                           output_column=image_feature_column)]
-            data_columns += [ImageFeaturizer(field_name=image_feature_column, image_fc_hidden_units=image_fc_hidden_units)]
-
         label_column = []
 
         if is_numeric_dtype(train_df[self.output_column]):
@@ -509,7 +410,6 @@ class SimpleImputer():
         self.imputer = self.imputer.fit(train_df, test_df, ctx, learning_rate, num_epochs, patience,
                                         test_split,
                                         weight_decay, batch_size,
-                                        final_fc_hidden_units=final_fc_hidden_units,
                                         calibrate=calibrate)
         self.save()
 

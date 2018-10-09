@@ -75,7 +75,7 @@ imputer.fit_hpo(
 ```
 See the [`SimpleImputer` code](https://github.com/awslabs/datawig/blob/97e259d6fde9e38f66c59e82a068172c54060c04/datawig/simple_imputer.py#L144-L162) for more details on parameters.
 
-We also have a tutorial [here](../params_tutorial) that covers more details on relevant parameters for text, numerical, and image data.
+We also have a tutorial [here](../params_tutorial) that covers more details on relevant parameters for text and numerical data.
 
 ## Load Saved Model
 Once a model is trained, it will be saved in the location of `output_path`, which you specified as an argument when intializing the `SimpleImputer`. You can easily load this model for further experiments or run on new datasets as follows.

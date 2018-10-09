@@ -17,9 +17,6 @@ DataWig ColumnEncoder tests
 
 """
 
-import os
-from test.utils import save_image_file
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -196,28 +193,6 @@ def test_numeric_encoder():
                                                    [1.58113885, 0.],
                                                    [0., 0.],
                                                    [0., 1.82549345]], dtype=np.float32))
-
-
-def test_image_encoder(test_dir):
-    img_path = os.path.join(test_dir, "test_images")
-    os.makedirs(img_path, exist_ok=True)
-
-    colors = ['red', 'green']
-    img_filenames = ['not-existent.jpg']
-    for color in colors:
-        filename = os.path.join(img_path, color + ".png")
-        save_image_file(filename, color)
-        img_filenames.append(filename)
-
-    df = pd.DataFrame({"test_uris": img_filenames})
-
-    untransformed_image_encoder = column_encoders.ImageEncoder(['test_uris'])
-    tensor = untransformed_image_encoder.transform(df)
-    assert tensor[:, :, 1, 1] == pytest.approx(np.array([[0., 0., 0.],
-                                                         [0.53643285, -2.03571422, -1.80444444],
-                                                         [-2.11790397, 0.67787113, -1.80444444]]),
-                                               1e-5)
-
 
 def test_tfidf_encoder():
     tfidf_encoder = column_encoders.TfIdfEncoder("features", max_tokens=5)

@@ -24,8 +24,7 @@ from .utils import logger
 
 def make_categorical_loss(latents: mx.symbol,
                           label_field_name: str,
-                          num_labels: int,
-                          final_fc_hidden_units: List[int] = None) -> Tuple[Any, Any]:
+                          num_labels: int) -> Tuple[Any, Any]:
     '''
 
     Generate output symbol for categorical loss
@@ -33,32 +32,15 @@ def make_categorical_loss(latents: mx.symbol,
     :param latents: MxNet symbol containing the concantenated latents from all featurizers
     :param label_field_name: name of the label column
     :num_labels: number of labels contained in the label column (for prediction)
-    :final_fc_hidden_units: list of dimensions for the final fully connected layer.
-                            The length of this list corresponds to the number of FC 
-                            layers, and the contents of the list are integers with
-                            corresponding hidden layer size.
     :return: mxnet symbols for predictions and loss
 
     '''
     fully_connected = None
-    if len(final_fc_hidden_units) == 0:
-        # generate prediction symbol
-        fully_connected = mx.sym.FullyConnected(
-            data=latents,
-            num_hidden=num_labels,
-            name="label_{}".format(label_field_name))
-    else:
-        layer_size = final_fc_hidden_units
-        with mx.name.Prefix("label_{}".format(label_field_name)):
-            for i, layer in enumerate(layer_size):
-                if i == len(layer_size) - 1:
-                    fully_connected = mx.sym.FullyConnected(
-                        data=latents,
-                        num_hidden=layer)
-                else:
-                    latents = mx.sym.FullyConnected(
-                        data=latents,
-                        num_hidden=layer)
+    # generate prediction symbol
+    fully_connected = mx.sym.FullyConnected(
+        data=latents,
+        num_hidden=num_labels,
+        name="label_{}".format(label_field_name))
 
     pred = mx.sym.softmax(fully_connected)
     label = mx.sym.Variable(label_field_name)
