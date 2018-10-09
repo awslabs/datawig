@@ -34,7 +34,7 @@ from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, I
 from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, ImageFeaturizer, Featurizer
 
 
-class SimpleImputer():
+class SimpleImputer:
     """
 
     SimpleImputer model based on n-grams of concatenated strings of input columns, concatenated

@@ -39,7 +39,7 @@ from .evaluation import evaluate_and_persist_metrics
 from . import calibration
 
 
-class Imputer(object):
+class Imputer:
     """
 
     Imputer model based on deep learning trained with MxNet
@@ -889,7 +889,7 @@ class Imputer(object):
             self.calibration_temperature = temperature
 
 
-class _MXNetModule(object):
+class _MXNetModule:
     def __init__(
             self,
             ctx: mx.context,
