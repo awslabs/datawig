@@ -18,7 +18,8 @@ extract features or pass on encoded numerical representations of rows
 
 """
 
-from typing import List, Any
+from typing import Any, List
+
 import mxnet as mx
 
 from .utils import get_context
@@ -50,96 +51,6 @@ class Featurizer(object):
 
         """
         return self.symbol
-
-
-class ImageFeaturizer(Featurizer):
-    """
-    ImageFeaturizer extracts image features given an image using a standard network architecture
-
-    :param field_name: name of the column
-    :param fine_tune: boolean that determines if entire image feature extraction model will be tuned
-    :image_fc_hidden_units: list containing dimensions of fully connected layer after fwd pass through image
-                extraction network. The length of this list corresponds to the number of FC layers,
-                and the contents of the list are integers with corresponding hidden layer size
-    """
-
-    def __init__(self,
-                 field_name: str,
-                 fine_tune: bool = False,
-                 image_fc_hidden_units: List[int] = None,
-                 model_name: str = 'densenet121') -> None:
-        if image_fc_hidden_units is None:
-            image_fc_hidden_units = [1024]
-
-        super(ImageFeaturizer, self).__init__(field_name, image_fc_hidden_units[-1])
-
-        self.fine_tune = fine_tune
-        self.model_name = model_name
-        self.image_fc_hidden_units = [int(x) for x in image_fc_hidden_units]
-
-        with mx.name.Prefix(self.prefix):
-            symbol, arg_params = self.__get_pretrained_model(self.input_symbol,
-                                                             self.model_name)
-            self.params = arg_params
-
-            for hidden_dim in self.image_fc_hidden_units:
-                symbol = mx.sym.FullyConnected(
-                    data=symbol,
-                    num_hidden=hidden_dim
-                )
-                symbol = mx.symbol.Activation(data=symbol, act_type="softrelu")
-
-            self.symbol = symbol
-
-    @staticmethod
-    def __get_pretrained_model(input_symbol: mx.symbol,
-                               model_name: str = 'densenet121') -> Any:
-        """
-
-        Loads a pretrained model from gluon model zoo
-
-        :param input_symbol: mxnet symbol Variable with the associated name of the column
-        :model_name: string containing the gluon model name for loading the pretrained model
-                     currently supports 'densenet121', resnet50_v2, alexnet, and squeezenet1.0
-                      and 'resnet18_v2' (default: densenet121)
-        :return mxnet symbol, params dictionary
-
-        """
-
-        image_network_pretrained = mx.gluon.model_zoo.vision.get_model(model_name,
-                                                                       prefix='image_featurizer_',
-                                                                       ctx=mx.cpu(),
-                                                                       pretrained=True)
-
-        internals = image_network_pretrained(input_symbol).get_internals()
-
-        supported_models = ['densenet121',
-                            'resnet18_v2',
-                            'resnet50_v2',
-                            'alexnet',
-                            'squeezenet1.0']
-
-        if model_name in supported_models:
-            outputs = [internals['image_featurizer_flatten0_flatten0_output']]
-        elif model_name == 'vgg16':
-            outputs = [internals['image_featurizer_dense0_relu_fwd_output']]
-        else:
-            raise ValueError(
-                "Only {} are supported for models, got {}".format(", ".join(supported_models),model_name))
-
-        # feed one random input through network
-        feat_model = mx.gluon.SymbolBlock(outputs, input_symbol,
-                                          params=image_network_pretrained.collect_params())
-        _ = feat_model(mx.nd.random.normal(shape=(16, 3, 224, 224)))
-
-        # convert to numpy
-        sym = feat_model(input_symbol)
-        args = {}
-        for key, value in feat_model.collect_params().items():
-            args[key] = mx.nd.array(value.data().asnumpy())
-
-        return sym, args
-
 
 class NumericalFeaturizer(Featurizer):
     """

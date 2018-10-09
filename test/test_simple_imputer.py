@@ -18,9 +18,7 @@ DataWig SimpleImputer tests
 """
 
 import os
-import random
 import warnings
-from test.utils import save_image_file
 
 import numpy as np
 import pandas as pd
@@ -282,49 +280,3 @@ def test_imputer_hpo_text(test_dir, data_frame):
     imputer_string.predict(df_test)
 
     assert f1_score(df_test[label_col], df_test[label_col + '_imputed'], average="weighted") > .7
-
-
-def test_imputer_image_hpo(test_dir):
-    """
-
-    Tests SimpleImputer HPO with image data imputing a text column
-
-    """
-
-    img_path = os.path.join(test_dir, "test_images")
-    os.makedirs(img_path, exist_ok=True)
-
-    colors = ['red', 'green', 'blue']
-
-    for color in colors:
-        save_image_file(os.path.join(img_path, color + ".png"), color)
-
-    n_samples = 10
-    color_labels = [random.choice(colors) for _ in range(n_samples)]
-
-    df = pd.DataFrame({"image_files": color_labels,
-                       "label": color_labels})
-
-    for _, row in df.iterrows():
-        row['image_files'] = os.path.join(img_path, row['image_files'] + ".png")
-
-    output_path = os.path.join(test_dir, "tmp", "experiment_images_hpo")
-
-    imputer_string = SimpleImputer(
-        input_columns=['image_files'],
-        output_column="label",
-        output_path=output_path
-    )
-    imputer_string.fit_hpo(
-        train_df=df,
-        learning_rate=1e-3,
-        num_epochs=10,
-        patience=10,
-        test_split=.3,
-        weight_decay=.0,
-        num_hash_bucket_candidates=[2 ** 10],
-        tokens_candidates=['words'],
-        numeric_latent_dim_candidates=[10],
-        learning_rate_candidates=[1e-3],
-        hpo_max_train_samples=1000
-    )
