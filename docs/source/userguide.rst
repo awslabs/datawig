@@ -287,7 +287,7 @@ Parameters for Different Data Types
 
 This tutorial will highlight the different parameters associated with column data types supported by DataWig. We use the :code:`SimpleImputer` in these examples, but the same concepts apply when using the :code:`Imputer` and other encoders/featurizers.
 
-The `parameter tutorial`_ contains the complete code for training models on text, numerical, and image data. Here, we illustrate examples of relevant parameters for training models on each of these types of data.
+The `parameter tutorial`_ contains the complete code for training models on text and numerical data. Here, we illustrate examples of relevant parameters for training models on each of these types of data.
 
 It's important to note that your dataset can contain columns with mixed types. The :code:`SimpleImputer` automatically determines which encoder and featurizer to use when training an imputation model!
 
