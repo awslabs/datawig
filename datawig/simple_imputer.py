@@ -215,14 +215,14 @@ class SimpleImputer:
         if len(self.numeric_columns) == 0:
             hps = pd.DataFrame(
                 list(itertools.product(num_hash_bucket_candidates, tokens_candidates,
-                                        learning_rate_candidates)),
+                                    learning_rate_candidates)),
                 columns=['num_hash_buckets', 'tokens', 'learning_rate'])
 
         elif len(self.string_columns) == 0:
             hps = pd.DataFrame(
                 list(itertools.product(numeric_latent_dim_candidates, numeric_hidden_layers_candidates,
-                                       learning_rate_candidates)),
-                columns=['numeric_latent_dim', 'numeric_hidden_layers', 'learning_rate'])
+                                       learning_rate_candidates, final_fc_hidden_units)),
+                columns=['numeric_latent_dim', 'numeric_hidden_layers', 'learning_rate', 'final_fc_dim'])
         else:
             hps = pd.DataFrame(
                 list(itertools.product(
@@ -230,9 +230,10 @@ class SimpleImputer:
                     tokens_candidates,
                     numeric_latent_dim_candidates,
                     numeric_hidden_layers_candidates,
-                    learning_rate_candidates)),
+                    learning_rate_candidates,
+                    final_fc_hidden_units)),
                 columns=['num_hash_buckets', 'tokens', 'numeric_latent_dim', 'numeric_hidden_layers',
-                         'learning_rate'])
+                         'learning_rate', 'final_fc_dim'])
 
         label_column = []
 
