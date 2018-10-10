@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, classification_report
 import seaborn as sns
 from scipy.stats import entropy
-logger.setLevel("INFO")
+logger.setLevel("DEBUG")
 
 def test_coo():
 
@@ -40,7 +40,7 @@ def test_coo():
 
 
     # Train
-    tr, te = random_split(df.sample(500), [.8, .2])
+    tr, te = random_split(df.sample(100), [.8, .2])
     imputer.fit(train_df=tr, test_df=te, num_epochs=20)
     predictions = imputer.predict(te)
 
@@ -60,8 +60,8 @@ def test_simulated():
     # categorical in ['foo', 'dummy'], one text in ['text_foo_text', 'text_dummy_text'].
     # the output column is deterministically 'foo', if 'foo' occurs anywhere in any input column.
     N = 100
-    cat_in_col = ['foo' if r > (1 / 2) else 'dummy' for r in np.random.rand(N)]
-    text_in_col = ['text_foo_text' if r > (1 / 2) else 'text_dummy_text' for r in np.random.rand(N)]
+    cat_in_col = ['foo' if r > (1 / 3) else 'dummy' for r in np.random.rand(N)]
+    text_in_col = ['textFtext' if r > (1 / 3) else 'textDtext' for r in np.random.rand(N)]
     cat_out_col = ['foo' if 'foo' in input[0] + input[1] else 'bar' for input in zip(cat_in_col, text_in_col)]
 
     df = pd.DataFrame()
@@ -71,10 +71,10 @@ def test_simulated():
 
 
     # Specify encoders and featurizers # Todo: add column with HasingVectorizer
-    data_encoder_cols = [datawig.column_encoders.TfIdfEncoder('in_text', tokens="chars")]
-                         # datawig.column_encoders.CategoricalEncoder('in_cat', max_tokens=1e1)]
-    data_featurizer_cols = [datawig.mxnet_input_symbols.BowFeaturizer('in_text')]
-                            # datawig.mxnet_input_symbols.EmbeddingFeaturizer('in_cat')]
+    data_encoder_cols = [datawig.column_encoders.TfIdfEncoder('in_text', tokens="chars"),
+                         datawig.column_encoders.CategoricalEncoder('in_cat', max_tokens=1e1)]
+    data_featurizer_cols = [datawig.mxnet_input_symbols.BowFeaturizer('in_text'),
+                            datawig.mxnet_input_symbols.EmbeddingFeaturizer('in_cat')]
 
     label_encoder_cols = [datawig.column_encoders.CategoricalEncoder('out_cat')]
 
@@ -97,7 +97,8 @@ def test_simulated():
 
     return imputer
 
-imputer = test_coo()
-# imputer = test_simulated()
-imputer.explain('foo', 10, 'out_cat')
+# imputer = test_coo()
+imputer = test_simulated()
+imputer.explain('foo', 5, 'out_cat')
 
+temp = 1

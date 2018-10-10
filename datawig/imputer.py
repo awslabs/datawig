@@ -267,7 +267,7 @@ class Imputer:
 
         # TODO: G-test/LIME
         if method is not "covar":
-            logger.warn("Explain method other than cover not implemented. Falling back to covar.")
+            logger.warn("Explain method other than covar not implemented. Falling back to covar.")
 
         # Use 0th label column if not specified otherwise
         if label_name is None:
@@ -333,6 +333,7 @@ class Imputer:
             else:
                 logger.warn("column encoder not support for explain.")
 
+
         # extract contribution of the label of interest.
         # todo: maybe save intermediate results to speed up compuation for other labels?
         patterns = [class_pattern[:, label_enc.token_to_idx[label]] for class_pattern in class_patterns]
@@ -366,13 +367,14 @@ class Imputer:
         # combine into flat list with tuples (data_column, n_gram, association_strength)
         top_words = sorted([(data_column, *top_word) for data_column, top_words in top_words.items()
                                    for top_word in top_words],
-                                   key=lambda x: x[2])[::-1] # [:k]
+                                   key=lambda x: x[2])[::-1]# [:k]
 
         bottom_words = sorted([(data_column, *bottom_word) for data_column, bottom_words in bottom_words.items()
                                       for bottom_word in bottom_words],
-                                      key=lambda x: x[2])[::-1] # [:k] for debugging useful to return from all inputs
+                                      key=lambda x: x[2])# [-k:]
 
         return top_words, bottom_words
+
 
     def __fit_module(self,
                      iter_train: ImputerIterDf,
