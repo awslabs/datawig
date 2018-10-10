@@ -215,8 +215,8 @@ class SimpleImputer:
         if len(self.numeric_columns) == 0:
             hps = pd.DataFrame(
                 list(itertools.product(num_hash_bucket_candidates, tokens_candidates,
-                                    learning_rate_candidates)),
-                columns=['num_hash_buckets', 'tokens', 'learning_rate'])
+                                    learning_rate_candidates, final_fc_hidden_units)),
+                columns=['num_hash_buckets', 'tokens', 'learning_rate', 'final_fc_dim'])
 
         elif len(self.string_columns) == 0:
             hps = pd.DataFrame(
