@@ -84,6 +84,10 @@ class Imputer:
         self.precision_recall_curves = {}
         self.calibration_info = {}
 
+        self.is_explainable = np.any([isinstance(encoder, CategoricalEncoder) or
+                                      isinstance(encoder, TfIdfEncoder)
+                                      for encoder in self.data_encoders])
+
         if len(self.data_featurizers) != len(self.data_encoders):
             raise ValueError("Argument Number of data_featurizers ({}) \
                               must match number of data_encoders ({})".format(len(self.data_encoders), len(self.data_featurizers)))
@@ -241,44 +245,30 @@ class Imputer:
         self.__prune_models()
         self.save()
 
-        # todo
-        # save training encoding + label probabilities
-        iter_train.reset()
-        self.__pp = self.predict(train_df)
-        iter_train.reset()
-        self.__iter_train_probas = self.__predict_mxnet_iter(iter_train)
-        import scipy.sparse
-
-        # self.__X_train = scipy.sparse.vstack([enc.transform(train_df).transpose() for enc in self.data_encoders])
-        # maybe better to have list of representations for each encoder
-        self.__X_train = [enc.transform(train_df).transpose() for enc in self.data_encoders]
+        if self.is_explainable:
+            self.__persists_class_prototypes(iter_train, train_df)
 
         return self
 
-    def explain(self, label: str, k: int, method: str = "covar", label_name: str = None):
+
+    def __persists_class_prototypes(self, iter_train, train_df):
         """
-        Returns a k-element list of input tokens that best explain the given label.
-        :param label: string label to explain
-        :param k: number of explanations for the given label to return
-        :param method: name of explanation method to use. Only "covar" available.
-        :param label_name: name of label column. Only relevant if multiple are present.
-        :return: maximally k-element list of feature tokens explaining the target `label`
+        Save mean feature pattern as self.class_patterns for each label_encoder, for each label, for each data encoder,
+        given by the projection of the feature matrix (items by ngrams/categories)
+        onto the softmax outputs (items by labels).
+        self.class_pattersn is a list of tuples of the form (column_encoder, feature-label-correlation-matrix).
         """
 
-        # TODO: G-test/LIME
-        if method is not "covar":
-            logger.warn("Explain method other than covar not implemented. Falling back to covar.")
+        if len(self.label_encoders) > 1:
+            logger.warn('Persisting class prototypes works only for a single output column. '
+                        'Choosing ' + str(self.label_encoders[0].output_column) + '.')
+        label_name = self.label_encoders[0].output_column
 
-        # Use 0th label column if not specified otherwise
-        if label_name is None:
-            label_name = self.label_encoders[0].output_column
+        iter_train.reset()
+        p = self.__predict_mxnet_iter(iter_train)[label_name]  # class probabilities for every item (items x labels)
 
-        # Check whether to-be-explained label value exists.
-        if label not in self.label_encoders[0].token_to_idx.keys():
-            logger.warn("Specified label {} not observed in label encoder".format(label))
-            return []
-        else:
-            label_enc = [enc for enc in self.label_encoders if enc.output_column == label_name][0]
+        # center and whiten the class probabilities
+        p_normalized = StandardScaler().fit_transform(p)
 
         # Generate list of data encoders, with features suitable for explanation. Only TfIDf and Categorical supported.
         explainable_data_encoders = []
@@ -290,90 +280,79 @@ class Imputer:
                 explainable_data_encoders.append(encoder)
                 explainable_data_encoders_idx.append(encoder_idx)
 
-        # todo: remove
-        # # get_params() returns categorical inputs but not tdidf embedded text inputs, why?
-        # arg_params, aux_params = self.module.get_params()
-        # if len(arg_params) != 2:
-        #     logger.warn("Too many model parameters")
-
-        p = self.__iter_train_probas[label_name]  # class probabilities for every item (items x labels)
         # encoded representations of training data ([items x features] for every encoded column.)
-        X = [self.__X_train[idx] for idx in explainable_data_encoders_idx]
+        X = [enc.transform(train_df).transpose() for enc in explainable_data_encoders]
 
         # whiten the feature matrix. Centering is not supported for sparse matrices.
         # Doesn't do anything for categorical data where the shape is (1, num_items)
         X_scaled = [StandardScaler(with_mean=False).fit_transform(feature_matrix) for feature_matrix in X]
-
-        # center and whiten the class probabilities
-        p_normalized = StandardScaler().fit_transform(p)
-
-        # extract mapping entries in the feature vector to interpretable tokens (categories, ngrams)
-        idx2token = []
-        for encoder in explainable_data_encoders:
-            # TODO: categorical encoder starts counting at 1. (WTF?)
-            # Later gets called with argsorted indices, so need to shift!
-            if isinstance(encoder, CategoricalEncoder):
-                keymap = {i+1: i for i in range(len(encoder.idx_to_token))} # decrease category index by 1
-                idx2token_temp = dict((keymap[key], val) for key, val in encoder.idx_to_token.items())
-            else:
-                idx2token_temp = encoder.idx_to_token
-            idx2token.append(idx2token_temp)
 
         # compute correlation between features and labels
         class_patterns = []
         for feature_matrix_scaled, encoder in zip(X_scaled, explainable_data_encoders):
             if isinstance(encoder, TfIdfEncoder):
                 # project features onto labels and sum across items
-                class_patterns.append(feature_matrix_scaled.dot(p_normalized))
+                class_patterns.append((encoder, feature_matrix_scaled.dot(p_normalized)))
             elif isinstance(encoder, CategoricalEncoder):
                 # compute mean class output for all input labels
-                class_patterns.append(np.array(
+                class_patterns.append((encoder, np.array(
                         [np.sum(p_normalized[np.where(feature_matrix_scaled[0, :] == category)[0], :], axis=0)
-                         for category in encoder.idx_to_token.keys()]))
+                         for category in encoder.idx_to_token.keys()])))
             else:
-                logger.warn("column encoder not support for explain.")
+                logger.warn("column encoder not supported for explain.")
+
+        self.__class_patterns = class_patterns
 
 
-        # extract contribution of the label of interest.
-        # todo: maybe save intermediate results to speed up compuation for other labels?
-        patterns = [class_pattern[:, label_enc.token_to_idx[label]] for class_pattern in class_patterns]
+    def explain(self, label: str, k: int = None, label_column: str = None):
+        """
+        Return dictionary with entries for each explainable input column,
+        returning top k tokens with highest correlation to label.
 
-        # for each data encoder extract top-k features.
-        top_words_of_pattern = []
-        bottom_words_of_pattern = []
-        for pattern, encoder in zip(patterns, explainable_data_encoders):
-            if isinstance(encoder, TfIdfEncoder):
-                top_words_of_pattern.append(pattern.argsort()[-k:][::-1])
-                bottom_words_of_pattern.append(pattern.argsort()[:k])
+        :param label: label value to explain
+        :param k: number of explanations for each input encoder to return
+        :param label_column: name of label column to be explained (optional)
+        """
+
+        if not self.is_explainable:
+            raise ValueError("No explainable data encoders available.")
+
+        # assign label column encoder
+        if label_column is not None:
+            label_encoders = [enc for enc in self.label_encoders if enc.output_column == label_column]
+            if len(label_encoders) == 0:
+                raise ValueError("Could not find label column")
+            else:
+                label_encoder = label_encoders[0]
+        else:
+            label_encoder = self.label_encoders[0]
+
+        # Check whether to-be-explained label value exists.
+        if label not in label_encoder.token_to_idx.keys():
+            raise ValueError("Specified label {} not observed in label encoder".format(label))
+
+        # If k not given return all tokens
+        if k is None:
+            k = int(1e3)
+
+        # assign index of label value (there can be an additional label column for "unobserved" label.
+        label_idx = label_encoder.token_to_idx[label]
+
+        # for each data encoder extract (token_idx, token_idx_correlation_with_label), extract and apply idx2token map.
+        token_weights = {}
+        for encoder, pattern in self.__class_patterns:
+            # extract idx2token mappings
             if isinstance(encoder, CategoricalEncoder):
-                top_words_of_pattern.append(pattern.argsort()[-k:][::-1])
-                bottom_words_of_pattern.append(pattern.argsort()[:k])
+                idx_tuples = zip(pattern[:, label_idx].argsort()[::-1][:k], sorted(pattern[:, label_idx])[::-1][:k])
+                # +1, bc idx_to_token has 0th column for unobserved labels. TODO: what does it do? remove this column!
+                keymap = {i+1: i for i in range(len(encoder.idx_to_token))}
+                idx2token_temp = dict((keymap[key], val) for key, val in encoder.idx_to_token.items())
+            if isinstance(encoder, TfIdfEncoder):
+                idx_tuples = zip(pattern[:, label_idx].argsort()[::-1][:k], sorted(pattern[:, label_idx])[::-1][:k])
+                idx2token_temp = encoder.idx_to_token
+            token_weights[encoder.output_column] = [(idx2token_temp[token], weight) for token, weight in idx_tuples]
 
-        # initialize dictionaries for results
-        top_words = {}
-        bottom_words = {}
-
-        # iterate over data encoders and write top features their weights to dictionary
-        for idx, data_encoder in enumerate(explainable_data_encoders):
-            data_column = data_encoder.output_column
-            top_words[data_column] = []
-            bottom_words[data_column] = []
-            # encode words and save to tuple with association strength
-            for w_idx, magn in zip(top_words_of_pattern[idx], patterns[idx][top_words_of_pattern[idx]]):
-                top_words[data_column].append((idx2token[idx][w_idx], magn))
-            for w_idx, magn in zip(bottom_words_of_pattern[idx], patterns[idx][bottom_words_of_pattern[idx]]):
-                bottom_words[data_column].append((idx2token[idx][w_idx], magn))
-
-        # combine into flat list with tuples (data_column, n_gram, association_strength)
-        top_words = sorted([(data_column, *top_word) for data_column, top_words in top_words.items()
-                                   for top_word in top_words],
-                                   key=lambda x: x[2])[::-1]# [:k]
-
-        bottom_words = sorted([(data_column, *bottom_word) for data_column, bottom_words in bottom_words.items()
-                                      for bottom_word in bottom_words],
-                                      key=lambda x: x[2])# [-k:]
-
-        return top_words, bottom_words
+        return token_weights
 
 
     def __fit_module(self,
