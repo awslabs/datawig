@@ -44,7 +44,7 @@ def test_explain_method_synthetic():
        )
 
     # Train
-    tr, te = random_split(df.sample(99), [.8, .2])
+    tr, te = random_split(df.sample(90), [.8, .2])
     imputer.fit(train_df=tr, test_df=te, num_epochs=30, learning_rate = 1e-2)
     imputer.predict(te)
 

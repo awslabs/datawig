@@ -83,7 +83,10 @@ class Imputer:
         self.precision_recall_curves = {}
         self.calibration_info = {}
 
-        # self.is_explainable = True # check if there is a single cat column
+
+        self.is_explainable = np.any([isinstance(encoder, CategoricalEncoder) or
+                                      isinstance(encoder, TfIdfEncoder)
+                                      for encoder in self.data_encoders])
 
         if len(self.data_featurizers) != len(self.data_encoders):
             raise ValueError("Argument Number of data_featurizers ({}) \
@@ -244,7 +247,8 @@ class Imputer:
         self.__prune_models()
         self.save()
 
-        self.__persists_class_prototypes(iter_train, train_df)
+        if self.is_explainable:
+            self.__persists_class_prototypes(iter_train, train_df)
 
         return self
 
@@ -311,6 +315,10 @@ class Imputer:
         :param k: number of explanations for each input encoder to return
         :param label_column: name of label column to be explained (optional)
         """
+
+
+        if not self.is_explainable:
+            raise ValueError("No explainable data encoders available.")
 
         # assign label column encoder
         if label_column is not None:
