@@ -18,26 +18,30 @@ Imputes missing values in tables
 
 """
 
-import os
 import glob
+import inspect
+import itertools
+import os
 import pickle
 import time
-import itertools
-import inspect
-from typing import List, Any, Tuple
+from typing import Any, List, Tuple
+
 import mxnet as mx
-from mxnet.callback import save_checkpoint
-import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 
-from .utils import timing, MeanSymbol, LogMetricCallBack, logger, \
-    random_split, AccuracyMetric, get_context, ColumnOverwriteException, merge_dicts
-from .column_encoders import ColumnEncoder, NumericalEncoder, CategoricalEncoder, TfIdfEncoder
-from .iterators import ImputerIterDf
-from .mxnet_input_symbols import Featurizer, ImageFeaturizer
-from .evaluation import evaluate_and_persist_metrics
+import pandas as pd
+from mxnet.callback import save_checkpoint
+
 from . import calibration
+from .column_encoders import (CategoricalEncoder, ColumnEncoder,
+                              NumericalEncoder, TfIdfEncoder)
+from .evaluation import evaluate_and_persist_metrics
+from .iterators import ImputerIterDf
+from .mxnet_input_symbols import Featurizer
+from .utils import (AccuracyMetric, ColumnOverwriteException,
+                    LogMetricCallBack, MeanSymbol, get_context, logger,
+                    merge_dicts, random_split, timing)
 
 
 class Imputer:
@@ -390,11 +394,6 @@ class Imputer:
         combined_metric = mx.metric.CompositeEvalMetric(
             metrics=[cross_entropy_metric] + accuracy_metrics)
 
-        image_network_params = {}
-        for featurizer in self.data_featurizers:
-            if isinstance(featurizer, ImageFeaturizer):
-                image_network_params = featurizer.params
-
         with timing("fit model"):
             try:
                 self.module.fit(
@@ -402,10 +401,7 @@ class Imputer:
                     eval_data=iter_test,
                     eval_metric=combined_metric,
                     num_epoch=num_epochs,
-                    initializer=mx.initializer.Mixed(['image_featurizer', '.*'],
-                                                     [mx.init.Load(image_network_params),
-                                                      mx.init.Xavier(factor_type="in",
-                                                                     magnitude=2.34)]),
+                    initializer=mx.init.Xavier(factor_type="in", magnitude=2.34),
                     optimizer='adam',
                     optimizer_params=(('learning_rate', learning_rate), ('wd', weight_decay)),
                     batch_end_callback=[train_cb,
@@ -1039,23 +1035,11 @@ class _MXNetModule:
             output_symbols.append(
                 mx.sym.BlockGrad(output, name="pred-{}".format(col_enc.output_column)))
 
-        # Get params to fix assuming we don't want to fine tune
-        fine_tune = any([isinstance(feat, ImageFeaturizer) for feat in self.data_featurizers])
-
-        fixed_params = []
-        if not fine_tune:
-            for name in loss.list_arguments():
-                if "image_featurizer" in name:
-                    fixed_params.append(name)
-        else:
-            fixed_params = None
-
         mod = mx.mod.Module(
             mx.sym.Group([loss] + output_symbols),
             context=self.ctx,
             data_names=[name for name, dim in iter_train.provide_data],
-            label_names=[name for name, dim in iter_train.provide_label],
-            fixed_param_names=fixed_params
+            label_names=[name for name, dim in iter_train.provide_label]
         )
         mod.bind(data_shapes=iter_train.provide_data, label_shapes=iter_train.provide_label)
 

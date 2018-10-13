@@ -64,7 +64,6 @@ There are a few options for ColumnEncoders (subclasses) depending on the column 
 * :code:`BowEncoder`: bag-of-word representation for strings, as sparse vectors
 * :code:`CategoricalEncoder`: for categorical variables (one-hot encoding)
 * :code:`NumericalEncoder`: for numerical values
-* :code:`ImageEncoder`: for processing images
 
 Featurizer (*mxnet_input\_symbol.py*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -77,7 +76,6 @@ There are a few options for Featurizers depending on which ColumnEncoder was use
 * :code:`BowFeaturizer` used with :code:`BowEncoder` on string data
 * :code:`EmbeddingFeaturizer` maps encoded catagorical data into a vector representations (word-embeddings)
 * :code:`NumericalFeaturizer` extracts features from numerical data using fully connected layers
-* :code:`ImageFeaturizer` extracts image features using a standard CNN network architecture
 
 SimpleImputer (*simple_imputer.py*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -261,7 +259,7 @@ The steps for training a model with HPO are identical to the default :code:`Simp
 
 See the SimpleImputer_ for more details on parameters.
 
-We also have a tutorial that covers more details on relevant parameters for text, numerical, and image data.
+We also have a tutorial that covers more details on relevant parameters for text and numerical data.
 
 Load Saved Model
 ****************
@@ -289,7 +287,7 @@ Parameters for Different Data Types
 
 This tutorial will highlight the different parameters associated with column data types supported by DataWig. We use the :code:`SimpleImputer` in these examples, but the same concepts apply when using the :code:`Imputer` and other encoders/featurizers.
 
-The `parameter tutorial`_ contains the complete code for training models on text, numerical, and image data. Here, we illustrate examples of relevant parameters for training models on each of these types of data.
+The `parameter tutorial`_ contains the complete code for training models on text and numerical data. Here, we illustrate examples of relevant parameters for training models on each of these types of data.
 
 It's important to note that your dataset can contain columns with mixed types. The :code:`SimpleImputer` automatically determines which encoder and featurizer to use when training an imputation model!
 
@@ -338,30 +336,6 @@ Here is an example of using these parameters:
     )
 
 In this case, the model will use a fully connected layer size of 50 or 100, with 0 or 2 hidden layers.
-
-Image Data
-**********
-
-When using images, the model expects the input data to have a column containing the path of the downloaded image for a particular sample. The model will feed the image through a pretrained network to extract features and then passes those features through fully connected layers.
-
-The key parameter associated with image data is:
-
-* :code:`layer_dim`  list containing the dimensionality of the fully connected layer, where the length of the list is the number of hidden layers
-
-Here is an example of using this parameter:
-
-.. code-block:: python
-
-    imputer_image.fit_hpo(
-        train_df=df_train,
-        num_epochs=50,
-        learning_rate_candidates=[1e-3, 1e-4],
-        layer_dim=[[256], [1024, 512]],
-        final_fc_hidden_units=[[100]]
-    )
-
-In this case, the model will use one fully connected layer with size 256, or two fully connected layers with sizes of 1024 and then 512.
-
 
 .. _README: https://github.com/awslabs/datawig/blob/master/README.md
 .. _`installation instructions in the readme`: https://github.com/awslabs/datawig/blob/master/README.md

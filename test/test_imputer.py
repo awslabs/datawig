@@ -20,19 +20,17 @@ DataWig imputer tests
 import os
 import random
 import warnings
-from test.utils import save_image_file
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from datawig.column_encoders import (BowEncoder, CategoricalEncoder,
-                                     ImageEncoder, NumericalEncoder,
-                                     SequentialEncoder, TfIdfEncoder)
+                                     NumericalEncoder, SequentialEncoder,
+                                     TfIdfEncoder)
 from datawig.imputer import Imputer
 from datawig.mxnet_input_symbols import (BowFeaturizer, EmbeddingFeaturizer,
-                                         ImageFeaturizer, LSTMFeaturizer,
-                                         NumericalFeaturizer)
+                                         LSTMFeaturizer, NumericalFeaturizer)
 from datawig.utils import random_split
 
 warnings.filterwarnings("ignore")
@@ -523,75 +521,6 @@ def test_imputer_numeric_data(test_dir):
         print("Numerical metrics: {}".format(metrics[target]))
         assert metrics[target] < 10
 
-
-def test_imputer_image_data(test_dir):
-
-    img_path = os.path.join(test_dir, "test_images")
-    os.makedirs(img_path, exist_ok=True)
-
-    colors = ['red', 'green', 'blue']
-
-    for color in colors:
-        save_image_file(os.path.join(img_path, color + ".png"), color)
-
-    n_samples = 4
-    color_labels = [random.choice(colors) for _ in range(n_samples)]
-
-    df = pd.DataFrame({"image_files": color_labels,
-                       "label": color_labels})
-
-    for index, row in df.iterrows():
-        row['image_files'] = os.path.join(img_path, row['image_files'] + ".png")
-
-    output_path = os.path.join(test_dir, "tmp", "experiment_images")
-
-    data_encoder_cols = [ImageEncoder(['image_files'])]
-    data_cols = [ImageFeaturizer('image_files')]
-
-    label_encoder_cols = [CategoricalEncoder(['label'])]
-
-    imputer = Imputer(
-        data_featurizers=data_cols,
-        label_encoders=label_encoder_cols,
-        data_encoders=data_encoder_cols,
-        output_path=output_path
-    )
-    imputer.fit(
-        train_df=df,
-        learning_rate=1e-3,
-        num_epochs=1,
-        patience=5,
-        test_split=.5,
-        weight_decay=.0001,
-        batch_size=16
-    )
-
-    # Test with image + numeric inputs
-    df['numeric'] = np.random.uniform(-np.pi, np.pi, (n_samples,))
-
-    output_path = os.path.join(test_dir, "tmp", "experiment_images_with_num")
-
-    data_encoder_cols = [ImageEncoder(['image_files']), NumericalEncoder(['numeric'])]
-    data_cols = [ImageFeaturizer('image_files'), NumericalFeaturizer('numeric', numeric_latent_dim=100)]
-    label_encoder_cols = [CategoricalEncoder(['label'])]
-
-    imputer = Imputer(
-        data_featurizers=data_cols,
-        label_encoders=label_encoder_cols,
-        data_encoders=data_encoder_cols,
-        output_path=output_path
-    )
-    imputer.fit(
-        train_df=df,
-        learning_rate=1e-3,
-        num_epochs=1,
-        patience=5,
-        test_split=.5,
-        weight_decay=.0001,
-        batch_size=16
-    )
-
-
 def test_imputer_unrepresentative_test_df(test_dir, data_frame):
     """
 
@@ -639,6 +568,16 @@ def test_imputer_tfidf(test_dir, data_frame):
 
     output_path = os.path.join(test_dir, "tmp", "out")
 
+    imputer = Imputer(
+        data_featurizers=data_cols,
+        label_encoders=label_encoder_cols,
+        data_encoders=data_encoder_cols,
+        output_path=output_path
+    ).fit(train_df=df, num_epochs=1)
+
+    _, metrics = imputer.transform_and_compute_metrics(df)
+    assert metrics['label']['avg_precision'] > 0.80
+
 
 def test_mxnet_module_wrapper(data_frame):
     from datawig.imputer import _MXNetModule
@@ -658,18 +597,3 @@ def test_mxnet_module_wrapper(data_frame):
     assert mod.data_names == [feature_col]
     # weights and biases
     assert len(mod._arg_params) == 2
-
-    shutil.rmtree(output_path)
-
-    try:
-        imputer.fit(
-            train_df=df_train,
-            learning_rate=learning_rate,
-            num_epochs=num_epochs,
-            batch_size=batch_size
-        )
-        imputer.explain(df_train[label_col].values[0], k=3)
-    except TypeError:
-        pytest.fail("Didn't expect a TypeError exception with missing test data")
-
-    shutil.rmtree(output_path)
