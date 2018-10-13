@@ -425,7 +425,8 @@ class SequentialEncoder(ColumnEncoder):
 class TfIdfEncoder(ColumnEncoder):
     """
 
-    TfIdf bag of word encoder for text data, using sklearn's TfidfVectorizer
+    TfIdf bag of word encoder for text data, using sklearn's TfidfVectorizer.
+    Use l1 normalisation for better interpretability of the feature magnitue.
 
     :param input_columns: List[str] with column names to be used as input for this ColumnEncoder
     :param output_column: Name of output field, used as field name in downstream MxNet iterator
@@ -440,19 +441,21 @@ class TfIdfEncoder(ColumnEncoder):
                  output_column: str = None,
                  max_tokens: int = 2 ** 18,
                  tokens: str = 'chars',
-                 prefixed_concatenation: bool = True) -> None:
+                 prefixed_concatenation: bool = True,
+                 norm: str = "l2") -> None:
 
         ColumnEncoder.__init__(self, input_columns, output_column, int(max_tokens))
 
         if tokens == 'words':
-            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=(1, 3))
+            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=(1, 3), norm=norm)
         elif tokens == 'chars':
-            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=(1, 5),
+            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=(1, 5), norm=norm,
                                                 analyzer="char")
         else:
             logger.info(
                 "BowEncoder attribute tokens has to be 'words' or 'chars', defaulting to 'chars'")
-            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=(1, 5), analyzer="char")
+            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=(1, 5), norm=norm,
+                                              analyzer="char")
 
         self.prefixed_concatenation = prefixed_concatenation
 
@@ -482,6 +485,8 @@ class TfIdfEncoder(ColumnEncoder):
 
     def fit(self, data_frame: pd.DataFrame):
         """
+        WRITEME
+
         :param data_frame:
         :return:
 
@@ -501,7 +506,8 @@ class TfIdfEncoder(ColumnEncoder):
 
     def transform(self, data_frame: pd.DataFrame) -> np.array:
         """
-        Transforms one or more string columns into Bag-of-words vectors.
+        Transforms one or more string columns into Bag-of-words vectors, hashed into a max_features
+        dimensional feature space. Nans and missing values will be replaced by zero vectors.
 
         :param data_frame: pandas DataFrame with text columns
         :return: numpy array (rows by max_features)
