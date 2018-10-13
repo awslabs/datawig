@@ -83,7 +83,6 @@ class Imputer:
         self.precision_recall_curves = {}
         self.calibration_info = {}
 
-
         self.is_explainable = np.any([isinstance(encoder, CategoricalEncoder) or
                                       isinstance(encoder, TfIdfEncoder)
                                       for encoder in self.data_encoders])
@@ -315,7 +314,6 @@ class Imputer:
         :param k: number of explanations for each input encoder to return
         :param label_column: name of label column to be explained (optional)
         """
-
 
         if not self.is_explainable:
             raise ValueError("No explainable data encoders available.")

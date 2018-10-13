@@ -25,7 +25,7 @@ def test_explain_method_synthetic():
     df['in_text_hash'] = hash_in_col
     df['out_cat'] = cat_out_col
 
-    # Specify encoders and featurizers # Todo: add column with HasingVectorizer
+    # Specify encoders and featurizers #
     data_encoder_cols = [datawig.column_encoders.TfIdfEncoder('in_text', tokens="chars"),
                          datawig.column_encoders.CategoricalEncoder('in_cat', max_tokens=1e1),
                          datawig.column_encoders.BowEncoder('in_text_hash', tokens="chars")]
@@ -54,3 +54,4 @@ def test_explain_method_synthetic():
     # assert explanations
     assert np.all(['f' in token for token, weight in imputer.explain('foo')['in_text']][:3])
     assert ['f' in token for token, weight in imputer.explain('foo')['in_cat']][0]
+
