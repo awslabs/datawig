@@ -18,17 +18,18 @@ DataWig utility functions
 """
 
 import contextlib
-import sys
-import time
+import itertools
+import logging
 import math
 import os
+import random
+import sys
+import time
+from typing import Any, List, Tuple
+
 import mxnet as mx
 import numpy as np
-import logging
-import itertools
-import random
 import pandas as pd
-from typing import Tuple, List, Any
 
 mx.random.seed(1)
 random.seed(1)
@@ -234,75 +235,6 @@ def normalize_dataframe(data_frame: pd.DataFrame):
             .str.strip()
             .str.replace('[^a-zA-Z0-9_ \r\n\t\f\v]', '')
     )
-
-def pad_to_square(src: mx.ndarray,
-                  pad: str = 'const',
-                  const_val: int=255) -> mx.ndarray:
-    """
-
-    Given an HxWxC src image, if H!=W, resize such that new image size is
-    square = max(H,W).
-    Fill remaining rows / columns by 'const' or by 'replicate' border
-    rows / columns.
-
-    :param src : image as an mxnet ndarray (HxWxC)
-    :param pad : 'const' or 'replicate'
-        Fill remaining rows / columns by 'const' or by 'replicate' border
-        rows / columns.
-    :param const_val: int
-        The fill value to use in case of pad='const'
-
-    :return padded image
-    """
-    h, w, c = src.shape
-    if h > w:
-        new_h, new_w = h, h
-        total_pad = h - w
-        pad_w_start = total_pad // 2
-        pad_w_end = total_pad - pad_w_start
-        pad_h_start, pad_h_end = 0, 0
-    elif h < w:
-        new_h, new_w = w, w
-        total_pad = w - h
-        pad_h_start = total_pad // 2
-        pad_h_end = total_pad - pad_h_start
-        pad_w_start, pad_w_end = 0, 0
-    else:
-        return src
-
-    src_padded = mx.nd.zeros((new_h, new_w, c), dtype=src.dtype)
-    src_padded[pad_h_start:new_h - pad_h_end,
-    pad_w_start:new_w - pad_w_end, :] = src
-
-    if pad == 'const':
-        if h > w:
-            if pad_w_start:
-                src_padded[:, :pad_w_start, :] = const_val
-            if pad_w_end:
-                src_padded[:, -pad_w_end:, :] = const_val
-        if w > h:
-            if pad_h_start:
-                src_padded[:pad_h_start, :, :] = const_val
-            if pad_h_end:
-                src_padded[-pad_h_end:, :, :] = const_val
-    elif pad == 'replicate':
-        if h > w:
-            if pad_w_start:
-                src_padded[:, :pad_w_start, :] = mx.nd.expand_dims(
-                    src[:, 0, :], 1)
-            if pad_w_end:
-                src_padded[:, -pad_w_end:, :] = mx.nd.expand_dims(
-                    src[:, w - 1, :], 1)
-        if w > h:
-            if pad_h_start:
-                src_padded[:pad_h_start, :, :] = mx.nd.expand_dims(
-                    src[0, :, :], 0)
-            if pad_h_end:
-                src_padded[-pad_h_end:, :, :] = mx.nd.expand_dims(
-                    src[h - 1, :, :], 0)
-
-    return src_padded
-
 
 def softmax(x):
     """

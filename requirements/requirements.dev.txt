@@ -4,5 +4,4 @@ pylint==2.1.1
 typing==3.6.6
 mypy==0.620
 sphinx==1.7.6
-pillow==5.2.0
 pytest==3.7.3

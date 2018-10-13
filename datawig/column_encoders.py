@@ -17,19 +17,19 @@ used for translating values of a table into numerical representation such that F
 operate on them
 """
 
-import random
 import os
-import warnings
-from abc import abstractmethod, ABCMeta
+import random
+from abc import ABCMeta, abstractmethod
 from functools import partial
-from typing import Dict, List, Iterable, Any
+from typing import Any, Dict, Iterable, List
+
+import mxnet as mx
 import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import HashingVectorizer, TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
-import mxnet as mx
 
-from .utils import logger, pad_to_square
+from .utils import logger
 
 random.seed(0)
 np.random.seed(42)
@@ -731,139 +731,3 @@ class NumericalEncoder(ColumnEncoder):
             decoded = col
 
         return decoded
-
-
-class ImageEncoder(ColumnEncoder):
-    """
-
-    Transforms images into number normalized, resized bitmap
-
-    Note: we assume that a dataframe contains a column with the PATH to an image,
-          ex: ~/images/[asin number].jpg
-
-    :param input_columns: List[str] with a single column name referring to the DataFrame column
-                            with image file names
-    :param output_column: Name of output field, used as field name in downstream MxNet iterator
-    :param normalize: whether to normalize or not, requires fitting
-
-
-    """
-
-    def __init__(self,
-                 input_columns: Any,
-                 output_column: str = None,
-                 normalize: bool = True) -> None:
-
-        if len(input_columns) != 1:
-            raise ValueError("ImageEncoder can only encode single columns, got {}: {}".format(
-                len(input_columns), ", ".join(input_columns)))
-
-        ColumnEncoder.__init__(self, input_columns, output_column, 1)
-
-        self.normalize = normalize
-
-    def is_fitted(self):
-        """
-
-        Returns true if the column encoder does not require fitting (anymore or at all)
-
-        :param self:
-        :return: True if the encoder is fitted
-
-        """
-        return True
-
-    def transform(self, data_frame: pd.DataFrame) -> np.array:
-        """
-
-        Transforms string column of pandas dataframe with image file names into bitmaps
-        represented as ndarray
-
-        :param data_frame: pandas data frame
-        :return: numpy array (rows by color-channels by image-height by image-width)
-
-        """
-
-        if not isinstance(data_frame, pd.core.frame.DataFrame):
-            raise ValueError("Only pandas data frames are supported")
-
-        img_tensor = np.vstack(data_frame[self.input_columns[0]].apply(self.__process_image).values)
-
-        return img_tensor
-
-    def fit(self, data_frame: pd.DataFrame):
-        """
-
-        Fits an ImageEncoder - Note doesn't do anything now but leaving for future features
-
-        :param data_frame: pandas data frame
-
-        """
-
-        if not isinstance(data_frame, pd.core.frame.DataFrame):
-            raise ValueError("Only pandas data frames are supported")
-
-        return self
-
-    def decode(self, col: pd.Series) -> pd.Series:
-        """
-
-        Raises NotImplementedError, images cannot be decoded yet
-
-        :return:
-
-        """
-        raise NotImplementedError
-
-
-    @staticmethod
-    def __reformat_and_normalize(img: np.array, mean=None, std=None) -> np.array:
-        """
-
-        Reformats the image to match the input dimensions (224, 224, 3) of the standard networks
-        downloaded from gluon model zoo, see ImageFeaturizer
-
-        :param img: image as numpy array
-        :param mean: mean of the image for each color channel
-        :param std: standard deviation of each color channel
-        :return: reformatted and normalized image
-
-
-        """
-
-        if mean is None:
-            mean = [0.485, 0.456, 0.406]
-
-        if std is None:
-            std = [0.229, 0.224, 0.225]
-
-        if img.shape != (224, 224, 3):
-            img = pad_to_square(img)
-            img = mx.image.imresize(img, 224, 224)
-        img = img.astype(float) / 255
-        img = mx.image.color_normalize(img, mean=mx.nd.array(mean).astype(float),
-                                       std=mx.nd.array(std).astype(float))
-        img = img.transpose((2, 0, 1))
-        img = img.expand_dims(axis=0)
-
-        return img.asnumpy()
-
-    def __process_image(self, image_path: str) -> np.array:
-        """
-
-        Checks whether image exists, if so, loads, normalizes, and reshapes images to the proper
-        shape, if not a warning is issued
-
-        :param image_path: path to the downloaded image
-        :return: numpy array (rows by color-channels by image-height by image-width)
-
-        """
-
-        if os.path.exists(image_path):
-            img = mx.image.imread(image_path)
-            image_tensor = self.__reformat_and_normalize(img)
-        else:
-            warnings.warn("Could not find image {}".format(image_path))
-            image_tensor = np.zeros((1, 3, 224, 224))
-
-        return image_tensor
