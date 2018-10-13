@@ -25,14 +25,13 @@ def test_explain_method_synthetic():
     df['in_text_hash'] = hash_in_col
     df['out_cat'] = cat_out_col
 
-    # Specify encoders and featurizers # Todo: add column with HasingVectorizer
-    data_encoder_cols = [datawig.column_encoders.BowEncoder('in_text_hash', tokens="chars"),
-                         datawig.column_encoders.TfIdfEncoder('in_text', tokens="chars"),
-                         datawig.column_encoders.CategoricalEncoder('in_cat', max_tokens=1e1)]
-    data_encoder_cols = [data_encoder_cols[1]]
-    data_featurizer_cols = [datawig.mxnet_input_symbols.BowFeaturizer('in_text_hash'),
-                            datawig.mxnet_input_symbols.BowFeaturizer('in_text'),
-                            datawig.mxnet_input_symbols.EmbeddingFeaturizer('in_cat')]
+    # Specify encoders and featurizers #
+    data_encoder_cols = [datawig.column_encoders.TfIdfEncoder('in_text', tokens="chars"),
+                         datawig.column_encoders.CategoricalEncoder('in_cat', max_tokens=1e1),
+                         datawig.column_encoders.BowEncoder('in_text_hash', tokens="chars")]
+    data_featurizer_cols = [datawig.mxnet_input_symbols.BowFeaturizer('in_text'),
+                            datawig.mxnet_input_symbols.EmbeddingFeaturizer('in_cat'),
+                            datawig.mxnet_input_symbols.BowFeaturizer('in_text_hash')]
 
     label_encoder_cols = [datawig.column_encoders.CategoricalEncoder('out_cat')]
 
@@ -46,6 +45,7 @@ def test_explain_method_synthetic():
 
     # Train
     tr, te = random_split(df.sample(90), [.8, .2])
+
     imputer.fit(train_df=tr, test_df=te, num_epochs=30, learning_rate = 1e-2)
     imputer.predict(te)
 
@@ -56,5 +56,3 @@ def test_explain_method_synthetic():
     assert np.all(['f' in token for token, weight in imputer.explain('foo')['in_text']][:3])
     assert ['f' in token for token, weight in imputer.explain('foo')['in_cat']][0]
 
-
-test_explain_method_synthetic()
