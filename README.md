@@ -21,6 +21,7 @@ DataWig requires:
 - numpy
 - pandas
 - scikit-learn
+- typing
 
 ## Installation with pip
 ### CPU
