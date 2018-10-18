@@ -387,7 +387,6 @@ class Imputer:
 
     def __transform_mxnet_iter(self, mxnet_iter: ImputerIterDf) -> dict:
         """
-
         Imputes values given an mxnet iterator (see iterators)
 
         :param mxnet_iter:  iterator, see ImputerIter in iterators.py
@@ -404,13 +403,14 @@ class Imputer:
         return predictions
 
     @staticmethod
-    def __filter_predictions(predictions: dict,
+    def __filter_predictions(predictions: list,
                              precision_threshold: float) -> dict:
         """
+        Filter predictions such that all items with precision below threshold are disregarded.
 
-        :param predictions: predictions and their softmax score
-        :param precision_threshold:
-        :return: filtered predictions
+        :param predictions: list of lists with a single tuple with predictions and their softmax score
+        :param precision_threshold: threshold below which predictions are disregarded.
+        :return: filtered predictions: list of predictions that above the threshold.
         """
 
         filtered_predictions = []
@@ -427,9 +427,9 @@ class Imputer:
                                                     precision_threshold: float,
                                                     precision_recall_curve: dict) -> dict:
         """
-        Filters predictions below precision threshold
+        Filters predictions below precision threshold such that the expected precision is precision_threshold.
 
-        :param predictions:  predictions
+        :param predictions: predictions
         :param precision_threshold: precision threshold
         :param precision_recall_curve: precision recall curves as dict
         :return: filtered predictions
@@ -689,8 +689,7 @@ class Imputer:
 
     def predict_above_precision(self, data_frame: pd.DataFrame, precision_threshold=0.95) -> dict:
         """
-
-        Returns the probabilities for each class
+        Returns the probabilities for each class, filtering out predictions below the precision threshold.
 
         :param data_frame:  data frame
         :param precision_threshold: don't predict if predicted class probability is below this
