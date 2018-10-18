@@ -28,10 +28,10 @@ from typing import Any, List, Tuple
 
 import mxnet as mx
 import numpy as np
-from sklearn.preprocessing import StandardScaler
 
 import pandas as pd
 from mxnet.callback import save_checkpoint
+from sklearn.preprocessing import StandardScaler
 
 from . import calibration
 from .column_encoders import (CategoricalEncoder, ColumnEncoder,
@@ -88,6 +88,7 @@ class Imputer:
         self.calibration_info = {}
 
         self.__class_patterns = None
+        # explainability only works for Categorical and Tfidf inputs with a single categorical output column
         self.is_explainable = np.any([isinstance(encoder, CategoricalEncoder) or isinstance(encoder, TfIdfEncoder)
                                       for encoder in self.data_encoders]) and \
                               (len(self.label_encoders) == 1) and \
@@ -310,21 +311,14 @@ class Imputer:
 
         self.__class_patterns = class_patterns
 
-
-    def explain(self, label: str, k: int = None, label_column: str = None):
+    def __get_label_encoder(self, label_column: str = None):
         """
-        Return dictionary with entries for each explainable input column,
-        returning top k tokens with highest correlation to label.
+        Given the name of an output column return the corresponding column encoder. Default to first available
 
-        :param label: label value to explain
-        :param k: number of explanations for each input encoder to return
-        :param label_column: name of label column to be explained (optional)
+        :param label_column: column name for which to return encoder.
+        :return: column_encoder
         """
 
-        if not self.is_explainable:
-            raise ValueError("No explainable data encoders available.")
-
-        # assign label column encoder
         if label_column is not None:
             label_encoders = [enc for enc in self.label_encoders if enc.output_column == label_column]
             if len(label_encoders) == 0:
@@ -334,13 +328,30 @@ class Imputer:
         else:
             label_encoder = self.label_encoders[0]
 
+        return label_encoder
+
+    def explain(self, label: str, k: int = None, label_column: str = None):
+        """
+        Return dictionary with entries for each explainable input column,
+        returning top k tokens with highest correlation to label.
+
+        :param label: label value to explain
+        :param k: number of explanations for each input encoder to return. If not given, return top 10 explanations.
+        :param label_column: name of label column to be explained (optional, defaults to the first available column.)
+        """
+
+        if not self.is_explainable:
+            raise ValueError("No explainable data encoders available.")
+
+        label_encoder = self.__get_label_encoder(label_column)
+
         # Check whether to-be-explained label value exists.
         if label not in label_encoder.token_to_idx.keys():
             raise ValueError("Specified label {} not observed in label encoder".format(label))
 
         # If k not given return all tokens
         if k is None:
-            k = int(1e3)
+            k = int(10)
 
         # assign index of label value (there can be an additional label column for "unobserved" label.
         label_idx = label_encoder.token_to_idx[label]
@@ -351,7 +362,6 @@ class Imputer:
             # extract idx2token mappings
             if isinstance(encoder, CategoricalEncoder):
                 idx_tuples = zip(pattern[:, label_idx].argsort()[::-1][:k], sorted(pattern[:, label_idx])[::-1][:k])
-                # +1, bc idx_to_token has 0th column for unobserved labels. TODO: what does it do? remove this column!
                 keymap = {i+1: i for i in range(len(encoder.idx_to_token))}
                 idx2token_temp = dict((keymap[key], val) for key, val in encoder.idx_to_token.items())
             if isinstance(encoder, TfIdfEncoder):
@@ -373,15 +383,7 @@ class Imputer:
         :param label_column: name of label column to be explained (optional)
         """
 
-        # assign label column encoder
-        if label_column is not None:
-            label_encoders = [enc for enc in self.label_encoders if enc.output_column == label_column]
-            if len(label_encoders) == 0:
-                raise ValueError("Could not find label column")
-            else:
-                label_encoder = label_encoders[0]
-        else:
-            label_encoder = self.label_encoders[0]
+        label_encoder = self.__get_label_encoder(label_column)
 
         # encode instance columns
         feature_tuples = {}
