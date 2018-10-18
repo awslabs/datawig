@@ -422,51 +422,9 @@ class Imputer:
 
         return filtered_predictions
 
-    @staticmethod
-    def __filter_predictions_for_expected_precision(predictions: dict,
-                                                    precision_threshold: float,
-                                                    precision_recall_curve: dict) -> dict:
-        """
-        Filters predictions below precision threshold such that the expected precision is precision_threshold.
-
-        :param predictions: predictions
-        :param precision_threshold: precision threshold
-        :param precision_recall_curve: precision recall curves as dict
-        :return: filtered predictions
-        """
-        filtered_predictions = []
-        for prediction in predictions:
-            filtered_prediction = ()
-            label, score = prediction[0]
-            if precision_threshold > 0.0:
-                if label in precision_recall_curve:
-                    test_precisions = precision_recall_curve[label]['precision']
-                    test_thresholds = precision_recall_curve[label]['thresholds']
-                    n_labels = len(test_precisions)
-                    # find threshold such that prediction is above precision threshold also for
-                    # multimodal distribution
-                    below_threshold = np.where(test_precisions[::-1] < precision_threshold)[0]
-                    if len(below_threshold) < n_labels:
-                        if len(below_threshold) == 0:
-                            threshold_idx = 0
-                        else:
-                            threshold_idx = n_labels - (below_threshold[0] + 1)
-                        score_threshold = test_thresholds[threshold_idx]
-                        if score >= score_threshold:
-                            filtered_prediction = (label, score)
-                else:
-                    logger.warning("Label {} not found in test set, discarding prediction \
-                                   ({}, {}), consider setting precision_threshold to \
-                                   0.0 for obtaining these predictions".format(label, label, score))
-            else:
-                filtered_prediction = (label, score)
-            filtered_predictions.append(filtered_prediction)
-        return filtered_predictions
-
     def __predict_above_precision_mxnet_iter(self,
                                              mxnet_iter: ImputerIterDf,
-                                             precision_threshold: float = 0.95,
-                                             filtering_mode: str = 'min') -> dict:
+                                             precision_threshold: float = 0.95) -> dict:
         """
         Imputes values only if predictions are above certain precision threshold,
             determined on test set during fit
@@ -481,11 +439,7 @@ class Imputer:
         predictions = self.__predict_top_k_mxnet_iter(mxnet_iter, top_k=1)
         for col_enc, att in zip(self.label_encoders, predictions.keys()):
             if isinstance(col_enc, CategoricalEncoder):
-                if filtering_mode == 'min':
-                    predictions[att] = self.__filter_predictions(predictions[att], precision_threshold)
-                elif filtering_mode == 'expectation':
-                    predictions[att] = self.__filter_predictions_for_expected_precision(
-                        predictions[att], precision_threshold, self.precision_recall_curves[att])
+                predictions[att] = self.__filter_predictions(predictions[att], precision_threshold)
             else:
                 logger.info("Precision filtering only for CategoricalEncoder returning \
                             {} unfiltered".format(att))
