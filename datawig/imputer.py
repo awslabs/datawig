@@ -405,8 +405,27 @@ class Imputer:
 
     @staticmethod
     def __filter_predictions(predictions: dict,
-                             precision_threshold: float,
-                             precision_recall_curve: dict) -> dict:
+                             precision_threshold: float) -> dict:
+        """
+
+        :param predictions: predictions and their softmax score
+        :param precision_threshold:
+        :return: filtered predictions
+        """
+
+        filtered_predictions = []
+        for prediction in predictions:
+            if prediction[0][1] > precision_threshold:
+                filtered_predictions.append(prediction[0])
+            else:
+                filtered_predictions.append(())
+
+        return filtered_predictions
+
+    @staticmethod
+    def __filter_predictions_for_expected_precision(predictions: dict,
+                                                    precision_threshold: float,
+                                                    precision_recall_curve: dict) -> dict:
         """
         Filters predictions below precision threshold
 
@@ -446,7 +465,8 @@ class Imputer:
 
     def __predict_above_precision_mxnet_iter(self,
                                              mxnet_iter: ImputerIterDf,
-                                             precision_threshold: float = 0.95) -> dict:
+                                             precision_threshold: float = 0.95,
+                                             filtering_mode: str = 'min') -> dict:
         """
         Imputes values only if predictions are above certain precision threshold,
             determined on test set during fit
@@ -454,16 +474,18 @@ class Imputer:
         :param mxnet_iter: iterator, see ImputerIter in iterators.py
         :param precision_threshold: don't predict if predicted class probability is below
             this precision threshold
+        :param: filtering_mode: whether to filter by expected aggregate precision or by minimum per item precision
         :return: dict of {'column_name': array}, array is a numpy array of shape samples-by-labels
 
         """
         predictions = self.__predict_top_k_mxnet_iter(mxnet_iter, top_k=1)
         for col_enc, att in zip(self.label_encoders, predictions.keys()):
             if isinstance(col_enc, CategoricalEncoder):
-                predictions[att] = self.__filter_predictions(
-                    predictions[att],
-                    precision_threshold,
-                    self.precision_recall_curves[att])
+                if filtering_mode == 'min':
+                    predictions[att] = self.__filter_predictions(predictions[att], precision_threshold)
+                elif filtering_mode == 'expectation':
+                    predictions[att] = self.__filter_predictions_for_expected_precision(
+                        predictions[att], precision_threshold, self.precision_recall_curves[att])
             else:
                 logger.info("Precision filtering only for CategoricalEncoder returning \
                             {} unfiltered".format(att))
