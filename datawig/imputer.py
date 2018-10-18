@@ -330,7 +330,7 @@ class Imputer:
 
         return label_encoder
 
-    def explain(self, label: str, k: int = None, label_column: str = None):
+    def explain(self, label: str, k: int = 10, label_column: str = None):
         """
         Return dictionary with entries for each explainable input column,
         returning top k tokens with highest correlation to label.
@@ -348,10 +348,6 @@ class Imputer:
         # Check whether to-be-explained label value exists.
         if label not in label_encoder.token_to_idx.keys():
             raise ValueError("Specified label {} not observed in label encoder".format(label))
-
-        # If k not given return all tokens
-        if k is None:
-            k = int(10)
 
         # assign index of label value (there can be an additional label column for "unobserved" label.
         label_idx = label_encoder.token_to_idx[label]
