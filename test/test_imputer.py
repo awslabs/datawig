@@ -568,16 +568,6 @@ def test_imputer_tfidf(test_dir, data_frame):
 
     output_path = os.path.join(test_dir, "tmp", "out")
 
-    imputer = Imputer(
-        data_featurizers=data_cols,
-        label_encoders=label_encoder_cols,
-        data_encoders=data_encoder_cols,
-        output_path=output_path
-    ).fit(train_df=df, num_epochs=1)
-
-    _, metrics = imputer.transform_and_compute_metrics(df)
-    assert metrics['label']['avg_precision'] > 0.80
-
 
 def test_mxnet_module_wrapper(data_frame):
     from datawig.imputer import _MXNetModule
@@ -597,3 +587,18 @@ def test_mxnet_module_wrapper(data_frame):
     assert mod.data_names == [feature_col]
     # weights and biases
     assert len(mod._arg_params) == 2
+
+    shutil.rmtree(output_path)
+
+    try:
+        imputer.fit(
+            train_df=df_train,
+            learning_rate=learning_rate,
+            num_epochs=num_epochs,
+            batch_size=batch_size
+        )
+        imputer.explain(df_train[label_col].values[0], k=3)
+    except TypeError:
+        pytest.fail("Didn't expect a TypeError exception with missing test data")
+
+    shutil.rmtree(output_path)
