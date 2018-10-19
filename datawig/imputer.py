@@ -254,12 +254,12 @@ class Imputer:
         self.save()
 
         if self.is_explainable:
-            self.__persists_class_prototypes(iter_train, train_df)
+            self.__persist_class_prototypes(iter_train, train_df)
 
         return self
 
 
-    def __persists_class_prototypes(self, iter_train, train_df):
+    def __persist_class_prototypes(self, iter_train, train_df):
         """
         Save mean feature pattern as self.class_patterns for each label_encoder, for each label, for each data encoder,
         given by the projection of the feature matrix (items by ngrams/categories)
