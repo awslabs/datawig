@@ -387,7 +387,6 @@ class Imputer:
 
     def __transform_mxnet_iter(self, mxnet_iter: ImputerIterDf) -> dict:
         """
-
         Imputes values given an mxnet iterator (see iterators)
 
         :param mxnet_iter:  iterator, see ImputerIter in iterators.py
@@ -404,44 +403,23 @@ class Imputer:
         return predictions
 
     @staticmethod
-    def __filter_predictions(predictions: dict,
-                             precision_threshold: float,
-                             precision_recall_curve: dict) -> dict:
+    def __filter_predictions(predictions: list,
+                             precision_threshold: float) -> dict:
         """
-        Filters predictions below precision threshold
+        Filter predictions such that all items with precision below threshold are disregarded.
 
-        :param predictions:  predictions
-        :param precision_threshold: precision threshold
-        :param precision_recall_curve: precision recall curves as dict
-        :return: filtered predictions
+        :param predictions: list of lists with a single tuple with predictions and their softmax score
+        :param precision_threshold: threshold below which predictions are disregarded.
+        :return: filtered predictions: list of predictions that above the threshold.
         """
+
         filtered_predictions = []
         for prediction in predictions:
-            filtered_prediction = ()
-            label, score = prediction[0]
-            if precision_threshold > 0.0:
-                if label in precision_recall_curve:
-                    test_precisions = precision_recall_curve[label]['precision']
-                    test_thresholds = precision_recall_curve[label]['thresholds']
-                    n_labels = len(test_precisions)
-                    # find threshold such that prediction is above precision threshold also for
-                    # multimodal distribution
-                    below_threshold = np.where(test_precisions[::-1] < precision_threshold)[0]
-                    if len(below_threshold) < n_labels:
-                        if len(below_threshold) == 0:
-                            threshold_idx = 0
-                        else:
-                            threshold_idx = n_labels - (below_threshold[0] + 1)
-                        score_threshold = test_thresholds[threshold_idx]
-                        if score >= score_threshold:
-                            filtered_prediction = (label, score)
-                else:
-                    logger.warning("Label {} not found in test set, discarding prediction \
-                                   ({}, {}), consider setting precision_threshold to \
-                                   0.0 for obtaining these predictions".format(label, label, score))
+            if prediction[0][1] > precision_threshold:
+                filtered_predictions.append(prediction[0])
             else:
-                filtered_prediction = (label, score)
-            filtered_predictions.append(filtered_prediction)
+                filtered_predictions.append(())
+
         return filtered_predictions
 
     def __predict_above_precision_mxnet_iter(self,
@@ -460,10 +438,7 @@ class Imputer:
         predictions = self.__predict_top_k_mxnet_iter(mxnet_iter, top_k=1)
         for col_enc, att in zip(self.label_encoders, predictions.keys()):
             if isinstance(col_enc, CategoricalEncoder):
-                predictions[att] = self.__filter_predictions(
-                    predictions[att],
-                    precision_threshold,
-                    self.precision_recall_curves[att])
+                predictions[att] = self.__filter_predictions(predictions[att], precision_threshold)
             else:
                 logger.info("Precision filtering only for CategoricalEncoder returning \
                             {} unfiltered".format(att))
@@ -667,8 +642,7 @@ class Imputer:
 
     def predict_above_precision(self, data_frame: pd.DataFrame, precision_threshold=0.95) -> dict:
         """
-
-        Returns the probabilities for each class
+        Returns the probabilities for each class, filtering out predictions below the precision threshold.
 
         :param data_frame:  data frame
         :param precision_threshold: don't predict if predicted class probability is below this
