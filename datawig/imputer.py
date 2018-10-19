@@ -300,7 +300,7 @@ class Imputer:
         for feature_matrix_scaled, encoder in zip(X_scaled, explainable_data_encoders):
             if isinstance(encoder, TfIdfEncoder):
                 # project features onto labels and sum across items
-                class_patterns.append((encoder, feature_matrix_scaled.dot(p_normalized)))
+                class_patterns.append((encoder, feature_matrix_scaled[:, :p_normalized.shape[0]].dot(p_normalized)))
             elif isinstance(encoder, CategoricalEncoder):
                 # compute mean class output for all input labels
                 class_patterns.append((encoder, np.array(
