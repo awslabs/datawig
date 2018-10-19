@@ -370,7 +370,7 @@ class Imputer:
 
     def explain_instance(self, instance: pd.core.series.Series, k: int = 10, label_column: str = None) -> dict:
         """
-        Return dictionary with entries for each explainable input column of the give instance.
+        Return dictionary with entries for each explainable input column of the given instance.
         Each entry shows the most likely class label for the input and the features with the highest correlation
         with that class.
 
