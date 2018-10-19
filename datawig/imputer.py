@@ -261,7 +261,7 @@ class Imputer:
 
     def __persist_class_prototypes(self, iter_train, train_df):
         """
-        Save mean feature pattern as self.class_patterns for each label_encoder, for each label, for each data encoder,
+        Save mean feature pattern as self.__class_patterns for each label_encoder, for each label, for each data encoder,
         given by the projection of the feature matrix (items by ngrams/categories)
         onto the softmax outputs (items by labels).
         self.class_patterns is a list of tuples of the form (column_encoder, feature-label-correlation-matrix).
