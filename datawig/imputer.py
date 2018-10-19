@@ -264,7 +264,7 @@ class Imputer:
         Save mean feature pattern as self.class_patterns for each label_encoder, for each label, for each data encoder,
         given by the projection of the feature matrix (items by ngrams/categories)
         onto the softmax outputs (items by labels).
-        self.class_pattersn is a list of tuples of the form (column_encoder, feature-label-correlation-matrix).
+        self.class_patterns is a list of tuples of the form (column_encoder, feature-label-correlation-matrix).
         """
 
         if len(self.label_encoders) > 1:
