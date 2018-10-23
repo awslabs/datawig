@@ -389,13 +389,11 @@ class Imputer:
         # determine label wrt which to compute correlations, default is global top prediction
         if label is None:
             df_temp = pd.DataFrame([list(instance.values)], columns=list(instance.index))
-            relevant_columns = np.unique([item for sublist in
-                                         [enc.input_columns for enc, vals in self.__class_patterns]
-                                         for item in sublist]
-            df_temp
-            label = self.predict(df_temp)[label_encoder.output_column + '_imputed'].values()[0]
+            label = self.predict(df_temp)[label_encoder.output_column + '_imputed'].values[0]
         else:
             assert label in label_encoder.token_to_idx.keys()
+
+        top_label_idx = label_encoder.token_to_idx[label]
 
         # encode instance columns
         feature_tuples = {}
@@ -412,7 +410,6 @@ class Imputer:
                 if isinstance(encoder, TfIdfEncoder):
                     input_encoded = encoder.vectorizer.transform([token]).todense()  # encode
                     projection = input_encoded.dot(pattern)  # project input onto prototypes
-                    top_label_idx = label_encoder.token_to_idx[label]
                     feature_weights = np.multiply(pattern[:, top_label_idx], input_encoded) # correlation of label/feature
                     ordered_feature_idx = np.argsort(np.multiply(pattern[:, top_label_idx], input_encoded))
                     ordered_feature_idx = ordered_feature_idx.tolist()[0][::-1]
@@ -423,9 +420,9 @@ class Imputer:
                 elif isinstance(encoder, CategoricalEncoder):
                     input_encoded = encoder.token_to_idx[token] - 1  # starts counting at 1
                     class_weights = pattern[input_encoded]  # correlation of input class with output classes
-                    top_class_idx = np.argmax(class_weights)
-                    top_class = label_encoder.idx_to_token[top_class_idx]
-                    top_class_weight = pattern[input_encoded, top_class_idx]
+                    # top_class_idx = np.argmax(class_weights)
+                    top_class = label_encoder.idx_to_token[top_label_idx]
+                    top_class_weight = pattern[input_encoded, top_label_idx]
 
                     feature_tuples[output_col][top_class] = [(token, top_class_weight)]
 
