@@ -67,7 +67,7 @@ def test_explain_method_synthetic(test_dir):
     # Train
     tr, te = random_split(df.sample(90), [.8, .2])
     imputer.fit(train_df=tr, test_df=te, num_epochs=10, learning_rate = 1e-2)
-    imputer.predict(te)
+    imputer.predict(te, inplace=True)
 
     # Evaluate
     assert precision_score(te.out_cat, te.out_cat_imputed, average='weighted') > .99
