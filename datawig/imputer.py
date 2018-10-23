@@ -368,7 +368,11 @@ class Imputer:
         return token_weights
 
 
-    def explain_instance(self, instance: pd.core.series.Series, k: int = 10, label_column: str = None) -> dict:
+    def explain_instance(self,
+                         instance: pd.core.series.Series,
+                         k: int = 10,
+                         label_column: str = None,
+                         label: str = None) -> dict:
         """
         Return dictionary with entries for each explainable input column of the given instance.
         Each entry shows the most likely class label for the input and the features with the highest correlation
@@ -377,38 +381,53 @@ class Imputer:
         :param instance: row of data frame (or dictionary)
         :param k: number of explanations (ngrams) for text inputs
         :param label_column: name of label column to be explained (optional)
+        :param label: explain why instance is classified as label, otherwise explain top-label per input
         """
 
         label_encoder = self.__get_label_encoder(label_column)
+
+        # determine label wrt which to compute correlations, default is global top prediction
+        if label is None:
+            df_temp = pd.DataFrame([list(instance.values)], columns=list(instance.index))
+            relevant_columns = np.unique([item for sublist in
+                                         [enc.input_columns for enc, vals in self.__class_patterns]
+                                         for item in sublist]
+            df_temp
+            label = self.predict(df_temp)[label_encoder.output_column + '_imputed'].values()[0]
+        else:
+            assert label in label_encoder.token_to_idx.keys()
 
         # encode instance columns
         feature_tuples = {}
         for encoder, pattern in self.__class_patterns:
 
-            token = instance[encoder.output_column]  # original input
-            feature_tuples[encoder.output_column] = {}
+            output_col = encoder.output_column
+            feature_tuples[output_col] = {}
 
-            if isinstance(encoder, TfIdfEncoder):
-                input_encoded = encoder.vectorizer.transform([token]).todense()  # encode
-                projection = input_encoded.dot(pattern)  # project input onto prototypes
-                top_label_idx = np.argmax(projection)
-                feature_weights = np.multiply(pattern[:, top_label_idx], input_encoded) # correlation of label/feature
-                ordered_feature_idx = np.argsort(np.multiply(pattern[:, top_label_idx], input_encoded))
-                ordered_feature_idx = ordered_feature_idx.tolist()[0][::-1]
+            for input_col in encoder.input_columns:
 
-                feature_tuples[encoder.output_column]['top_class'] = label_encoder.idx_to_token[top_label_idx]
-                feature_tuples[encoder.output_column]['token_weights'] =\
-                    [(encoder.idx_to_token[idx], feature_weights[0, idx]) for idx in ordered_feature_idx[:k]]
+                token = instance[input_col]
+                # token = instance[encoder.input_columns]  # original input
 
-            elif isinstance(encoder, CategoricalEncoder):
-                input_encoded = encoder.token_to_idx[token] - 1  # starts counting at 1
-                class_weights = pattern[input_encoded]  # correlation of input class with output classes
-                top_class_idx = np.argmax(class_weights)
-                top_class = label_encoder.idx_to_token[top_class_idx]
-                top_class_weight = pattern[input_encoded, top_class_idx]
+                if isinstance(encoder, TfIdfEncoder):
+                    input_encoded = encoder.vectorizer.transform([token]).todense()  # encode
+                    projection = input_encoded.dot(pattern)  # project input onto prototypes
+                    top_label_idx = label_encoder.token_to_idx[label]
+                    feature_weights = np.multiply(pattern[:, top_label_idx], input_encoded) # correlation of label/feature
+                    ordered_feature_idx = np.argsort(np.multiply(pattern[:, top_label_idx], input_encoded))
+                    ordered_feature_idx = ordered_feature_idx.tolist()[0][::-1]
 
-                feature_tuples[encoder.output_column]['top_class'] = top_class
-                feature_tuples[encoder.output_column]['token_weights'] = [(token, top_class_weight)]
+                    feature_tuples[output_col][label_encoder.idx_to_token[top_label_idx]] = \
+                        [(encoder.idx_to_token[idx], feature_weights[0, idx]) for idx in ordered_feature_idx[:k]]
+
+                elif isinstance(encoder, CategoricalEncoder):
+                    input_encoded = encoder.token_to_idx[token] - 1  # starts counting at 1
+                    class_weights = pattern[input_encoded]  # correlation of input class with output classes
+                    top_class_idx = np.argmax(class_weights)
+                    top_class = label_encoder.idx_to_token[top_class_idx]
+                    top_class_weight = pattern[input_encoded, top_class_idx]
+
+                    feature_tuples[output_col][top_class] = [(token, top_class_weight)]
 
         return feature_tuples
 
@@ -622,8 +641,7 @@ class Imputer:
         if not self.module.for_training:
             self.module.bind(data_shapes=mxnet_iter.provide_data,
                              label_shapes=mxnet_iter.provide_label)
-        # FIXME: truncation to [:mxnet_iter.start_padding_idx] because of having to set
-        # last_batch_handle to discard.
+        # FIXME: truncation to [:mxnet_iter.start_padding_idx] because of having to set last_batch_handle to discard.
         # truncating bottom rows for each output module while preserving all the columns
         mod_output = [o.asnumpy()[:mxnet_iter.start_padding_idx, :] for o in
                       self.module.predict(mxnet_iter)[1:]]
