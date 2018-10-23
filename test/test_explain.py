@@ -84,14 +84,6 @@ def test_explain_method_synthetic(test_dir):
             assert (explanation['in_text'][0][0] == 'd' and explanation['in_cat'][0][0] == 'dummy')
         elif top_label == 'foo':
             assert (explanation['in_text'][0][0] == 'f' or explanation['in_cat'][0][0] == 'foo')
-        #
-        #
-        # if top_label == 'bar' and explanation['in_cat'][0][0] == 'dummy':
-        #     instance_explained_by_appropriate_feature = True
-        # elif top_label == 'foo' and explanation['in_cat'][0][0] == 'foo':
-        #     instance_explained_by_appropriate_feature = True
-        #
-        # assert instance_explained_by_appropriate_feature == True
 
     # assert class explanations
     assert np.all(['f' in token for token, weight in imputer.explain('foo')['in_text']][:3])
