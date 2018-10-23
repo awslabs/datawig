@@ -597,3 +597,25 @@ def test_mxnet_module_wrapper(data_frame):
     assert mod.data_names == [feature_col]
     # weights and biases
     assert len(mod._arg_params) == 2
+
+
+def test_inplace_prediction(test_dir, data_frame):
+    label_col = 'label'
+    df = data_frame(n_samples=100, label_col=label_col)
+
+    data_encoder_cols = [TfIdfEncoder('features')]
+    label_encoder_cols = [CategoricalEncoder(label_col)]
+    data_cols = [BowFeaturizer('features')]
+
+    output_path = os.path.join(test_dir, "tmp", "out")
+
+    imputer = Imputer(
+        data_featurizers=data_cols,
+        label_encoders=label_encoder_cols,
+        data_encoders=data_encoder_cols,
+        output_path=output_path
+    ).fit(train_df=df, num_epochs=1)
+
+    predicted = imputer.predict(df, inplace=True)
+
+    assert predicted is df

@@ -441,7 +441,8 @@ class SimpleImputer:
                 data_frame: pd.DataFrame,
                 precision_threshold: float = 0.0,
                 imputation_suffix: str = "_imputed",
-                score_suffix: str = "_imputed_proba"):
+                score_suffix: str = "_imputed_proba",
+                inplace: bool = False):
         """
         Imputes most likely value if it is above a certain precision threshold determined on the
             validation set
@@ -456,10 +457,11 @@ class SimpleImputer:
         :param precision_threshold: double between 0 and 1 indicating precision threshold
         :param imputation_suffix: suffix for imputation columns
         :param score_suffix: suffix for imputation score columns
+        :param inplace: whether to add columns to passed DataFrame
         :return: data_frame original dataframe with imputations and likelihood in additional column
         """
         imputations = self.imputer.predict(data_frame, precision_threshold, imputation_suffix,
-                                           score_suffix)
+                                           score_suffix, inplace=inplace)
 
         return imputations
 

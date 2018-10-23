@@ -740,7 +740,8 @@ class Imputer:
                 data_frame: pd.DataFrame,
                 precision_threshold: float = 0.0,
                 imputation_suffix: str = "_imputed",
-                score_suffix: str = "_imputed_proba") -> pd.DataFrame:
+                score_suffix: str = "_imputed_proba",
+                inplace: bool = False) -> pd.DataFrame:
         """
         Computes imputations for numerical or categorical values
 
@@ -760,8 +761,13 @@ class Imputer:
                                     imputation
         :param imputation_suffix: suffix for imputation columns
         :param score_suffix: suffix for imputation score columns
+        :param inplace: whether to add columns to passed DataFrame.
         :return: original dataframe with imputations and their likelihoods in additional columns
         """
+
+        if not inplace:
+            data_frame = data_frame.copy()
+
         numerical_outputs = list(
             itertools.chain(
                 *[c.input_columns for c in self.label_encoders if isinstance(c, NumericalEncoder)]))
