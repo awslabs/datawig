@@ -92,7 +92,7 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
     del (df_no_label_column[label_col])
     df_test_cols_before = df_no_label_column.columns.tolist()
 
-    df_test_imputed = imputer.predict(df_no_label_column)
+    df_test_imputed = imputer.predict(df_no_label_column, inplace=True)
 
     assert all(
         [after == before for after, before in zip(df_no_label_column.columns, df_test_cols_before)])
@@ -118,7 +118,7 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
 
     retrained_simple_imputer = deserialized.fit(df_train, df_train)
 
-    df_train_imputed = retrained_simple_imputer.predict(df_train.copy())
+    df_train_imputed = retrained_simple_imputer.predict(df_train.copy(), inplace=True)
     f1 = f1_score(df_train[label_col], df_train_imputed[label_col + '_imputed'], average="weighted")
 
     assert f1 > .9
@@ -171,7 +171,7 @@ def test_numeric_or_text_imputer(test_dir, data_frame):
         learning_rate=1e-3,
     )
 
-    imputer_numeric_linear.predict(df_test)
+    imputer_numeric_linear.predict(df_test, inplace=True)
 
     assert mean_squared_error(df_test['*2'], df_test['*2_imputed']) < 1.0
 
@@ -184,7 +184,7 @@ def test_numeric_or_text_imputer(test_dir, data_frame):
         learning_rate=1e-3
     )
 
-    imputer_numeric.predict(df_test)
+    imputer_numeric.predict(df_test, inplace=True)
 
     assert mean_squared_error(df_test['**2'], df_test['**2_imputed']) < 1.0
 
@@ -196,7 +196,7 @@ def test_numeric_or_text_imputer(test_dir, data_frame):
         train_df=df_train
     )
 
-    imputer_string.predict(df_test)
+    imputer_string.predict(df_test, inplace=True)
 
     assert f1_score(df_test[label_col], df_test[label_col + '_imputed'], average="weighted") > .7
 
@@ -234,7 +234,7 @@ def test_imputer_hpo_numeric(test_dir):
         numeric_hidden_layers_candidates=[1, 2]
     )
 
-    imputer_numeric.predict(df_test)
+    imputer_numeric.predict(df_test, inplace=True)
 
     assert mean_squared_error(df_test['**2'], df_test['**2_imputed']) < 1.0
 
@@ -277,6 +277,6 @@ def test_imputer_hpo_text(test_dir, data_frame):
         hpo_max_train_samples=1000
     )
 
-    imputer_string.predict(df_test)
+    imputer_string.predict(df_test, inplace=True)
 
     assert f1_score(df_test[label_col], df_test[label_col + '_imputed'], average="weighted") > .7
