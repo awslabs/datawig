@@ -330,10 +330,10 @@ class Imputer:
 
         return label_encoder
 
-    def explain(self, label: str, k: int = 10, label_column: str = None):
+    def explain(self, label: str, k: int = 10, label_column: str = None) -> dict:
         """
-        Return dictionary with entries for each explainable input column,
-        returning top k tokens with highest correlation to label.
+        Return dictionary with a list of tuples for each explainable input column.
+        Each tuple denotes one of the top k features with highest correlation to the label.
 
         :param label: label value to explain
         :param k: number of explanations for each input encoder to return. If not given, return top 10 explanations.
@@ -353,7 +353,7 @@ class Imputer:
         label_idx = label_encoder.token_to_idx[label]
 
         # for each data encoder extract (token_idx, token_idx_correlation_with_label), extract and apply idx2token map.
-        token_weights = {}
+        feature_dict = dict(explained_label = label)
         for encoder, pattern in self.__class_patterns:
             # extract idx2token mappings
             if isinstance(encoder, CategoricalEncoder):
@@ -363,10 +363,9 @@ class Imputer:
             if isinstance(encoder, TfIdfEncoder):
                 idx_tuples = zip(pattern[:, label_idx].argsort()[::-1][:k], sorted(pattern[:, label_idx])[::-1][:k])
                 idx2token_temp = encoder.idx_to_token
-            token_weights[encoder.output_column] = [(idx2token_temp[token], weight) for token, weight in idx_tuples]
+            feature_dict[encoder.output_column] = [(idx2token_temp[token], weight) for token, weight in idx_tuples]
 
-        return token_weights
-
+        return feature_dict
 
     def explain_instance(self,
                          instance: pd.core.series.Series,
@@ -374,9 +373,9 @@ class Imputer:
                          label_column: str = None,
                          label: str = None) -> dict:
         """
-        Return dictionary with entries for each explainable input column of the given instance.
-        Each entry shows the most likely class label for the input and the features with the highest correlation
-        with that class.
+        Return dictionary with list of tuples for each explainable input column of the given instance.
+        Each entry shows the most highly correlated features to the given label
+        (or the top predicted label of not provided).
 
         :param instance: row of data frame (or dictionary)
         :param k: number of explanations (ngrams) for text inputs
@@ -396,11 +395,11 @@ class Imputer:
         top_label_idx = label_encoder.token_to_idx[label]
 
         # encode instance columns
-        feature_tuples = {}
+        feature_dict = dict(explained_label = label)
         for encoder, pattern in self.__class_patterns:
 
             output_col = encoder.output_column
-            feature_tuples[output_col] = {}
+            feature_dict[output_col] = {}
 
             for input_col in encoder.input_columns:
 
@@ -414,7 +413,7 @@ class Imputer:
                     ordered_feature_idx = np.argsort(np.multiply(pattern[:, top_label_idx], input_encoded))
                     ordered_feature_idx = ordered_feature_idx.tolist()[0][::-1]
 
-                    feature_tuples[output_col][label_encoder.idx_to_token[top_label_idx]] = \
+                    feature_dict[output_col] = \
                         [(encoder.idx_to_token[idx], feature_weights[0, idx]) for idx in ordered_feature_idx[:k]]
 
                 elif isinstance(encoder, CategoricalEncoder):
@@ -424,9 +423,9 @@ class Imputer:
                     top_class = label_encoder.idx_to_token[top_label_idx]
                     top_class_weight = pattern[input_encoded, top_label_idx]
 
-                    feature_tuples[output_col][top_class] = [(token, top_class_weight)]
+                    feature_dict[output_col] = [(token, top_class_weight)]
 
-        return feature_tuples
+        return feature_dict
 
 
     def __fit_module(self,

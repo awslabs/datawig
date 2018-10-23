@@ -66,7 +66,7 @@ def test_explain_method_synthetic(test_dir):
 
     # Train
     tr, te = random_split(df.sample(90), [.8, .2])
-    imputer.fit(train_df=tr, test_df=te, num_epochs=10, learning_rate = 1e-2)
+    imputer.fit(train_df=tr, test_df=te, num_epochs=20, learning_rate = 1e-2)
     predictions = imputer.predict(te)
 
     # Evaluate
@@ -74,26 +74,24 @@ def test_explain_method_synthetic(test_dir):
 
     # assert item explanation, iterate over some inputs
     for i in np.random.choice(N, 10):
-
         # any instance label needs to be explained by at least on appropriate input column
-        text_explain = imputer.explain_instance(df.iloc[i])['in_text']
-        cat_explain = imputer.explain_instance(df.iloc[i])['in_cat']
-
         instance_explained_by_appropriate_feature = False
 
-        top_label_text = list(text_explain.keys())[0]
-        if top_label_text == 'bar' and text_explain[top_label_text][0][0] == 'd':
-            instance_explained_by_appropriate_feature = True
-        elif top_label_text == 'foo' and text_explain[top_label_text][0][0] == 'f':
-            instance_explained_by_appropriate_feature = True
+        explanation = imputer.explain_instance(df.iloc[i])
+        top_label = explanation['explained_label']
 
-        top_label_cat = list(cat_explain.keys())[0]
-        if top_label_cat == 'bar' and cat_explain[top_label_cat][0][0] == 'dummy':
-            instance_explained_by_appropriate_feature = True
-        elif top_label_cat == 'foo' and cat_explain[top_label_cat][0][0] == 'foo':
-            instance_explained_by_appropriate_feature = True
-
-        assert instance_explained_by_appropriate_feature == True
+        if top_label == 'bar':
+            assert (explanation['in_text'][0][0] == 'd' and explanation['in_cat'][0][0] == 'dummy')
+        elif top_label == 'foo':
+            assert (explanation['in_text'][0][0] == 'f' or explanation['in_cat'][0][0] == 'foo')
+        #
+        #
+        # if top_label == 'bar' and explanation['in_cat'][0][0] == 'dummy':
+        #     instance_explained_by_appropriate_feature = True
+        # elif top_label == 'foo' and explanation['in_cat'][0][0] == 'foo':
+        #     instance_explained_by_appropriate_feature = True
+        #
+        # assert instance_explained_by_appropriate_feature == True
 
     # assert class explanations
     assert np.all(['f' in token for token, weight in imputer.explain('foo')['in_text']][:3])
@@ -103,3 +101,5 @@ def test_explain_method_synthetic(test_dir):
     imputer.save()
     imputer_from_disk = Imputer.load(imputer.output_path)
     assert np.all(['f' in token for token, weight in imputer_from_disk.explain('foo')['in_text']][:3])
+
+test_explain_method_synthetic('/tmp')
