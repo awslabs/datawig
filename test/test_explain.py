@@ -66,26 +66,24 @@ def test_explain_method_synthetic(test_dir):
 
     # Train
     tr, te = random_split(df.sample(90), [.8, .2])
-    imputer.fit(train_df=tr, test_df=te, num_epochs=10, learning_rate = 1e-2)
-    imputer.predict(te, inplace=True)
+    imputer.fit(train_df=tr, test_df=te, num_epochs=20, learning_rate = 1e-2)
+    predictions = imputer.predict(te)
 
     # Evaluate
-    assert precision_score(te.out_cat, te.out_cat_imputed, average='weighted') > .99
+    assert precision_score(predictions.out_cat, predictions.out_cat_imputed, average='weighted') > .99
 
     # assert item explanation, iterate over some inputs
     for i in np.random.choice(N, 10):
-        text_explain = imputer.explain_instance(df.iloc[i])['in_text']
-        cat_explain = imputer.explain_instance(df.iloc[i])['in_cat']
+        # any instance label needs to be explained by at least on appropriate input column
+        instance_explained_by_appropriate_feature = False
 
-        if text_explain['top_class'] == 'bar':
-            assert text_explain['token_weights'][0][0] == 'd'
-        elif text_explain['top_class'] == 'foo':
-            assert text_explain['token_weights'][0][0] == 'f'
+        explanation = imputer.explain_instance(df.iloc[i])
+        top_label = explanation['explained_label']
 
-        if cat_explain['top_class'] == 'bar':
-            assert cat_explain['token_weights'][0][0] == 'dummy'
-        elif cat_explain['top_class'] == 'foo':
-            assert cat_explain['token_weights'][0][0] == 'foo'
+        if top_label == 'bar':
+            assert (explanation['in_text'][0][0] == 'd' and explanation['in_cat'][0][0] == 'dummy')
+        elif top_label == 'foo':
+            assert (explanation['in_text'][0][0] == 'f' or explanation['in_cat'][0][0] == 'foo')
 
     # assert class explanations
     assert np.all(['f' in token for token, weight in imputer.explain('foo')['in_text']][:3])
@@ -95,3 +93,4 @@ def test_explain_method_synthetic(test_dir):
     imputer.save()
     imputer_from_disk = Imputer.load(imputer.output_path)
     assert np.all(['f' in token for token, weight in imputer_from_disk.explain('foo')['in_text']][:3])
+    
