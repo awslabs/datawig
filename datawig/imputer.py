@@ -300,6 +300,8 @@ class Imputer:
         for feature_matrix_scaled, encoder in zip(X_scaled, explainable_data_encoders):
             if isinstance(encoder, TfIdfEncoder):
                 # project features onto labels and sum across items
+                # We need to limit the columns of feature matrix scaled, such that its number modulo batch size is zero.
+                # See also .start_padding in iterators.py.
                 class_patterns.append((encoder, feature_matrix_scaled[:, :p_normalized.shape[0]].dot(p_normalized)))
             elif isinstance(encoder, CategoricalEncoder):
                 # compute mean class output for all input labels
