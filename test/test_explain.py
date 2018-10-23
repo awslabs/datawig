@@ -101,5 +101,4 @@ def test_explain_method_synthetic(test_dir):
     imputer.save()
     imputer_from_disk = Imputer.load(imputer.output_path)
     assert np.all(['f' in token for token, weight in imputer_from_disk.explain('foo')['in_text']][:3])
-
-test_explain_method_synthetic('/tmp')
+    
