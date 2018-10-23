@@ -763,8 +763,9 @@ class Imputer:
                                     imputation
         :param imputation_suffix: suffix for imputation columns
         :param score_suffix: suffix for imputation score columns
-        :param inplace: whether to add columns to passed DataFrame.
-        :return: original dataframe with imputations and their likelihoods in additional columns
+        :param inplace: add column with imputed values and column with confidence scores to data_frame, returns the
+            modified object (True). Create copy of data_frame with additional columns, leave input unmodified (False).
+        :return: dataframe with imputations and their likelihoods in additional columns
         """
 
         if not inplace:
