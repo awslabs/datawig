@@ -457,7 +457,8 @@ class SimpleImputer:
         :param precision_threshold: double between 0 and 1 indicating precision threshold
         :param imputation_suffix: suffix for imputation columns
         :param score_suffix: suffix for imputation score columns
-        :param inplace: whether to add columns to passed DataFrame
+        :param inplace: add column with imputed values and column with confidence scores to data_frame, returns the
+            modified object (True). Create copy of data_frame with additional columns, leave input unmodified (False).
         :return: data_frame original dataframe with imputations and likelihood in additional column
         """
         imputations = self.imputer.predict(data_frame, precision_threshold, imputation_suffix,
