@@ -6,24 +6,12 @@ DataWig - Imputation for Tables
 [![GitHub issues](https://img.shields.io/github/issues/awslabs/datawig.svg)](https://github.com/awslabs/datawig/issues)
 [![Build Status](https://travis-ci.org/awslabs/datawig.svg?branch=master)](https://travis-ci.org/awslabs/datawig)
 
-DataWig learns models to impute missing values in tables.
-
-For each to-be-imputed column, DataWig trains a supervised machine learning model
-to predict the observed values in that column using the data from other columns.
+DataWig learns Machine Learning models to impute missing values in tables.
 
 See our user-guide and extended documentation [here](https://datawig.readthedocs.io/en/latest).
 
-## Dependencies
+## Installation
 
-DataWig requires:
-- **Python3**
-- MXNet 1.3.0
-- numpy
-- pandas
-- scikit-learn
-- typing
-
-## Installation with pip
 ### CPU
 ```bash
 pip3 install datawig
@@ -43,37 +31,77 @@ where `${CUDA_VERSION}` can be `75` (7.5), `80` (8.0), `90` (9.0), or `91` (9.1)
 ## Running DataWig
 The DataWig API expects your data as a [pandas DataFrame](https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.html). Here is an example of how the dataframe might look:
 
-![datawig dataframe example](https://s3.amazonaws.com/datawig/example_data/df_image_resize.png)
-
+|Product Type | Description           | Size | Color |
+|-------------|-----------------------|------|-------|
+|   Shoe      | Ideal for Running     | 12UK | Black |
+| SDCards     | Best SDCard ever ...  | 8GB  | Blue  |
+| Dress       | This **yellow** dress | M    | **?** |
 
 For most use cases, the `SimpleImputer` class is the best starting point. DataWig expects you to provide the column name of the column you would like to impute values for (called `output_column` below) and some column names that contain values that you deem useful for imputation (called `input_columns` below).
 
+### Imputation of categorical columns
+
 ```python
-    from datawig import SimpleImputer
-    import pandas as pd
+import datawig
 
-    df_train = pd.read_csv('/path/to/train/data.csv')
-    df_test = pd.read_csv('/path/to/test/data.csv')
+df = datawig.utils.generate_df_string(num_samples=200, data_column_name='sentences', label_column_name='label')
+df_train, df_test = datawig.utils.random_split(df)
 
-    #Initialize a SimpleImputer model
-    imputer = SimpleImputer(
-        input_columns=['item_name', 'description'], #columns containing information about the column we want to impute
-        output_column='brand', #the column we'd like to impute values for
-        output_path = 'imputer_model' #stores model data and metrics
-        )
-    
-    #Fit an imputer model on the train data
-    imputer.fit(train_df=df_train)
+#Initialize a SimpleImputer model
+imputer = datawig.SimpleImputer(
+    input_columns=['sentences'], # column(s) containing information about the column we want to impute
+    output_column='label', # the column we'd like to impute values for
+    output_path = 'imputer_model' # stores model data and metrics
+    )
 
-    #Impute missing values and return original dataframe with predictions
-    imputed = imputer.predict(df_test)
+#Fit an imputer model on the train data
+imputer.fit(train_df=df_train)
+
+#Impute missing values and return original dataframe with predictions
+imputed = imputer.predict(df_test)
+```
+
+### Imputation of numerical columns
+
+```python
+import datawig
+
+df = datawig.utils.generate_df_numeric(num_samples=200, data_column_name='x', label_column_name='y')         
+df_train, df_test = datawig.utils.random_split(df)
+
+#Initialize a SimpleImputer model
+imputer = datawig.SimpleImputer(
+    input_columns=['x'], # column(s) containing information about the column we want to impute
+    output_column='y', # the column we'd like to impute values for
+    output_path = 'imputer_model' # stores model data and metrics
+    )
+
+#Fit an imputer model on the train data
+imputer.fit(train_df=df_train)
+
+#Impute missing values and return original dataframe with predictions
+imputed = imputer.predict(df_test)
+             
 ```
 
 In order to have more control over the types of models and preprocessings, the `Imputer` class allows directly specifying all relevant model features and parameters. 
 
 For details on usage, refer to the provided [examples](./examples).
 
-## Executing Tests
+### Acknowledgments
+Thanks to [David Greenberg](https://github.com/dgreenberg) for the package name.
+
+### Building documentation
+
+```bash
+git clone git@github.com:awslabs/datawig.git
+cd datawig/docs
+make html
+open _build/html/index.html
+```
+
+
+### Executing Tests
 
 Clone the repository from git and set up virtualenv in the root dir of the package:
 
@@ -92,16 +120,4 @@ Run tests:
 ```
 ./venv/bin/pip install -r requirements/requirements.dev.txt
 ./venv/bin/python -m pytest
-```
-
-### Acknowledgments
-Thanks to [David Greenberg](https://github.com/dgreenberg) for the package name.
-
-### Building documentation
-
-```bash
-git clone git@github.com:awslabs/datawig.git
-cd datawig/docs
-make html
-open _build/html/index.html
 ```

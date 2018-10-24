@@ -44,6 +44,7 @@ logger.addHandler(consoleHandler)
 
 logger.setLevel("INFO")
 
+
 class ColumnOverwriteException(Exception):
     """Raised when an existing column of a pandas dataframe is about to be overwritten"""
     pass
@@ -55,6 +56,7 @@ def stringify_list(cols):
     """
     return [str(c) for c in cols]
 
+
 def merge_dicts(d1: dict, d2: dict):
     """
 
@@ -65,6 +67,7 @@ def merge_dicts(d1: dict, d2: dict):
     :return: Merged dicts
     """
     return dict(itertools.chain(d1.items(), d2.items()))
+
 
 def get_context() -> mx.context:
     """
@@ -83,11 +86,12 @@ def get_context() -> mx.context:
             context_list.append(mx.gpu(gpu_number))
         except mx.MXNetError:
             pass
-    
+
     if len(context_list) == 0:
         context_list.append(mx.cpu())
 
     return context_list
+
 
 def random_split(data_frame: pd.DataFrame,
                  split_ratios: List[float] = None,
@@ -102,7 +106,7 @@ def random_split(data_frame: pd.DataFrame,
     :return:
     """
     if split_ratios is None:
-        split_ratios = [.8,.2]
+        split_ratios = [.8, .2]
     sections = np.array([int(r * len(data_frame)) for r in split_ratios]).cumsum()
     return np.split(data_frame.sample(frac=1, random_state=seed), sections)[:len(split_ratios)]
 
@@ -117,6 +121,7 @@ def rand_string(length: int = 16) -> str:
     """
     import random, string
     return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(length)])
+
 
 @contextlib.contextmanager
 def timing(marker):
@@ -145,6 +150,7 @@ class MeanSymbol(mx.metric.EvalMetric):
         self.sum_metric += mx.ndarray.sum(sym).asscalar()
         self.num_inst += sym.size
 
+
 class AccuracyMetric(mx.metric.EvalMetric):
     """
     Metrics tracking the accuracy, the index of the discrete label must be passed as argument.
@@ -159,6 +165,7 @@ class AccuracyMetric(mx.metric.EvalMetric):
         labels_values = labels[self.label_index].asnumpy().squeeze(axis=1)
         self.sum_metric += sum((chosen == labels_values) | (labels_values == 0.0))
         self.num_inst += preds[0].size
+
 
 class LogMetricCallBack(object):
     """
@@ -218,6 +225,7 @@ class LogMetricCallBack(object):
                                                                  ))
                 raise StopIteration
 
+
 def normalize_dataframe(data_frame: pd.DataFrame):
     """
 
@@ -236,9 +244,62 @@ def normalize_dataframe(data_frame: pd.DataFrame):
             .str.replace('[^a-zA-Z0-9_ \r\n\t\f\v]', '')
     )
 
+
 def softmax(x):
     """
     Compute softmax values for each sets of scores in x.
     """
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
+
+
+def generate_df_string(word_length: int = 5,
+                       vocab_size: int = 100,
+                       num_labels: int = 5,
+                       num_words: int = 5,
+                       num_samples: int = 100,
+                       label_column_name: str = "labels",
+                       data_column_name: str = "sentences") -> pd.DataFrame:
+    """
+    Generates a dataframe with random strings in one column and random 'labels', which are
+     substrings contained in the string column.
+
+     Use this method for testing the imputer on string data
+
+    :param word_length: length of the synthetic words
+    :param vocab_size:  size of synthetic vocabulary
+    :param num_labels:  number of labels / categories
+    :param num_words:   number of words in each sentence
+    :param n_samples:   number of samples in the data frame
+    :param label_column_name: name of the label column
+    :param data_column_name:  name of the data column
+    :return:
+
+    """
+    vocab = [rand_string(word_length) for _ in range(vocab_size)]
+    labels, words = vocab[:num_labels], vocab[num_labels:]
+
+    def sentence_with_label(labels=labels, words=words):
+        label = random.choice(labels)
+        return " ".join(np.permutation([random.choice(words) for _ in range(num_words)] + [label])), label
+
+    sentences, labels = zip(*[sentence_with_label(labels, words) for _ in range(num_samples)])
+
+    return pd.DataFrame({data_column_name: sentences, label_column_name: labels})
+
+def generate_df_numeric(num_samples: int = 100,
+                        label_column_name: str = "f(x)",
+                        data_column_name: str = "x") -> pd.DataFrame:
+    """
+    Generates a dataframe with random numbers between -pi and pi in one column and the square of those values in another
+
+    :param num_samples:         number of samples to be generated
+    :param label_column_name:   name of label column
+    :param data_column_name:    name of data column
+    :return:
+    """
+    numeric_data = np.random.uniform(-np.pi, np.pi, (num_samples,))
+    return pd.DataFrame({
+        data_column_name: numeric_data,
+        label_column_name: numeric_data ** 2 + np.random.normal(0, .1, (num_samples,)),
+    })
