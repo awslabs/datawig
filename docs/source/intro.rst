@@ -6,6 +6,7 @@ This is the documentation for `DataWig`_, a framework for learning models to imp
 Details on the underlying model can be found in `Biessmann, Salinas et al. 2018`_.
 
 .. code-block:: bibtex
+
     @inproceedings{datawig,
      author = {Biessmann, Felix and Salinas, David and Schelter, Sebastian and Schmidt, Philipp and Lange, Dustin},
      title = {"Deep" Learning for Missing Value Imputationin Tables with Non-Numerical Data},
@@ -18,11 +19,7 @@ Details on the underlying model can be found in `Biessmann, Salinas et al. 2018`
      numpages = {9},
      url = {http://doi.acm.org/10.1145/3269206.3272005},
      doi = {10.1145/3269206.3272005},
-     acmid = {3272005},
-     publisher = {ACM},
-     address = {New York, NY, USA},
-     keywords = {data cleaning, missing value imputation},
-}
+     keywords = {data cleaning, missing value imputation}}
 
 .. _`DataWig`: https://github.com/awslabs/datawig
 .. _`Biessmann, Salinas et al. 2018`: https://dl.acm.org/citation.cfm?id=3272005
