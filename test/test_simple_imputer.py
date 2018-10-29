@@ -25,6 +25,7 @@ import pandas as pd
 import pytest
 from sklearn.metrics import f1_score, mean_squared_error
 
+import datawig
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
@@ -254,10 +255,10 @@ def test_imputer_hpo_text(test_dir, data_frame):
 
     # generate some random data
     df = data_frame(feature_col=feature_col,
-                                    label_col=label_col,
-                                    num_labels=num_labels,
-                                    num_words=seq_len,
-                                    n_samples=n_samples)
+                    label_col=label_col,
+                    num_labels=num_labels,
+                    num_words=seq_len,
+                    n_samples=n_samples)
 
     df_train, df_test = random_split(df, [.8, .2])
     output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
@@ -275,6 +276,102 @@ def test_imputer_hpo_text(test_dir, data_frame):
         tokens_candidates=['words'],
         numeric_latent_dim_candidates=[10],
         hpo_max_train_samples=1000
+    )
+
+    imputer_string.predict(df_test, inplace=True)
+
+    assert f1_score(df_test[label_col], df_test[label_col + '_imputed'], average="weighted") > .7
+
+
+def test_hpo_revised_text(test_dir, data_frame):
+    """
+
+    Using sklearn advantages: parallelism, distributions of parameters, multiple cross-validation
+
+    """
+    label_col = "label"
+
+    n_samples = 1000
+    num_labels = 3
+    seq_len = 20
+
+    # generate some random data
+    df = data_frame(feature_col="string_feature",
+                    label_col=label_col,
+                    num_labels=num_labels,
+                    num_words=seq_len,
+                    n_samples=n_samples)
+
+    # add categorical feature
+    df['categorical_feature'] = ['foo' if r > .5 else 'bar' for r in np.random.rand(n_samples)]
+
+    # add numerical feature
+    df['numerical_feature'] = np.random.rand(n_samples)
+
+    df_train, df_test = random_split(df, [.8, .2])
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
+
+    imputer = SimpleImputer(
+        input_columns=['string_feature', 'categorical_feature', 'numerical_feature'],
+        output_column='label',
+        output_path=output_path
+    )
+
+    global_hps = dict(
+        learning_rate=[1e-4, 1e-3, 1e-2],
+        weight_decay=[0, 1e-4, 1e-3, 1e-2],
+    )
+
+    encoder_hps = dict()
+    featurizer_hps = dict()
+
+    column_hps = {}
+
+    column_encoder += [column_hps[col_name]['encoder'](**column_hps['string_feature']['encoder_parms'])]
+
+    column_hps['string_feature'] = {}
+    column_hps['string_feature']['encoder'] = [datawig.column_encoders.TfIdfEncoder, datawig.column_encoders.BowEncoder]
+    column_hps['string_feature']['encoder_parms'] = {}
+    column_hps['string_feature']['encoder_parms']['tokens'] = ['chars']
+    column_hps['string_feature']['encoder_parms']['max_tokens'] = [2 ** 10]
+
+    column_hps['string_feature']['featurizer'] = [datawig.mxnet_input_symbols.BowFeaturizer]
+    column_hps['string_feature']['featurizer_parms'] = {}
+    column_hps['string_feature']['featurizer_parms']['vocab_size'] = [2 ** 10]
+
+
+    column_hps['categorical_feature'] = {}
+    column_hps['categorical_feature']['encoder'] = [datawig.column_encoders.Categorical]
+    column_hps['categorical_feature']['featurizer'] = [datawig.mxnet_input_symbols.EmbeddingFeaturizer]
+    column_hps['categorical_feature']['parms'] = {}
+    column_hps['categorical_feature']['parms']['max_tokens'] = [2 ** 8]
+
+    column_hps['numerical_feature'] = {}
+    column_hps['numerical_feature']['encoder'] = [datawig.column_encoders.NumericalEncoder]
+    column_hps['numerical_feature']['featurizer'] = [datawig.mxnet_input_symbols.NumericalFeaturizer]
+    column_hps['numerical_feature']['parms'] = {}
+    column_hps['numerical_feature']['parms']['max_tokens'] = [2 ** 8]
+
+
+    encoder_hps['categorical_feature'] = dict(
+        encoder=[datawig.column_encoders.CategoricalEncoder])
+    featurizer_hps['categorical_feature'] = dict(
+        featurizer=[datawig.mxnet_input_symbols.EmbeddingFeaturizer])
+
+    encoder_hps['numerical_feature'] = dict(
+        numeric_latent_dim=[10, 50, 100],
+        numeric_hidden_layers=[0, 1, 2],
+        encoder=[datawig.column_encoders.NumericalEncoder])
+    featurizer_hps['numerical_feature'] = dict(
+        featurizer=[datawig.mxnet_input_symbols.NumericalFeaturizer])
+
+    imputer.fit_hpo_new(
+        train_df=df_train,
+        patience=3,
+        num_epochs=100,
+        global_hps=global_hps,
+        encoder_hps=encoder_hps,
+        featurizer_hps=featurizer_hps
     )
 
     imputer_string.predict(df_test, inplace=True)

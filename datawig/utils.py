@@ -26,6 +26,7 @@ import random
 import sys
 import time
 from typing import Any, List, Tuple
+import collections
 
 import mxnet as mx
 import numpy as np
@@ -43,6 +44,20 @@ consoleHandler.setFormatter(log_formatter)
 logger.addHandler(consoleHandler)
 
 logger.setLevel("INFO")
+
+
+def flatten_dict(d, parent_key='', sep=':'):
+    """
+    Flatten a nested dictionary and create new keys by concatenation
+    """
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
 
 class ColumnOverwriteException(Exception):

@@ -52,6 +52,7 @@ class Featurizer(object):
         """
         return self.symbol
 
+
 class NumericalFeaturizer(Featurizer):
     """
 

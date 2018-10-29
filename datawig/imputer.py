@@ -475,7 +475,7 @@ class Imputer:
                     optimizer='adam',
                     optimizer_params=(('learning_rate', learning_rate), ('wd', weight_decay)),
                     batch_end_callback=[train_cb,
-                                        mx.callback.Speedometer(iter_train.batch_size, 20,
+                                        mx.callback.Speedometer(iter_train.batch_size, 50,
                                                                 auto_reset=True)],
                     eval_end_callback=test_cb,
                     epoch_end_callback=checkpoint

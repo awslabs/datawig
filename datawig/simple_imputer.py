@@ -27,7 +27,7 @@ import mxnet as mx
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
-from .utils import logger, get_context, random_split, rand_string
+from .utils import logger, get_context, random_split, rand_string, flatten_dict
 from .imputer import Imputer
 from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder
 from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer
@@ -130,13 +130,86 @@ class SimpleImputer:
         logger.info("Assuming {} string input columns: {}".format(len(self.string_columns),
                                                                   ", ".join(self.string_columns)))
 
+
+    def fit_hpo_new(self,
+                    train_df,
+                    patience=3,
+                    num_epochs=100,
+                    global_hps=None,
+                    encoder_hps=None,
+                    featurizer_hps=None):
+        """
+        Keys of global hps should be parameter for .fit()
+
+        encoder_hps and featurizer hps contain nested dicationary with one subdictionary for every input column
+
+        """
+
+        assert set(list(encoder_hps.keys())) == set(self.input_columns)
+        assert set(list(featurizer_hps.keys())) == set(self.input_columns)
+
+        # flatten nested dictionary structures and combine to data frame with possible hp configurations
+        encoder_hps = flatten_dict(encoder_hps)
+        featurizer_hps = flatten_dict(featurizer_hps)
+        combined_hps = {**encoder_hps, **featurizer_hps, **global_hps}
+        hps_df = pd.DataFrame(list(itertools.product(*combined_hps.values())), columns=combined_hps.keys())
+
+        data_encoders = []
+        data_featurizers = []
+
+        # iterate over hp configurations
+        for hpo_idx, hps in hps_df.iterrows():
+
+            parameter_dict = {}
+            # map back to dict
+            for key, val in hps.iteritems():
+                if ":" in key:
+                    column, parameter = key.split(":")
+                    if column not in parameter_dict.keys():
+                        parameter_dict[column] = {}
+                    parameter_dict[column][parameter] = val
+                else:
+                    parameter_dict[key] = val
+
+            for input_column in self.input_columns:
+
+                encoder_parameter_dict = {key: parameter_dict[input_column][key]
+                                          for key in parameter_dict[input_column].keys()
+                                          if not key in ['featurizer', 'encoder']}
+
+                data_encoders += [parameter_dict[input_column]["encoder"](
+                    input_columns=[input_column],
+                    **encoder_parameter_dict)]
+
+
+
+        encoder_hps_iter = {}
+        for column, parms_dict in encoder_hps.items():
+            encoder_hps_iter[column] = pd.DataFrame(list(itertools.product(*parms_dict.values())), columns=parms_dict.keys())
+
+        featurizer_hps_iter = {}
+        for column, parms_dict in featurizer_hps.items():
+            featurizer_hps_iter[column] = pd.DataFrame(list(itertools.product(*parms_dict.values())), columns=parms_dict.keys())
+
+
+
+        string_feature_column = "ngram_features-" + rand_string(10)
+        data_encoders += [BowEncoder(input_columns=self.string_columns,
+                                     output_column=string_feature_column,
+                                     max_tokens=hyper_param['num_hash_buckets'],
+                                     tokens=hyper_param['tokens'])]
+        data_columns += [BowFeaturizer(field_name=string_feature_column,
+                                       vocab_size=hyper_param['num_hash_buckets'])]
+
+        return 0
+
+
     def fit_hpo(self,
                 train_df: pd.DataFrame,
                 test_df: pd.DataFrame = None,
                 ctx: mx.context = get_context(),
-                learning_rate: float = 1e-3,
-                num_epochs: int = 10,
-                patience: int = 3,
+                num_epochs: int = 200,
+                patience: int = 5,
                 test_split: float = .1,
                 weight_decay: List[float] = None,
                 batch_size: int = 16,
@@ -144,7 +217,6 @@ class SimpleImputer:
                 tokens_candidates: List[str] = None,
                 numeric_latent_dim_candidates: List[int] = None,
                 numeric_hidden_layers_candidates: List[int] = None,
-                hpo_max_train_samples: int = 10000,
                 normalize_numeric: bool = True,
                 final_fc_hidden_units: List[List[int]] = None,
                 learning_rate_candidates: List[float] = None) -> Any:
@@ -184,7 +256,7 @@ class SimpleImputer:
         """
 
         if weight_decay is None:
-            weight_decay = [0]
+            weight_decay = [0, 1e-4, 1e-3, 1e-2]
 
         if num_hash_bucket_candidates is None:
             num_hash_bucket_candidates = [2 ** 10, 2 ** 15, 2 ** 20]
@@ -244,8 +316,14 @@ class SimpleImputer:
             label_column = [CategoricalEncoder(self.output_column, max_tokens=self.num_labels)]
             logger.info("Assuming categorical output column: {}".format(self.output_column))
 
-        train_df_hpo, test_df_hpo = random_split(
-            train_df.sample(n=min(len(train_df), hpo_max_train_samples)).copy())
+        # train_df_hpo, test_df_hpo = random_split(
+        #     train_df.sample(n=min(len(train_df), hpo_max_train_samples)).copy())
+
+        if test_df is None:
+            train_df, test_df = random_split(train_df)
+
+        train_df_hpo = train_df
+        test_df_hpo = test_df
 
         hpo_results = []
 
@@ -272,11 +350,10 @@ class SimpleImputer:
                                                      numeric_latent_dim=hyper_param['numeric_latent_dim'],
                                                      numeric_hidden_layers=hyper_param['numeric_hidden_layers'])]
 
-           
             imputer = Imputer(data_encoders=data_encoders,
-                                data_featurizers=data_columns,
-                                label_encoders=label_column,
-                                output_path=self.output_path)
+                              data_featurizers=data_columns,
+                              label_encoders=label_column,
+                              output_path=self.output_path)
 
             imputer.fit(train_df_hpo.copy(),
                         None,
@@ -343,7 +420,7 @@ class SimpleImputer:
 
         self.output_path = self.imputer.output_path
 
-        self.imputer = self.imputer.fit(train_df, test_df, ctx, learning_rate, num_epochs,
+        self.imputer = self.imputer.fit(train_df, test_df, ctx, best_hps['learning_rate'], num_epochs,
                                         patience, test_split, weight_decay[0])
 
         self.hpo_results = hpo_results
