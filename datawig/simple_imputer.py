@@ -28,7 +28,7 @@ import pandas as pd
 from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import mean_squared_error
 
-from .utils import logger, get_context, random_split, rand_string, flatten_dict
+from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_two_dicts
 from .imputer import Imputer
 from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder
 from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer, EmbeddingFeaturizer
@@ -199,7 +199,8 @@ class SimpleImputer:
                 assert all([key in list(default_hps[val['type'][0]].keys()) + ['type'] for key, _ in val.items()])
 
         # augment provided global hps with default global hps such that cartesian products are full parameter sets.
-        hps['global'] = {**default_hps['global'], **hps['global']}
+        # hps['global'] = {**default_hps['global'], **hps['global']}
+        hps['global'] = merge_two_dicts(default_hps['global'], hps['global'])
 
         # augment provided hps with default hps, iterating over every input column
         for column_name in self.input_columns:
@@ -213,7 +214,8 @@ class SimpleImputer:
                 else:
                     logger.warn('Input type of column ' + str(column_name) + ' not determined.')
             # join all column specific hp dictionaries with type-specific default values
-            hps[column_name] = {**default_hps[hps[column_name]['type'][0]], **hps[column_name]}
+            # hps[column_name] = {**default_hps[hps[column_name]['type'][0]], **hps[column_name]}
+            hps[column_name] = merge_two_dicts(default_hps[hps[column_name]['type'][0]], hps[column_name])
 
         # flatten nested dictionary structures and combine to data frame with all possible hp configurations
         hp_df_from_dict = lambda dict: pd.DataFrame(list(itertools.product(*dict.values())), columns=dict.keys())
