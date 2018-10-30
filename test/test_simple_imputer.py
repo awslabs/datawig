@@ -28,7 +28,7 @@ from sklearn.metrics import f1_score, mean_squared_error
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
-from datawig.utils import logger, rand_string, random_split
+from datawig.utils import logger, rand_string, random_split, generate_df_numeric, generate_df_string
 
 warnings.filterwarnings("ignore")
 
@@ -57,11 +57,11 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
 
     # generate some random data
     random_data = data_frame(feature_col=feature_col,
-                                             label_col=label_col,
-                                             vocab_size=vocab_size,
-                                             num_labels=num_labels,
-                                             num_words=seq_len,
-                                             n_samples=n_samples)
+                             label_col=label_col,
+                             vocab_size=vocab_size,
+                             num_labels=num_labels,
+                             num_words=seq_len,
+                             n_samples=n_samples)
 
     df_train, df_test, df_val = random_split(random_data, [.8, .1, .1])
 
@@ -254,10 +254,10 @@ def test_imputer_hpo_text(test_dir, data_frame):
 
     # generate some random data
     df = data_frame(feature_col=feature_col,
-                                    label_col=label_col,
-                                    num_labels=num_labels,
-                                    num_words=seq_len,
-                                    n_samples=n_samples)
+                    label_col=label_col,
+                    num_labels=num_labels,
+                    num_words=seq_len,
+                    n_samples=n_samples)
 
     df_train, df_test = random_split(df, [.8, .2])
     output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
@@ -280,3 +280,81 @@ def test_imputer_hpo_text(test_dir, data_frame):
     imputer_string.predict(df_test, inplace=True)
 
     assert f1_score(df_test[label_col], df_test[label_col + '_imputed'], average="weighted") > .7
+
+
+def test_imputer_categorical_heuristic(data_frame):
+    """
+    Tests the heuristic used for checking whether a column is categorical
+
+    :param data_frame:
+
+    """
+
+    feature_col = "string_feature"
+    label_col = "label"
+
+    n_samples = 1000
+    num_labels = 3
+    seq_len = 20
+
+    # generate some random data
+    df = data_frame(feature_col=feature_col,
+                    label_col=label_col,
+                    num_labels=num_labels,
+                    num_words=seq_len,
+                    n_samples=n_samples)
+
+    assert SimpleImputer._is_categorical(df[feature_col]) == False
+    assert SimpleImputer._is_categorical(df[label_col]) == True
+
+
+def test_imputer_complete():
+    """
+    Tests the heuristic used for checking whether a column is categorical
+
+    :param data_frame:
+
+    """
+
+    feature_col = "string_feature"
+    label_col = "label"
+    feature_col_numeric = "numeric_feature"
+    label_col_numeric = "numeric_label"
+
+    num_samples = 1000
+    num_labels = 3
+    seq_len = 20
+
+    missing_ratio = .1
+
+    df_string = generate_df_string(
+        num_labels=num_labels,
+        num_words=seq_len,
+        num_samples=num_samples,
+        label_column_name=label_col,
+        data_column_name=feature_col)
+
+    df_numeric = generate_df_numeric(num_samples=num_samples,
+                                     label_column_name=label_col_numeric,
+                                     data_column_name=feature_col_numeric)
+
+    df = pd.concat([
+        df_string[[feature_col, label_col]],
+        df_numeric[[feature_col_numeric, label_col_numeric]]
+    ], ignore_index=True, axis=1)
+    df.columns = [feature_col, label_col, feature_col_numeric, label_col_numeric]
+
+    # delete some entries
+    for col in df.columns:
+        missing = np.random.random(len(df)) < missing_ratio
+        df[col].iloc[missing] = np.nan
+
+    feature_col_missing = df[feature_col].isnull()
+    label_col_missing = df[label_col].isnull()
+
+    df = SimpleImputer.complete(data_frame=df)
+
+    assert all(df[feature_col].isnull() == feature_col_missing)
+    assert df[label_col].isnull().sum() < label_col_missing.sum()
+    assert df[feature_col_numeric].isnull().sum() == 0
+    assert df[label_col_numeric].isnull().sum() == 0
