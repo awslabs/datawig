@@ -243,7 +243,6 @@ def test_imputer_hpo_numeric(test_dir):
         hps=hps)
 
     assert results[results['mse'] == min(results['mse'])]['mse'].iloc[0] < 1.0
-    
 
 def test_imputer_hpo_text(test_dir, data_frame):
     """
