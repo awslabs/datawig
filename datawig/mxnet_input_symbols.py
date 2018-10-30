@@ -152,11 +152,11 @@ class EmbeddingFeaturizer(Featurizer):
 
     def __init__(self,
                  field_name: str,
-                 vocab_size: int = 100,
+                 max_tokens: int = 100,
                  embed_dim: int = 10) -> None:
         super(EmbeddingFeaturizer, self).__init__(field_name, embed_dim)
 
-        self.vocab_size = int(vocab_size)
+        self.vocab_size = int(max_tokens)
         self.embed_dim = int(embed_dim)
 
         with mx.name.Prefix(field_name + "_"):
@@ -180,8 +180,8 @@ class BowFeaturizer(Featurizer):
 
     def __init__(self,
                  field_name: str,
-                 vocab_size: int = 2 ** 15) -> None:
-        super(BowFeaturizer, self).__init__(field_name, vocab_size)
+                 max_tokens: int = 2 ** 15) -> None:
+        super(BowFeaturizer, self).__init__(field_name, max_tokens)
 
         with mx.name.Prefix(field_name + "_"):
             self.symbol = mx.sym.Variable("{}".format(field_name), stype='csr')

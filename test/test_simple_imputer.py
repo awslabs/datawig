@@ -23,7 +23,6 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
-from sklearn.metrics import f1_score, mean_squared_error
 
 import datawig
 from datawig.column_encoders import BowEncoder
@@ -222,23 +221,29 @@ def test_imputer_hpo_numeric(test_dir):
     imputer_numeric = SimpleImputer(
         input_columns=['x'],
         output_column="**2",
-        output_path=output_path
-    )
-    imputer_numeric.fit_hpo(
+        output_path=output_path)
+
+    feature_col = 'x'
+
+    hps = {}
+    hps[feature_col] = {}
+    hps[feature_col]['type'] = ['numeric']
+    hps[feature_col]['numeric_latent_dim'] = [30]
+    hps[feature_col]['numeric_hidden_layers'] = [1]
+
+    hps['global'] = {}
+    hps['global']['final_fc_hidden_units'] = [[]]
+    hps['global']['learning_rate'] = [1e-3, 1e-4]
+    hps['global']['weight_decay'] = [0]
+    hps['global']['num_epochs'] = [50]
+
+    results = imputer_numeric.fit_hpo_new(
         train_df=df_train,
-        learning_rate=1e-3,
-        num_epochs=100,
-        patience=10,
-        num_hash_bucket_candidates=[2 ** 10],
-        tokens_candidates=['words'],
-        numeric_latent_dim_candidates=[10, 50, 100],
-        numeric_hidden_layers_candidates=[1, 2]
-    )
+        test_df=df_test,
+        hps=hps)
 
-    imputer_numeric.predict(df_test, inplace=True)
-
-    assert mean_squared_error(df_test['**2'], df_test['**2_imputed']) < 1.0
-
+    assert results[results['mse'] == min(results['mse'])]['mse'].iloc[0] < 1.0
+    
 
 def test_imputer_hpo_text(test_dir, data_frame):
     """
@@ -261,6 +266,7 @@ def test_imputer_hpo_text(test_dir, data_frame):
                     n_samples=n_samples)
 
     df_train, df_test = random_split(df, [.8, .2])
+
     output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
 
     imputer_string = SimpleImputer(
@@ -268,22 +274,24 @@ def test_imputer_hpo_text(test_dir, data_frame):
         output_column=label_col,
         output_path=output_path
     )
-    imputer_string.fit_hpo(
-        train_df=df_train,
-        num_epochs=100,
-        patience=3,
-        num_hash_bucket_candidates=[2 ** 10, 2 ** 15],
-        tokens_candidates=['words'],
-        numeric_latent_dim_candidates=[10],
-        hpo_max_train_samples=1000
-    )
 
-    imputer_string.predict(df_test, inplace=True)
+    hps = {}
+    hps[feature_col] = {}
+    hps[feature_col]['type'] = ['string']
+    hps[feature_col]['tokens'] = [['words'], ['chars']]
 
-    assert f1_score(df_test[label_col], df_test[label_col + '_imputed'], average="weighted") > .7
+    hps['global'] = {}
+    hps['global']['final_fc_hidden_units'] = [[]]
+    hps['global']['learning_rate'] = [1e-3]
+    hps['global']['weight_decay'] = [0]
+    hps['global']['num_epochs'] = [30]
+
+    out = imputer_string.fit_hpo_new(train_df=df_train, hps=hps)
+
+    assert max(out['f1']) > .9
 
 
-def test_hpo_revised_text(test_dir, data_frame):
+def test_hpo_all_input_types(test_dir, data_frame):
     """
 
     Using sklearn advantages: parallelism, distributions of parameters, multiple cross-validation
@@ -306,74 +314,46 @@ def test_hpo_revised_text(test_dir, data_frame):
     df['categorical_feature'] = ['foo' if r > .5 else 'bar' for r in np.random.rand(n_samples)]
 
     # add numerical feature
-    df['numerical_feature'] = np.random.rand(n_samples)
+    df['numeric_feature'] = np.random.rand(n_samples)
 
     df_train, df_test = random_split(df, [.8, .2])
     output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
 
     imputer = SimpleImputer(
-        input_columns=['string_feature', 'categorical_feature', 'numerical_feature'],
+        input_columns=['string_feature', 'categorical_feature', 'numeric_feature'],
         output_column='label',
-        output_path=output_path
+        output_path='/tmp'
     )
 
-    global_hps = dict(
-        learning_rate=[1e-4, 1e-3, 1e-2],
-        weight_decay=[0, 1e-4, 1e-3, 1e-2],
-    )
+    # Define default hyperparameter choices for each column type (string, categorical, numeric)
+    hps = {}
+    hps['global'] = {}
+    hps['global']['learning_rate'] = [1e-4]
+    hps['global']['weight_decay'] = [1e-4]
+    hps['global']['num_epochs'] = [30]
+    hps['global']['patience'] = [5]
+    hps['global']['batch_size'] = [16, 64]
+    hps['global']['final_fc_hidden_units'] = [[], [100]]
 
-    encoder_hps = dict()
-    featurizer_hps = dict()
+    hps['string_feature'] = {}
+    hps['string_feature']['max_tokens'] = [2 ** 8]
+    hps['string_feature']['tokens'] = [['words'], ['words', 'chars']]
 
-    column_hps = {}
+    hps['categorical_feature'] = {}
+    hps['categorical_feature']['type'] = ['categorical']
+    hps['categorical_feature']['max_tokens'] = [2 ** 8]
+    hps['categorical_feature']['embed_dim'] = [10]
 
-    column_encoder += [column_hps[col_name]['encoder'](**column_hps['string_feature']['encoder_parms'])]
+    hps['numeric_feature'] = {}
+    hps['numeric_feature']['normalize'] = [True]
+    hps['numeric_feature']['numeric_latent_dim'] = [10]
+    hps['numeric_feature']['numeric_hidden_layers'] = [1, 2]
 
-    column_hps['string_feature'] = {}
-    column_hps['string_feature']['encoder'] = [datawig.column_encoders.TfIdfEncoder, datawig.column_encoders.BowEncoder]
-    column_hps['string_feature']['encoder_parms'] = {}
-    column_hps['string_feature']['encoder_parms']['tokens'] = ['chars']
-    column_hps['string_feature']['encoder_parms']['max_tokens'] = [2 ** 10]
-
-    column_hps['string_feature']['featurizer'] = [datawig.mxnet_input_symbols.BowFeaturizer]
-    column_hps['string_feature']['featurizer_parms'] = {}
-    column_hps['string_feature']['featurizer_parms']['vocab_size'] = [2 ** 10]
-
-
-    column_hps['categorical_feature'] = {}
-    column_hps['categorical_feature']['encoder'] = [datawig.column_encoders.Categorical]
-    column_hps['categorical_feature']['featurizer'] = [datawig.mxnet_input_symbols.EmbeddingFeaturizer]
-    column_hps['categorical_feature']['parms'] = {}
-    column_hps['categorical_feature']['parms']['max_tokens'] = [2 ** 8]
-
-    column_hps['numerical_feature'] = {}
-    column_hps['numerical_feature']['encoder'] = [datawig.column_encoders.NumericalEncoder]
-    column_hps['numerical_feature']['featurizer'] = [datawig.mxnet_input_symbols.NumericalFeaturizer]
-    column_hps['numerical_feature']['parms'] = {}
-    column_hps['numerical_feature']['parms']['max_tokens'] = [2 ** 8]
-
-
-    encoder_hps['categorical_feature'] = dict(
-        encoder=[datawig.column_encoders.CategoricalEncoder])
-    featurizer_hps['categorical_feature'] = dict(
-        featurizer=[datawig.mxnet_input_symbols.EmbeddingFeaturizer])
-
-    encoder_hps['numerical_feature'] = dict(
-        numeric_latent_dim=[10, 50, 100],
-        numeric_hidden_layers=[0, 1, 2],
-        encoder=[datawig.column_encoders.NumericalEncoder])
-    featurizer_hps['numerical_feature'] = dict(
-        featurizer=[datawig.mxnet_input_symbols.NumericalFeaturizer])
-
-    imputer.fit_hpo_new(
+    results = imputer.fit_hpo_new(
         train_df=df_train,
-        patience=3,
-        num_epochs=100,
-        global_hps=global_hps,
-        encoder_hps=encoder_hps,
-        featurizer_hps=featurizer_hps
-    )
+        hps=hps,
+        strategy='random',
+        num_evals=4)
 
-    imputer_string.predict(df_test, inplace=True)
+    assert len(results[results['f1'] == max(results['f1'])]['global:final_fc_hidden_units'].iloc[0]) == 0
 
-    assert f1_score(df_test[label_col], df_test[label_col + '_imputed'], average="weighted") > .7

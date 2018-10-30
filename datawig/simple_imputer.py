@@ -26,11 +26,12 @@ import itertools
 import mxnet as mx
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
+from sklearn.metrics import mean_squared_error
 
 from .utils import logger, get_context, random_split, rand_string, flatten_dict
 from .imputer import Imputer
 from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder
-from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer
+from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer, EmbeddingFeaturizer
 
 
 class SimpleImputer:
@@ -130,79 +131,183 @@ class SimpleImputer:
         logger.info("Assuming {} string input columns: {}".format(len(self.string_columns),
                                                                   ", ".join(self.string_columns)))
 
-
     def fit_hpo_new(self,
-                    train_df,
-                    patience=3,
-                    num_epochs=100,
-                    global_hps=None,
-                    encoder_hps=None,
-                    featurizer_hps=None):
-        """
-        Keys of global hps should be parameter for .fit()
-
-        encoder_hps and featurizer hps contain nested dicationary with one subdictionary for every input column
+                    train_df: pd.DataFrame,
+                    test_df: pd.DataFrame = None,
+                    hps: dict = None,
+                    strategy: str = 'random',
+                    num_evals: int = 10) -> dict:
 
         """
+        Do grid search for all hyperparameter configurations. This method can not tune tfidf vs hashing vectorization
+        but resorts to tfidf. Also parameters of the output column encoder are not supported.
 
-        assert set(list(encoder_hps.keys())) == set(self.input_columns)
-        assert set(list(featurizer_hps.keys())) == set(self.input_columns)
+        :param train_df: training data as dataframe
+        :param test_df: test data as dataframe; if not provided, a ratio of test_split of the
+                            training data are used as test data
+        :param hps: nested dictionary where hps[global][parameter_name] is list of parameters. Similarly,
+                            hps[column_name][parameter_name] is a list of parameter values for each input column.
+                            Further, hps[column_name]['type'] is in ['numeric', 'categorical', 'string'] and is inferred
+                            if not provided.
+        :param strategy: 'random' for random search or 'grid' for exhaustive search
+        :param num_evals: number of evaluations for random search
 
-        # flatten nested dictionary structures and combine to data frame with possible hp configurations
-        encoder_hps = flatten_dict(encoder_hps)
-        featurizer_hps = flatten_dict(featurizer_hps)
-        combined_hps = {**encoder_hps, **featurizer_hps, **global_hps}
-        hps_df = pd.DataFrame(list(itertools.product(*combined_hps.values())), columns=combined_hps.keys())
+        :return: dictionary where rows provide hp configurations and their performance scores
+        """
 
-        data_encoders = []
-        data_featurizers = []
+        self.check_data_types(train_df)  # infer data types, saved self.string_columns, self.numeric_columns
 
-        # iterate over hp configurations
-        for hpo_idx, hps in hps_df.iterrows():
+        # Define default hyperparameter choices for each column type (string, categorical, numeric)
+        default_hps = {}
+        default_hps['global'] = {}
+        default_hps['global']['learning_rate'] = [1e-4, 1e-3]
+        default_hps['global']['weight_decay'] = [0, 1e-4]
+        default_hps['global']['num_epochs'] = [100]
+        default_hps['global']['patience'] = [5]
+        default_hps['global']['batch_size'] = [16]
+        default_hps['global']['final_fc_hidden_units'] = [[], [100]]
 
-            parameter_dict = {}
-            # map back to dict
-            for key, val in hps.iteritems():
-                if ":" in key:
-                    column, parameter = key.split(":")
-                    if column not in parameter_dict.keys():
-                        parameter_dict[column] = {}
-                    parameter_dict[column][parameter] = val
+        default_hps['string'] = {}
+        default_hps['string']['max_tokens'] = [2 ** 8]
+        default_hps['string']['tokens'] = [['words']]
+
+        default_hps['categorical'] = {}
+        default_hps['categorical']['max_tokens'] = [2 ** 8]
+        default_hps['categorical']['embed_dim'] = [10]
+
+        default_hps['numeric'] = {}
+        default_hps['numeric']['normalize'] = [True]
+        default_hps['numeric']['numeric_latent_dim'] = [10, 50]
+        default_hps['numeric']['numeric_hidden_layers'] = [1, 2]
+
+        # create empty dict if global hps not passed
+        if 'global' not in hps.keys():
+            hps['global'] = {}
+
+        # add type entry to column dictionaries where it was not specified
+        for column_name in self.input_columns:
+            if 'type' not in hps[column_name].keys():
+                if is_numeric_dtype(train_df[column_name]):
+                    hps[column_name]['type'] = ['numeric']
                 else:
-                    parameter_dict[key] = val
+                    hps[column_name]['type'] = ['string']
 
+        # check that all passed parameter are valid hyperparameters
+        assert all([key in default_hps['global'].keys() for key in hps['global'].keys()])
+        for key, val in hps.items():
+            if 'type' in val.keys():
+                assert all([key in list(default_hps[val['type'][0]].keys()) + ['type'] for key, _ in val.items()])
+
+        # augment provided global hps with default global hps such that cartesian products are full parameter sets.
+        hps['global'] = {**default_hps['global'], **hps['global']}
+
+        # augment provided hps with default hps, iterating over every input column
+        for column_name in self.input_columns:
+            # add dictionary for input columns where no hyperparamters have been passed
+            if column_name not in hps.keys():
+                hps[column_name] = {}
+                if column_name in self.numeric_columns:
+                    hps[column_name]['type'] = ['numeric']
+                elif column_name in self.string_columns:
+                    hps[column_name]['type'] = ['string']
+                else:
+                    logger.warn('Input type of column ' + str(column_name) + ' not determined.')
+            # join all column specific hp dictionaries with type-specific default values
+            hps[column_name] = {**default_hps[hps[column_name]['type'][0]], **hps[column_name]}
+
+        # flatten nested dictionary structures and combine to data frame with all possible hp configurations
+        hp_df_from_dict = lambda dict: pd.DataFrame(list(itertools.product(*dict.values())), columns=dict.keys())
+        hp_df = hp_df_from_dict(flatten_dict(hps))
+
+        # do train/test split
+        if test_df is None:
+            train_df, test_df = random_split(train_df, [.8, .2])
+
+        # sample configurations for random search
+        if strategy == 'random':
+            hp_df = hp_df.sample(n=min([num_evals, hp_df.shape[0]]), random_state=10)
+
+        # iterate over hp configurations and fit models. This loop should be parallelised
+        hp_results = []
+        for hp_idx, hp in hp_df.iterrows():
+
+            data_encoders = []
+            data_featurizers = []
+
+            # define column encoders and featurisers for each input column
             for input_column in self.input_columns:
 
-                encoder_parameter_dict = {key: parameter_dict[input_column][key]
-                                          for key in parameter_dict[input_column].keys()
-                                          if not key in ['featurizer', 'encoder']}
+                # extract parameters for the current input column
+                col_parms = {key.split(':')[1]: val for key, val in hp.iteritems() if input_column in key}
 
-                data_encoders += [parameter_dict[input_column]["encoder"](
-                    input_columns=[input_column],
-                    **encoder_parameter_dict)]
+                # define all input columns
+                if col_parms['type'] == 'string':
+                    # iterate over multiple embeddings (chars + strings for the same column)
+                    for token in col_parms['tokens']:
+                        # call kw. args. with: **{key: item for key, item in col_parms.items() if not key == 'type'})]
+                        data_encoders += [BowEncoder(input_columns=[input_column],
+                                                     output_column=input_column + '_' + token,
+                                                     tokens=token,
+                                                     max_tokens=col_parms['max_tokens'])]
+                        data_featurizers += [BowFeaturizer(field_name=input_column + '_' + token,
+                                                           max_tokens=col_parms['max_tokens'])]
 
+                elif col_parms['type'] == 'categorical':
+                    data_encoders += [CategoricalEncoder(input_columns=[input_column],
+                                                         output_column=input_column + '_' + col_parms['type'],
+                                                         max_tokens=col_parms['max_tokens'])]
+                    data_featurizers += [EmbeddingFeaturizer(field_name=input_column + '_' + col_parms['type'],
+                                                             max_tokens=col_parms['max_tokens'],
+                                                             embed_dim=col_parms['embed_dim'])]
 
+                elif col_parms['type'] == 'numeric':
+                    data_encoders += [NumericalEncoder(input_columns=[input_column],
+                                                       output_column=input_column + '_' + col_parms['type'],
+                                                       normalize=col_parms['normalize'])]
+                    data_featurizers += [NumericalFeaturizer(field_name=input_column + '_' + col_parms['type'],
+                                                             numeric_latent_dim=col_parms['numeric_latent_dim'],
+                                                             numeric_hidden_layers=col_parms['numeric_hidden_layers'])]
+                else:
+                    logger.warn('Found unknown column type. Canidates are string, categorical, numeric.')
 
-        encoder_hps_iter = {}
-        for column, parms_dict in encoder_hps.items():
-            encoder_hps_iter[column] = pd.DataFrame(list(itertools.product(*parms_dict.values())), columns=parms_dict.keys())
+            # Define output column. Parameter are not tuned.
+            if is_numeric_dtype(train_df[self.output_column]):
+                label_column = [NumericalEncoder(self.output_column)]
+                logger.info("Assuming numeric output column: {}".format(self.output_column))
+            else:
+                label_column = [CategoricalEncoder(self.output_column)]
+                logger.info("Assuming categorical output column: {}".format(self.output_column))
 
-        featurizer_hps_iter = {}
-        for column, parms_dict in featurizer_hps.items():
-            featurizer_hps_iter[column] = pd.DataFrame(list(itertools.product(*parms_dict.values())), columns=parms_dict.keys())
+            global_parms = {key.split(':')[1]: val for key, val in hp.iteritems() if 'global' in key}
 
+            imputer = Imputer(data_encoders=data_encoders,
+                              data_featurizers=data_featurizers,
+                              label_encoders=label_column,
+                              output_path=self.output_path)
 
+            imputer.fit(train_df=train_df,
+                        test_df=test_df,
+                        ctx=get_context(),
+                        learning_rate=global_parms['learning_rate'],
+                        num_epochs=global_parms['num_epochs'],
+                        patience=global_parms['patience'],
+                        test_split=.1,
+                        weight_decay=global_parms['weight_decay'],
+                        batch_size=global_parms['batch_size'],
+                        final_fc_hidden_units=global_parms['final_fc_hidden_units'],
+                        calibrate=True)
 
-        string_feature_column = "ngram_features-" + rand_string(10)
-        data_encoders += [BowEncoder(input_columns=self.string_columns,
-                                     output_column=string_feature_column,
-                                     max_tokens=hyper_param['num_hash_buckets'],
-                                     tokens=hyper_param['tokens'])]
-        data_columns += [BowFeaturizer(field_name=string_feature_column,
-                                       vocab_size=hyper_param['num_hash_buckets'])]
+            # add suitable metrics to hp series
+            if is_numeric_dtype(train_df[self.output_column]):
+                imputed = imputer.predict(test_df)
+                hp['mse'] = mean_squared_error(imputed[self.output_column], imputed[self.output_column + '_imputed'])
+            else:
+                _, metrics = imputer.transform_and_compute_metrics(test_df)
+                hp['f1'] = metrics[self.output_column]['weighted_f1']
 
-        return 0
+            hp_results.append((hp_idx, hp))
 
+        return pd.DataFrame([series for _, series in hp_results], index=[idx for idx, _ in hp_results])
 
     def fit_hpo(self,
                 train_df: pd.DataFrame,
@@ -287,7 +392,7 @@ class SimpleImputer:
         if len(self.numeric_columns) == 0:
             hps = pd.DataFrame(
                 list(itertools.product(num_hash_bucket_candidates, tokens_candidates,
-                                    learning_rate_candidates, final_fc_hidden_units)),
+                                       learning_rate_candidates, final_fc_hidden_units)),
                 columns=['num_hash_buckets', 'tokens', 'learning_rate', 'final_fc_dim'])
 
         elif len(self.string_columns) == 0:

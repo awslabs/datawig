@@ -131,7 +131,7 @@ def test_automatic_calibration(data_frame):
         EmbeddingFeaturizer(
             field_name=categorical_col,
             embed_dim=embed_dim,
-            vocab_size=num_labels)
+            max_tokens=num_labels)
     ]
 
     num_epochs = 20

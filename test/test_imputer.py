@@ -183,7 +183,7 @@ def test_imputer_duplicate_encoder_output_columns(test_dir, data_frame):
         EmbeddingFeaturizer(
             field_name=categorical_col,
             embed_dim=embed_dim,
-            vocab_size=num_labels)
+            max_tokens=num_labels)
     ]
 
     output_path = os.path.join(test_dir, "tmp",
@@ -262,7 +262,7 @@ def test_imputer_real_data_all_featurizers(test_dir, data_frame):
         EmbeddingFeaturizer(
             field_name=categorical_col,
             embed_dim=embed_dim,
-            vocab_size=num_labels)
+            max_tokens=num_labels)
     ]
 
     output_path = os.path.join(test_dir, "tmp", "imputer_experiment_synthetic_data")
