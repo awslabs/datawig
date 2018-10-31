@@ -332,11 +332,11 @@ def test_hpo_all_input_types(test_dir, data_frame):
     hps['global']['num_epochs'] = [30]
     hps['global']['patience'] = [5]
     hps['global']['batch_size'] = [16, 64]
-    hps['global']['final_fc_hidden_units'] = [[], [100]]
+    hps['global']['final_fc_hidden_units'] = [[], [250]]
 
     hps['string_feature'] = {}
     hps['string_feature']['max_tokens'] = [2 ** 8]
-    hps['string_feature']['tokens'] = [['words'], ['words', 'chars']]
+    hps['string_feature']['tokens'] = [['words', 'chars']]
 
     hps['categorical_feature'] = {}
     hps['categorical_feature']['type'] = ['categorical']
@@ -354,5 +354,5 @@ def test_hpo_all_input_types(test_dir, data_frame):
         strategy='random',
         num_evals=4)
 
-    assert len(results[results['f1'] == max(results['f1'])]['global:final_fc_hidden_units'].iloc[0]) == 0
+    assert len(results[results['f1_micro'] == max(results['f1_micro'])]['global:final_fc_hidden_units'].iloc[0]) == 0
 

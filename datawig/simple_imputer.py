@@ -26,7 +26,7 @@ import itertools
 import mxnet as mx
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
 
 from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_two_dicts
 from .imputer import Imputer
@@ -300,12 +300,22 @@ class SimpleImputer:
                         calibrate=True)
 
             # add suitable metrics to hp series
+            imputed = imputer.predict(test_df)
+            true = imputed[self.output_column]
+            predicted = imputed[self.output_column + '_imputed']
             if is_numeric_dtype(train_df[self.output_column]):
-                imputed = imputer.predict(test_df)
-                hp['mse'] = mean_squared_error(imputed[self.output_column], imputed[self.output_column + '_imputed'])
+                hp['mse'] = mean_squared_error(true, predicted)
             else:
-                _, metrics = imputer.transform_and_compute_metrics(test_df)
-                hp['f1'] = metrics[self.output_column]['weighted_f1']
+                confidence = imputed[self.output_column + '_imputed_proba']
+                hp['f1_micro'] = f1_score(true, predicted, average='micro')
+                hp['f1_macro'] = f1_score(true, predicted, average='macro')
+                hp['precision_micro'] = f1_score(true, predicted, average='micro')
+                hp['precision_macro'] = f1_score(true, predicted, average='macro')
+                hp['recall_micro'] = recall_score(true, predicted, average='micro')
+                hp['recall_macro'] = recall_score(true, predicted, average='macro')
+                hp['coverage_at_80'] = (confidence > .8).mean()
+                hp['coverage_at_90'] = (confidence > .8).mean()
+                # TODO: add support for user provided functions
 
             hp_results.append((hp_idx, hp))
 
