@@ -23,8 +23,8 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.metrics import f1_score, mean_squared_error
 
-import datawig
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
@@ -57,11 +57,11 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
 
     # generate some random data
     random_data = data_frame(feature_col=feature_col,
-                                             label_col=label_col,
-                                             vocab_size=vocab_size,
-                                             num_labels=num_labels,
-                                             num_words=seq_len,
-                                             n_samples=n_samples)
+                             label_col=label_col,
+                             vocab_size=vocab_size,
+                             num_labels=num_labels,
+                             num_words=seq_len,
+                             n_samples=n_samples)
 
     df_train, df_test, df_val = random_split(random_data, [.8, .1, .1])
 
@@ -216,7 +216,7 @@ def test_imputer_hpo_numeric(test_dir):
     })
 
     df_train, df_test = random_split(df, [.8, .2])
-    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_numeric_hpo")
+    output_path = os.path.join(test_dir, "tmp", "experiment_numeric_hpo")
 
     imputer_numeric = SimpleImputer(
         input_columns=['x'],
@@ -266,7 +266,7 @@ def test_imputer_hpo_text(test_dir, data_frame):
 
     df_train, df_test = random_split(df, [.8, .2])
 
-    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
+    output_path = os.path.join(test_dir, "tmp", "experiment_text_hpo")
 
     imputer_string = SimpleImputer(
         input_columns=[feature_col],
@@ -321,7 +321,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
     imputer = SimpleImputer(
         input_columns=['string_feature', 'categorical_feature', 'numeric_feature'],
         output_column='label',
-        output_path='/tmp'
+        output_path=output_path
     )
 
     # Define default hyperparameter choices for each column type (string, categorical, numeric)

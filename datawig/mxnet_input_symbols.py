@@ -103,7 +103,7 @@ class LSTMFeaturizer(Featurizer):
     def __init__(self,
                  field_name: str,
                  seq_len: int = 500,
-                 vocab_size: int = 40,
+                 max_tokens: int = 40,
                  embed_dim: int = 50,
                  num_hidden: int = 50,
                  num_layers: int = 2,
@@ -111,7 +111,7 @@ class LSTMFeaturizer(Featurizer):
                  use_gpu: bool = False if mx.cpu() in get_context() else True) -> None:
         super(LSTMFeaturizer, self).__init__(field_name, latent_dim)
 
-        self.vocab_size = int(vocab_size)
+        self.vocab_size = int(max_tokens)
         self.embed_dim = int(embed_dim)
         self.seq_len = int(seq_len)
         self.num_hidden = int(num_hidden)

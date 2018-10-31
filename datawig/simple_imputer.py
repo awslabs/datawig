@@ -584,7 +584,7 @@ class SimpleImputer:
                                          max_tokens=self.num_hash_buckets,
                                          tokens=self.tokens)]
             data_columns += [
-                BowFeaturizer(field_name=string_feature_column, vocab_size=self.num_hash_buckets)]
+                BowFeaturizer(field_name=string_feature_column, max_tokens=self.num_hash_buckets)]
 
         if len(self.numeric_columns) > 0:
             numerical_feature_column = "numerical_features-" + rand_string(10)
