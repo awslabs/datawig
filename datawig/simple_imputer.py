@@ -446,7 +446,7 @@ class SimpleImputer:
                                              max_tokens=hyper_param['num_hash_buckets'],
                                              tokens=hyper_param['tokens'])]
                 data_columns += [BowFeaturizer(field_name=string_feature_column,
-                                               vocab_size=hyper_param['num_hash_buckets'])]
+                                               max_tokens=hyper_param['num_hash_buckets'])]
 
             if len(self.numeric_columns) > 0:
                 numerical_feature_column = "numerical_features-" + rand_string(10)
@@ -507,7 +507,7 @@ class SimpleImputer:
                                         max_tokens=best_hps['num_hash_buckets'],
                                         tokens=best_hps['tokens'])]
             data_columns = [BowFeaturizer(field_name=string_feature_column,
-                                          vocab_size=best_hps['num_hash_buckets'])]
+                                          max_tokens=best_hps['num_hash_buckets'])]
 
         if len(self.numeric_columns) > 0:
             data_encoders += [NumericalEncoder(input_columns=self.numeric_columns,
