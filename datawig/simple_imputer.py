@@ -21,14 +21,14 @@ import pickle
 import os
 import json
 import inspect
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Callable
 import itertools
 import mxnet as mx
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
 
-from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_two_dicts
+from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts
 from .imputer import Imputer
 from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder
 from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer, EmbeddingFeaturizer
@@ -136,7 +136,8 @@ class SimpleImputer:
                     test_df: pd.DataFrame = None,
                     hps: dict = None,
                     strategy: str = 'random',
-                    num_evals: int = 10) -> dict:
+                    num_evals: int = 10,
+                    user_defined_scores: list = None) -> dict:
 
         """
         Do grid search for all hyperparameter configurations. This method can not tune tfidf vs hashing vectorization
@@ -151,9 +152,14 @@ class SimpleImputer:
                             if not provided.
         :param strategy: 'random' for random search or 'grid' for exhaustive search
         :param num_evals: number of evaluations for random search
+        :param user_defined_scores: list with entries (Callable, str), where callable is a function
+                            accepting **kwargs true, predicted, confidence. Allows custom scoring functions.
 
         :return: dictionary where rows provide hp configurations and their performance scores
         """
+
+        if user_defined_scores is None:
+            user_defined_scores = []
 
         self.check_data_types(train_df)  # infer data types, saved self.string_columns, self.numeric_columns
 
@@ -200,7 +206,7 @@ class SimpleImputer:
 
         # augment provided global hps with default global hps such that cartesian products are full parameter sets.
         # hps['global'] = {**default_hps['global'], **hps['global']}
-        hps['global'] = merge_two_dicts(default_hps['global'], hps['global'])
+        hps['global'] = merge_dicts(default_hps['global'], hps['global'])
 
         # augment provided hps with default hps, iterating over every input column
         for column_name in self.input_columns:
@@ -215,7 +221,7 @@ class SimpleImputer:
                     logger.warn('Input type of column ' + str(column_name) + ' not determined.')
             # join all column specific hp dictionaries with type-specific default values
             # hps[column_name] = {**default_hps[hps[column_name]['type'][0]], **hps[column_name]}
-            hps[column_name] = merge_two_dicts(default_hps[hps[column_name]['type'][0]], hps[column_name])
+            hps[column_name] = merge_dicts(default_hps[hps[column_name]['type'][0]], hps[column_name])
 
         # flatten nested dictionary structures and combine to data frame with all possible hp configurations
         hp_df_from_dict = lambda dict: pd.DataFrame(list(itertools.product(*dict.values())), columns=dict.keys())
@@ -316,6 +322,8 @@ class SimpleImputer:
                 hp['coverage_at_80'] = (confidence > .8).mean()
                 hp['coverage_at_90'] = (confidence > .8).mean()
                 # TODO: add support for user provided functions
+            for uds in user_defined_scores:
+                hp[uds[1]] = uds[0](true=true, predicted=predicted, confidence=confidence)
 
             hp_results.append((hp_idx, hp))
 

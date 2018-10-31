@@ -46,17 +46,6 @@ logger.addHandler(consoleHandler)
 logger.setLevel("INFO")
 
 
-def merge_two_dicts(x, y):
-    """
-    Merge dictionaries, overwriting conflicting keys.
-    Can be done though {**x, **y} in Python 3.5 or higher.
-
-    """
-    z = x.copy()   # start with x's keys and values
-    z.update(y)    # modifies z with y's keys and values & returns None
-    return z
-
-
 def flatten_dict(d, parent_key='', sep=':'):
     """
     Flatten a nested dictionary and create new keys by concatenation

@@ -287,7 +287,7 @@ def test_imputer_hpo_text(test_dir, data_frame):
 
     out = imputer_string.fit_hpo_new(train_df=df_train, hps=hps)
 
-    assert max(out['f1']) > .9
+    assert max(out['f1_micro']) > .9
 
 
 def test_hpo_all_input_types(test_dir, data_frame):
@@ -328,11 +328,11 @@ def test_hpo_all_input_types(test_dir, data_frame):
     hps = {}
     hps['global'] = {}
     hps['global']['learning_rate'] = [1e-4]
-    hps['global']['weight_decay'] = [1e-4]
-    hps['global']['num_epochs'] = [30]
+    hps['global']['weight_decay'] = [3e-4]
+    hps['global']['num_epochs'] = [5, 50]
     hps['global']['patience'] = [5]
-    hps['global']['batch_size'] = [16, 64]
-    hps['global']['final_fc_hidden_units'] = [[], [250]]
+    hps['global']['batch_size'] = [16]
+    hps['global']['final_fc_hidden_units'] = [[]]
 
     hps['string_feature'] = {}
     hps['string_feature']['max_tokens'] = [2 ** 8]
@@ -346,13 +346,31 @@ def test_hpo_all_input_types(test_dir, data_frame):
     hps['numeric_feature'] = {}
     hps['numeric_feature']['normalize'] = [True]
     hps['numeric_feature']['numeric_latent_dim'] = [10]
-    hps['numeric_feature']['numeric_hidden_layers'] = [1, 2]
+    hps['numeric_feature']['numeric_hidden_layers'] = [1]
+
+    # user defined score function for hyperparameters
+    def calibration_check(**kwargs):
+        """
+        expect kwargs: true, predicted, confidence
+        here we compute a calibration sanity check
+        """
+        true = kwargs['true']
+        confidence = kwargs['confidence']
+        predicted = kwargs['predicted']
+        return (np.mean(true[confidence > .9] == predicted[confidence > .9]),
+                np.mean(true[confidence > .5] == predicted[confidence > .5]))
+
+    def coverage_check(**kwargs):
+        return np.mean(kwargs['confidence'] > .9)
 
     results = imputer.fit_hpo_new(
         train_df=df_train,
         hps=hps,
         strategy='random',
-        num_evals=4)
+        num_evals=4,
+        user_defined_scores=[(calibration_check, 'calibration check'),
+                             (coverage_check, 'coverage at 90')])
 
-    assert len(results[results['f1_micro'] == max(results['f1_micro'])]['global:final_fc_hidden_units'].iloc[0]) == 0
+    assert results[results['global:num_epochs']==50]['f1_micro'].iloc[0] > \
+           results[results['global:num_epochs']==5]['f1_micro'].iloc[0]
 
