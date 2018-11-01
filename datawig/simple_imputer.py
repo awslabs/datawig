@@ -21,16 +21,17 @@ import pickle
 import os
 import json
 import inspect
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Callable
 import itertools
 import mxnet as mx
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
+from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
 
-from .utils import logger, get_context, random_split, rand_string
+from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts
 from .imputer import Imputer
 from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder
-from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer
+from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer, EmbeddingFeaturizer
 
 
 class SimpleImputer:
@@ -134,9 +135,8 @@ class SimpleImputer:
                 train_df: pd.DataFrame,
                 test_df: pd.DataFrame = None,
                 ctx: mx.context = get_context(),
-                learning_rate: float = 1e-3,
-                num_epochs: int = 10,
-                patience: int = 3,
+                num_epochs: int = 200,
+                patience: int = 5,
                 test_split: float = .1,
                 weight_decay: List[float] = None,
                 batch_size: int = 16,
@@ -144,7 +144,6 @@ class SimpleImputer:
                 tokens_candidates: List[str] = None,
                 numeric_latent_dim_candidates: List[int] = None,
                 numeric_hidden_layers_candidates: List[int] = None,
-                hpo_max_train_samples: int = 10000,
                 normalize_numeric: bool = True,
                 final_fc_hidden_units: List[List[int]] = None,
                 learning_rate_candidates: List[float] = None) -> Any:
@@ -184,7 +183,7 @@ class SimpleImputer:
         """
 
         if weight_decay is None:
-            weight_decay = [0]
+            weight_decay = [0, 1e-4, 1e-3, 1e-2]
 
         if num_hash_bucket_candidates is None:
             num_hash_bucket_candidates = [2 ** 10, 2 ** 15, 2 ** 20]
@@ -215,7 +214,7 @@ class SimpleImputer:
         if len(self.numeric_columns) == 0:
             hps = pd.DataFrame(
                 list(itertools.product(num_hash_bucket_candidates, tokens_candidates,
-                                    learning_rate_candidates, final_fc_hidden_units)),
+                                       learning_rate_candidates, final_fc_hidden_units)),
                 columns=['num_hash_buckets', 'tokens', 'learning_rate', 'final_fc_dim'])
 
         elif len(self.string_columns) == 0:
@@ -244,8 +243,14 @@ class SimpleImputer:
             label_column = [CategoricalEncoder(self.output_column, max_tokens=self.num_labels)]
             logger.info("Assuming categorical output column: {}".format(self.output_column))
 
-        train_df_hpo, test_df_hpo = random_split(
-            train_df.sample(n=min(len(train_df), hpo_max_train_samples)).copy())
+        # train_df_hpo, test_df_hpo = random_split(
+        #     train_df.sample(n=min(len(train_df), hpo_max_train_samples)).copy())
+
+        if test_df is None:
+            train_df, test_df = random_split(train_df)
+
+        train_df_hpo = train_df
+        test_df_hpo = test_df
 
         hpo_results = []
 
@@ -261,7 +266,7 @@ class SimpleImputer:
                                              max_tokens=hyper_param['num_hash_buckets'],
                                              tokens=hyper_param['tokens'])]
                 data_columns += [BowFeaturizer(field_name=string_feature_column,
-                                               vocab_size=hyper_param['num_hash_buckets'])]
+                                               max_tokens=hyper_param['num_hash_buckets'])]
 
             if len(self.numeric_columns) > 0:
                 numerical_feature_column = "numerical_features-" + rand_string(10)
@@ -272,11 +277,10 @@ class SimpleImputer:
                                                      numeric_latent_dim=hyper_param['numeric_latent_dim'],
                                                      numeric_hidden_layers=hyper_param['numeric_hidden_layers'])]
 
-           
             imputer = Imputer(data_encoders=data_encoders,
-                                data_featurizers=data_columns,
-                                label_encoders=label_column,
-                                output_path=self.output_path)
+                              data_featurizers=data_columns,
+                              label_encoders=label_column,
+                              output_path=self.output_path)
 
             imputer.fit(train_df_hpo.copy(),
                         None,
@@ -323,7 +327,7 @@ class SimpleImputer:
                                         max_tokens=best_hps['num_hash_buckets'],
                                         tokens=best_hps['tokens'])]
             data_columns = [BowFeaturizer(field_name=string_feature_column,
-                                          vocab_size=best_hps['num_hash_buckets'])]
+                                          max_tokens=best_hps['num_hash_buckets'])]
 
         if len(self.numeric_columns) > 0:
             data_encoders += [NumericalEncoder(input_columns=self.numeric_columns,
@@ -343,7 +347,7 @@ class SimpleImputer:
 
         self.output_path = self.imputer.output_path
 
-        self.imputer = self.imputer.fit(train_df, test_df, ctx, learning_rate, num_epochs,
+        self.imputer = self.imputer.fit(train_df, test_df, ctx, best_hps['learning_rate'], num_epochs,
                                         patience, test_split, weight_decay[0])
 
         self.hpo_results = hpo_results
@@ -400,7 +404,7 @@ class SimpleImputer:
                                          max_tokens=self.num_hash_buckets,
                                          tokens=self.tokens)]
             data_columns += [
-                BowFeaturizer(field_name=string_feature_column, vocab_size=self.num_hash_buckets)]
+                BowFeaturizer(field_name=string_feature_column, max_tokens=self.num_hash_buckets)]
 
         if len(self.numeric_columns) > 0:
             numerical_feature_column = "numerical_features-" + rand_string(10)

@@ -49,7 +49,7 @@ def test_drop_missing(test_dir):
 
     data_encoder_cols = [BowEncoder('data', max_tokens=max_tokens)]
     label_encoder_cols = [CategoricalEncoder('label', max_tokens=1)]
-    data_cols = [BowFeaturizer('data', vocab_size=max_tokens)]
+    data_cols = [BowFeaturizer('data', max_tokens=max_tokens)]
 
     output_path = os.path.join(test_dir, "tmp", "real_data_experiment")
 
@@ -143,7 +143,7 @@ def test_imputer_duplicate_encoder_output_columns(test_dir, data_frame):
     n_samples = 1000
     num_labels = 10
     seq_len = 100
-    vocab_size = int(2 ** 10)
+    max_tokens = int(2 ** 10)
 
     latent_dim = 30
     embed_dim = 30
@@ -151,7 +151,7 @@ def test_imputer_duplicate_encoder_output_columns(test_dir, data_frame):
     # generate some random data
     random_data = data_frame(feature_col=feature_col,
                                              label_col=label_col,
-                                             vocab_size=vocab_size,
+                                             vocab_size=max_tokens,
                                              num_labels=num_labels,
                                              num_words=seq_len,
                                              n_samples=n_samples)
@@ -162,8 +162,8 @@ def test_imputer_duplicate_encoder_output_columns(test_dir, data_frame):
     df_train, df_test, df_val = random_split(random_data, [.8, .1, .1])
 
     data_encoder_cols = [
-        BowEncoder(feature_col, feature_col, max_tokens=vocab_size),
-        SequentialEncoder(feature_col, feature_col, max_tokens=vocab_size, seq_len=seq_len),
+        BowEncoder(feature_col, feature_col, max_tokens=max_tokens),
+        SequentialEncoder(feature_col, feature_col, max_tokens=max_tokens, seq_len=seq_len),
         CategoricalEncoder(categorical_col, max_tokens=num_labels)
     ]
     label_encoder_cols = [CategoricalEncoder(label_col, max_tokens=num_labels)]
@@ -171,7 +171,7 @@ def test_imputer_duplicate_encoder_output_columns(test_dir, data_frame):
     data_cols = [
         BowFeaturizer(
             feature_col,
-            vocab_size=vocab_size),
+            max_tokens=max_tokens),
         LSTMFeaturizer(
             field_name=feature_col,
             seq_len=seq_len,
@@ -179,11 +179,11 @@ def test_imputer_duplicate_encoder_output_columns(test_dir, data_frame):
             num_hidden=30,
             embed_dim=embed_dim,
             num_layers=2,
-            vocab_size=num_labels),
+            max_tokens=num_labels),
         EmbeddingFeaturizer(
             field_name=categorical_col,
             embed_dim=embed_dim,
-            vocab_size=num_labels)
+            max_tokens=num_labels)
     ]
 
     output_path = os.path.join(test_dir, "tmp",
@@ -222,7 +222,7 @@ def test_imputer_real_data_all_featurizers(test_dir, data_frame):
     n_samples = 5000
     num_labels = 3
     seq_len = 20
-    vocab_size = int(2 ** 10)
+    max_tokens = int(2 ** 10)
 
     latent_dim = 30
     embed_dim = 30
@@ -230,7 +230,7 @@ def test_imputer_real_data_all_featurizers(test_dir, data_frame):
     # generate some random data
     random_data = data_frame(feature_col=feature_col,
                                              label_col=label_col,
-                                             vocab_size=vocab_size,
+                                             vocab_size=max_tokens,
                                              num_labels=num_labels,
                                              num_words=seq_len,
                                              n_samples=n_samples)
@@ -241,8 +241,8 @@ def test_imputer_real_data_all_featurizers(test_dir, data_frame):
     df_train, df_test, df_val = random_split(random_data, [.8, .1, .1])
 
     data_encoder_cols = [
-        BowEncoder(feature_col, feature_col + "_bow", max_tokens=vocab_size),
-        SequentialEncoder(feature_col, feature_col + "_lstm", max_tokens=vocab_size, seq_len=seq_len),
+        BowEncoder(feature_col, feature_col + "_bow", max_tokens=max_tokens),
+        SequentialEncoder(feature_col, feature_col + "_lstm", max_tokens=max_tokens, seq_len=seq_len),
         CategoricalEncoder(categorical_col, max_tokens=num_labels)
     ]
     label_encoder_cols = [CategoricalEncoder(label_col, max_tokens=num_labels)]
@@ -250,7 +250,7 @@ def test_imputer_real_data_all_featurizers(test_dir, data_frame):
     data_cols = [
         BowFeaturizer(
             feature_col + "_bow",
-            vocab_size=vocab_size),
+            max_tokens=max_tokens),
         LSTMFeaturizer(
             field_name=feature_col + "_lstm",
             seq_len=seq_len,
@@ -258,11 +258,11 @@ def test_imputer_real_data_all_featurizers(test_dir, data_frame):
             num_hidden=30,
             embed_dim=embed_dim,
             num_layers=2,
-            vocab_size=num_labels),
+            max_tokens=num_labels),
         EmbeddingFeaturizer(
             field_name=categorical_col,
             embed_dim=embed_dim,
-            vocab_size=num_labels)
+            max_tokens=num_labels)
     ]
 
     output_path = os.path.join(test_dir, "tmp", "imputer_experiment_synthetic_data")
@@ -378,12 +378,12 @@ def test_imputer_without_test_set_random_split(test_dir, data_frame):
     n_samples = 5000
     num_labels = 3
     seq_len = 20
-    vocab_size = int(2 ** 10)
+    max_tokens = int(2 ** 10)
 
     # generate some random data
     df_train = data_frame(feature_col=feature_col,
                                              label_col=label_col,
-                                             vocab_size=vocab_size,
+                                             vocab_size=max_tokens,
                                              num_labels=num_labels,
                                              num_words=seq_len,
                                              n_samples=n_samples)
@@ -394,12 +394,12 @@ def test_imputer_without_test_set_random_split(test_dir, data_frame):
     learning_rate = 1e-3
 
     data_encoder_cols = [
-        BowEncoder(feature_col, max_tokens=vocab_size)
+        BowEncoder(feature_col, max_tokens=max_tokens)
     ]
     label_encoder_cols = [CategoricalEncoder(label_col, max_tokens=num_labels)]
 
     data_cols = [
-        BowFeaturizer(feature_col, vocab_size=vocab_size)
+        BowFeaturizer(feature_col, max_tokens=max_tokens)
     ]
 
     output_path = os.path.join(test_dir, "tmp", "real_data_experiment")
@@ -588,7 +588,7 @@ def test_mxnet_module_wrapper(data_frame):
     df = data_frame(n_samples=100, feature_col=feature_col, label_col=label_col)
     label_encoders = [CategoricalEncoder(label_col)]
     data_encoders = [BowEncoder(feature_col)]
-    data_featurizers = [BowFeaturizer(feature_col, vocab_size=100)]
+    data_featurizers = [BowFeaturizer(feature_col, max_tokens=100)]
     iter_train = ImputerIterDf(df, data_encoders, label_encoders)
 
     mod = _MXNetModule(mx.current_context(), label_encoders, data_featurizers, final_fc_hidden_units=[])(iter_train)
