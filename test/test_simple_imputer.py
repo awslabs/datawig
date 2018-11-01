@@ -25,6 +25,7 @@ import pandas as pd
 import pytest
 from sklearn.metrics import f1_score, mean_squared_error
 
+from datawig.hpo import HPO
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
@@ -237,12 +238,12 @@ def test_imputer_hpo_numeric(test_dir):
     hps['global']['weight_decay'] = [0]
     hps['global']['num_epochs'] = [50]
 
-    results = imputer_numeric.fit_hpo_new(
-        train_df=df_train,
-        test_df=df_test,
-        hps=hps)
+    hpo = HPO(imputer_numeric, hps)
+
+    results = hpo.tune(df)
 
     assert results[results['mse'] == min(results['mse'])]['mse'].iloc[0] < 1.0
+
 
 def test_imputer_hpo_text(test_dir, data_frame):
     """
@@ -285,7 +286,8 @@ def test_imputer_hpo_text(test_dir, data_frame):
     hps['global']['weight_decay'] = [0]
     hps['global']['num_epochs'] = [30]
 
-    out = imputer_string.fit_hpo_new(train_df=df_train, hps=hps)
+    hpo = HPO(imputer_string, hps)
+    out = hpo.tune(df_train)
 
     assert max(out['f1_micro']) > .9
 
@@ -325,7 +327,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
     )
 
     # Define default hyperparameter choices for each column type (string, categorical, numeric)
-    hps = {}
+    hps = dict()
     hps['global'] = {}
     hps['global']['learning_rate'] = [1e-4]
     hps['global']['weight_decay'] = [3e-4]
@@ -363,14 +365,12 @@ def test_hpo_all_input_types(test_dir, data_frame):
     def coverage_check(**kwargs):
         return np.mean(kwargs['confidence'] > .9)
 
-    results = imputer.fit_hpo_new(
-        train_df=df_train,
-        hps=hps,
-        strategy='random',
-        num_evals=4,
-        user_defined_scores=[(calibration_check, 'calibration check'),
-                             (coverage_check, 'coverage at 90')])
+    uds = [(calibration_check, 'calibration check'),
+           (coverage_check, 'coverage at 90')]
 
-    assert results[results['global:num_epochs']==50]['f1_micro'].iloc[0] > \
-           results[results['global:num_epochs']==5]['f1_micro'].iloc[0]
+    hpo = HPO(imputer, hps)
+    results = hpo.tune(df_train, user_defined_scores=uds)
+
+    assert results[results['global:num_epochs'] == 50]['f1_micro'].iloc[0] > \
+           results[results['global:num_epochs'] == 5]['f1_micro'].iloc[0]
 
