@@ -137,8 +137,8 @@ class SimpleImputer:
         """
 
         A heuristic to check whether a column is categorical:
-        a column is considered categorical (as opposed to a plain text column) if the value histogram is at least
-         ``min_value_histogram``
+        a column is considered categorical (as opposed to a plain text column) if the least frequent value
+        occurs with a frequency of at least ``min_value_histogram``.
 
         :param col: pandas Series containing strings
         :param n_samples: number of samples used for heuristic (default: 100)
@@ -513,7 +513,7 @@ class SimpleImputer:
 
         # TODO: should we expose temporary dir for model serialization to avoid crashes due to not-writable dirs?
 
-        if not inplace:
+        if inplace is False:
             data_frame = data_frame.copy()
 
         numeric_columns = [c for c in data_frame.columns if is_numeric_dtype(data_frame[c])]
