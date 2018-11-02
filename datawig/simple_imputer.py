@@ -130,6 +130,27 @@ class SimpleImputer:
         logger.info("Assuming {} string input columns: {}".format(len(self.string_columns),
                                                                   ", ".join(self.string_columns)))
 
+    @staticmethod
+    def _is_categorical(col: pd.Series,
+                        n_samples: int = 100,
+                        min_value_histogram: float = 0.1) -> bool:
+        """
+
+        A heuristic to check whether a column is categorical:
+        a column is considered categorical (as opposed to a plain text column) if the least frequent value
+        occurs with a frequency of at least ``min_value_histogram``.
+
+        :param col: pandas Series containing strings
+        :param n_samples: number of samples used for heuristic (default: 100)
+        :min_value_histogram: minimum value in the normalized value histogram (default: 0.1)
+
+        :return: True if the column is categorical according to the heuristic
+
+        """
+
+        return col.sample(n=n_samples, replace=len(col) < 100).value_counts(
+            normalize=True).min() >= min_value_histogram
+
     def fit_hpo(self,
                 train_df: pd.DataFrame,
                 test_df: pd.DataFrame = None,
@@ -215,7 +236,7 @@ class SimpleImputer:
         if len(self.numeric_columns) == 0:
             hps = pd.DataFrame(
                 list(itertools.product(num_hash_bucket_candidates, tokens_candidates,
-                                    learning_rate_candidates, final_fc_hidden_units)),
+                                       learning_rate_candidates, final_fc_hidden_units)),
                 columns=['num_hash_buckets', 'tokens', 'learning_rate', 'final_fc_dim'])
 
         elif len(self.string_columns) == 0:
@@ -272,11 +293,10 @@ class SimpleImputer:
                                                      numeric_latent_dim=hyper_param['numeric_latent_dim'],
                                                      numeric_hidden_layers=hyper_param['numeric_hidden_layers'])]
 
-           
             imputer = Imputer(data_encoders=data_encoders,
-                                data_featurizers=data_columns,
-                                label_encoders=label_column,
-                                output_path=self.output_path)
+                              data_featurizers=data_columns,
+                              label_encoders=label_column,
+                              output_path=self.output_path)
 
             imputer.fit(train_df_hpo.copy(),
                         None,
@@ -465,6 +485,62 @@ class SimpleImputer:
                                            score_suffix, inplace=inplace)
 
         return imputations
+
+    @staticmethod
+    def complete(data_frame: pd.DataFrame,
+                 precision_threshold: float = 0.0,
+                 inplace: bool = False):
+        """
+        Given a dataframe with missing values, this function detects all imputable columns, trains an imputation model
+        on all other columns and imputes values for each missing value.
+
+        Imputable columns are either numeric columns or non-numeric categorical columns; for determining whether a
+            column is categorical (as opposed to a plain text column) we use the following heuristic:
+            a non-numeric categorical column should have least 10 times as many rows as there were unique values
+
+        If an imputation model did not reach the precision specified in the precision_threshold parameter for a given
+            imputation value, that value will not be imputed; thus depending on the precision_threshold, the returned
+            dataframe can still contain some missing values.
+
+        For numeric columns, we do not filter for accuracy.
+
+        :param data_frame: original dataframe
+        :param precision_threshold: precision threshold for categorical imputations (default: 0.0)
+        :param inplace: whether or not to perform imputations inplace
+        :return: dataframe with imputations
+
+        """
+
+        # TODO: should we expose temporary dir for model serialization to avoid crashes due to not-writable dirs?
+
+        if inplace is False:
+            data_frame = data_frame.copy()
+
+        numeric_columns = [c for c in data_frame.columns if is_numeric_dtype(data_frame[c])]
+        string_columns = list(set(data_frame.columns) - set(numeric_columns))
+        logger.info("Assuming numerical columns: {}".format(", ".join(numeric_columns)))
+
+        col_set = set(numeric_columns + string_columns)
+
+        categorical_columns = [col for col in string_columns if SimpleImputer._is_categorical(data_frame[col])]
+        logger.info("Assuming categorical columns: {}".format(", ".join(categorical_columns)))
+
+        for output_col in set(numeric_columns) | set(categorical_columns):
+            # train on all input columns but the to-be-imputed one
+            input_cols = list(col_set - set([output_col]))
+
+            # train on all observed values
+            idx_missing = data_frame[output_col].isnull()
+
+            imputer = SimpleImputer(input_columns=input_cols,
+                                    output_column=output_col) \
+                .fit(data_frame.loc[~idx_missing, :],
+                     patience=5 if output_col in categorical_columns else 20)
+
+            tmp = imputer.predict(data_frame, precision_threshold=precision_threshold)
+            data_frame.loc[idx_missing, output_col] = tmp[output_col + "_imputed"]
+
+        return data_frame
 
     def save(self):
         """
