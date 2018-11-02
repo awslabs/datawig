@@ -80,7 +80,7 @@ def evaluate_and_persist_metrics(true_labels_string,
 
         for att in true_labels_string.keys():
             metrics[att]['precision_recall_curves'] = {}
-            for label in range(1, predictions_proba[att].shape[-1] + 1):
+            for label in range(1, predictions_proba[att].shape[-1]):
                 true_labels = (true_labels_int[att] == label).nonzero()[0]
                 if len(true_labels) > 0:
                     true_label = true_labels_string[att][true_labels[0]]
