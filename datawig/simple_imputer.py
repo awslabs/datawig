@@ -30,7 +30,7 @@ from sklearn.metrics import mean_squared_error, f1_score, precision_score, accur
 
 from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts
 from .imputer import Imputer
-from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder
+from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder, TfIdfEncoder
 from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer, EmbeddingFeaturizer
 
 
@@ -179,6 +179,7 @@ class SimpleImputer:
         :param normalize_numeric: boolean indicating whether or not to normalize numeric values
         :param final_fc_hidden_units: list of lists w/ dimensions for FC layers after the
                             final concatenation (NOTE: for HPO, this expects a list of lists)
+
         :return: trained SimpleImputer model
         """
 
@@ -399,10 +400,10 @@ class SimpleImputer:
 
         if len(self.string_columns) > 0:
             string_feature_column = "ngram_features-" + rand_string(10)
-            data_encoders += [BowEncoder(input_columns=self.string_columns,
-                                         output_column=string_feature_column,
-                                         max_tokens=self.num_hash_buckets,
-                                         tokens=self.tokens)]
+            data_encoders += [TfIdfEncoder(input_columns=self.string_columns,
+                                           output_column=string_feature_column,
+                                           max_tokens=self.num_hash_buckets,
+                                           tokens=self.tokens)]
             data_columns += [
                 BowFeaturizer(field_name=string_feature_column, max_tokens=self.num_hash_buckets)]
 

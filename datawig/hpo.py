@@ -27,7 +27,7 @@ from pandas.api.types import is_numeric_dtype
 from datawig import SimpleImputer, Imputer
 from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
 
-from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder
+from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder, TfIdfEncoder
 from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer, EmbeddingFeaturizer
 from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts
 
@@ -181,10 +181,10 @@ class HPO:
                 # iterate over multiple embeddings (chars + strings for the same column)
                 for token in col_parms['tokens']:
                     # call kw. args. with: **{key: item for key, item in col_parms.items() if not key == 'type'})]
-                    data_encoders += [BowEncoder(input_columns=[input_column],
-                                                 output_column=input_column + '_' + token,
-                                                 tokens=token,
-                                                 max_tokens=col_parms['max_tokens'])]
+                    data_encoders += [TfIdfEncoder(input_columns=[input_column],
+                                                   output_column=input_column + '_' + token,
+                                                   tokens=token,
+                                                   max_tokens=col_parms['max_tokens'])]
                     data_featurizers += [BowFeaturizer(field_name=input_column + '_' + token,
                                                        max_tokens=col_parms['max_tokens'])]
 
