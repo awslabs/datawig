@@ -335,6 +335,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
     hps['global']['patience'] = [5]
     hps['global']['batch_size'] = [16]
     hps['global']['final_fc_hidden_units'] = [[]]
+    hps['global']['concat_columns'] = [True, False]
 
     hps['string_feature'] = {}
     hps['string_feature']['max_tokens'] = [2 ** 8]
@@ -368,8 +369,9 @@ def test_hpo_all_input_types(test_dir, data_frame):
     uds = [(calibration_check, 'calibration check'),
            (coverage_check, 'coverage at 90')]
 
-    hpo = HPO(imputer, hps)
-    results = hpo.tune(df_train, user_defined_scores=uds)
+    imputer.fit_hpo(df_train, hps=hps, user_defined_scores=uds)
+    # hpo = HPO(imputer, hps)
+    # results, imputers = hpo.tune(df_train, user_defined_scores=uds)
 
     assert results[results['global:num_epochs'] == 50]['f1_micro'].iloc[0] > \
            results[results['global:num_epochs'] == 5]['f1_micro'].iloc[0]

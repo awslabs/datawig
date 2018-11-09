@@ -33,7 +33,6 @@ from .utils import logger, get_context, random_split, rand_string, flatten_dict,
 
 
 class HPO:
-
     """
     Implements systematic hyperparameter optimisation for datawig
 
@@ -65,6 +64,7 @@ class HPO:
         self.imputer = imputer
         self.output_path = imputer.output_path
         self.hps = hps
+        self.results = None
 
         # Define default hyperparameter choices for each column type (string, categorical, numeric)
         default_hps = dict()
@@ -75,6 +75,7 @@ class HPO:
         default_hps['global']['patience'] = [5]
         default_hps['global']['batch_size'] = [16]
         default_hps['global']['final_fc_hidden_units'] = [[], [100]]
+        default_hps['global']['concat_columns'] = [True, False]
 
         default_hps['string'] = {}
         default_hps['string']['max_tokens'] = [2 ** 8]
@@ -88,6 +89,9 @@ class HPO:
         default_hps['numeric']['normalize'] = [True]
         default_hps['numeric']['numeric_latent_dim'] = [10, 50]
         default_hps['numeric']['numeric_hidden_layers'] = [1, 2]
+
+        # parameters for a single column of concatenated strings
+        default_hps['concat'] = default_hps['string'].copy()
 
         self.default_hps = default_hps
 
@@ -106,7 +110,11 @@ class HPO:
         if 'global' not in self.hps.keys():
             self.hps['global'] = {}
 
-        # add type entry to column dictionaries if it was not specified, does not support categorical types
+        # create empty dict if parameters for concatenated column not passed
+        if 'concat' not in self.hps.keys():
+            self.hps['concat'] = {}
+
+        # add type to column dictionaries if it was not specified, does not support categorical types
         for column_name in self.imputer.input_columns:
             if 'type' not in self.hps[column_name].keys():
                 if is_numeric_dtype(train_df[column_name]):
@@ -123,6 +131,7 @@ class HPO:
         # augment provided global self.hps with default global hps so that cartesian products are full parameter sets.
         # self.hps['global'] = {**self.default_hps['global'], **self.hps['global']}
         self.hps['global'] = merge_dicts(self.default_hps['global'], self.hps['global'])
+        self.hps['concat'] = merge_dicts(self.default_hps['concat'], self.hps['concat'])
 
         # augment provided self.hps with default self.hps, iterating over every input column
         for column_name in self.imputer.input_columns:
@@ -137,18 +146,19 @@ class HPO:
                     logger.warn('Input type of column ' + str(column_name) + ' not determined.')
             # join all column specific hp dictionaries with type-specific default values
             # self.hps[column_name] = {**self.default_hps[self.hps[column_name]['type'][0]], **self.hps[column_name]}
-            self.hps[column_name] = merge_dicts(self.default_hps[self.hps[column_name]['type'][0]], self.hps[column_name])
+            self.hps[column_name] = merge_dicts(self.default_hps[self.hps[column_name]['type'][0]],
+                                                self.hps[column_name])
 
         # flatten nested dictionary structures and combine to data frame with all possible hp configurations
         hp_df_from_dict = lambda dict: pd.DataFrame(list(itertools.product(*dict.values())), columns=dict.keys())
 
         return hp_df_from_dict(flatten_dict(self.hps))
 
-    def __fit_hp(self,
-                 train_df: pd.DataFrame,
-                 test_df: pd.DataFrame,
-                 hp: pd.Series,
-                 user_defined_scores: list = None):
+    def __fit_hp_config(self,
+                        train_df: pd.DataFrame,
+                        test_df: pd.DataFrame,
+                        hp: pd.Series,
+                        user_defined_scores: list = None):
         """
 
         Method initialises the model, performs fitting and returns the desired metrics.
@@ -170,42 +180,62 @@ class HPO:
         data_encoders = []
         data_featurizers = []
 
-        # define column encoders and featurisers for each input column
-        for input_column in self.imputer.input_columns:
+        if hp['global:concat_columns'] is False:
 
-            # extract parameters for the current input column
-            col_parms = {key.split(':')[1]: val for key, val in hp.items() if input_column in key}
+            # define column encoders and featurisers for each input column
+            for input_column in self.imputer.input_columns:
 
-            # define all input columns
-            if col_parms['type'] == 'string':
-                # iterate over multiple embeddings (chars + strings for the same column)
-                for token in col_parms['tokens']:
-                    # call kw. args. with: **{key: item for key, item in col_parms.items() if not key == 'type'})]
-                    data_encoders += [TfIdfEncoder(input_columns=[input_column],
-                                                   output_column=input_column + '_' + token,
-                                                   tokens=token,
-                                                   max_tokens=col_parms['max_tokens'])]
-                    data_featurizers += [BowFeaturizer(field_name=input_column + '_' + token,
+                # extract parameters for the current input column
+                col_parms = {key.split(':')[1]: val for key, val in hp.items() if input_column in key}
+
+                # define all input columns
+                if col_parms['type'] == 'string':
+                    # iterate over multiple embeddings (chars + strings for the same column)
+                    for token in col_parms['tokens']:
+                        # call kw. args. with: **{key: item for key, item in col_parms.items() if not key == 'type'})]
+                        data_encoders += [TfIdfEncoder(input_columns=[input_column],
+                                                       output_column=input_column + '_' + token,
+                                                       tokens=token,
                                                        max_tokens=col_parms['max_tokens'])]
+                        data_featurizers += [BowFeaturizer(field_name=input_column + '_' + token,
+                                                           max_tokens=col_parms['max_tokens'])]
 
-            elif col_parms['type'] == 'categorical':
-                data_encoders += [CategoricalEncoder(input_columns=[input_column],
-                                                     output_column=input_column + '_' + col_parms['type'],
-                                                     max_tokens=col_parms['max_tokens'])]
-                data_featurizers += [EmbeddingFeaturizer(field_name=input_column + '_' + col_parms['type'],
-                                                         max_tokens=col_parms['max_tokens'],
-                                                         embed_dim=col_parms['embed_dim'])]
+                elif col_parms['type'] == 'categorical':
+                    data_encoders += [CategoricalEncoder(input_columns=[input_column],
+                                                         output_column=input_column + '_' + col_parms['type'],
+                                                         max_tokens=col_parms['max_tokens'])]
+                    data_featurizers += [EmbeddingFeaturizer(field_name=input_column + '_' + col_parms['type'],
+                                                             max_tokens=col_parms['max_tokens'],
+                                                             embed_dim=col_parms['embed_dim'])]
 
-            elif col_parms['type'] == 'numeric':
-                data_encoders += [NumericalEncoder(input_columns=[input_column],
-                                                   output_column=input_column + '_' + col_parms['type'],
-                                                   normalize=col_parms['normalize'])]
-                data_featurizers += [NumericalFeaturizer(field_name=input_column + '_' + col_parms['type'],
-                                                         numeric_latent_dim=col_parms['numeric_latent_dim'],
-                                                         numeric_hidden_layers=col_parms['numeric_hidden_layers'])]
-            else:
-                logger.warn('Found unknown column type. Canidates are string, categorical, numeric.')
+                elif col_parms['type'] == 'numeric':
+                    data_encoders += [NumericalEncoder(input_columns=[input_column],
+                                                       output_column=input_column + '_' + col_parms['type'],
+                                                       normalize=col_parms['normalize'])]
+                    data_featurizers += [NumericalFeaturizer(field_name=input_column + '_' + col_parms['type'],
+                                                             numeric_latent_dim=col_parms['numeric_latent_dim'],
+                                                             numeric_hidden_layers=col_parms['numeric_hidden_layers'])]
+                else:
+                    logger.warn('Found unknown column type. Canidates are string, categorical, numeric.')
 
+        # Concatenate all columns
+        else:
+            # cast all columns to string for concatenation
+            train_df = train_df.astype(str)
+            test_df = test_df.astype(str)
+
+            # assemble parameters dictionary
+            col_parms = {key.split(':')[1]: val for key, val in hp.items() if 'concat' in key}
+            for token in col_parms['tokens']:
+                field_name = 'concat' + '__'.join(self.imputer.input_columns) + '_' + token
+                data_encoders += [TfIdfEncoder(input_columns=self.imputer.input_columns,
+                                               output_column=field_name,
+                                               tokens=token,
+                                               max_tokens=col_parms['max_tokens'])]
+                data_featurizers += [BowFeaturizer(field_name=field_name,
+                                                   max_tokens=col_parms['max_tokens'])]
+
+        # Define separate encoder and featurizer for each column
         # Define output column. Associated parameters are not tuned.
         if is_numeric_dtype(train_df[self.imputer.output_column]):
             label_column = [NumericalEncoder(self.imputer.output_column)]
@@ -237,24 +267,33 @@ class HPO:
         imputed = hp_imputer.predict(test_df)
         true = imputed[self.imputer.output_column]
         predicted = imputed[self.imputer.output_column + '_imputed']
+
+        imputed_train = hp_imputer.predict(train_df.sample(min(train_df.shape[0], int(1e4))))
+        true_train = imputed_train[self.imputer.output_column]
+        predicted_train = imputed_train[self.imputer.output_column + '_imputed']
+
         if is_numeric_dtype(train_df[self.imputer.output_column]):
             hp['mse'] = mean_squared_error(true, predicted)
+            hp['mse_train'] = mean_squared_error(true_train, predicted_train)
             confidence = np.nan
         else:
             confidence = imputed[self.imputer.output_column + '_imputed_proba']
+            confidence_train = imputed_train[self.imputer.output_column + '_imputed_proba']
             hp['f1_micro'] = f1_score(true, predicted, average='micro')
             hp['f1_macro'] = f1_score(true, predicted, average='macro')
-            hp['precision_micro'] = f1_score(true, predicted, average='micro')
-            hp['precision_macro'] = f1_score(true, predicted, average='macro')
-            hp['recall_micro'] = recall_score(true, predicted, average='micro')
-            hp['recall_macro'] = recall_score(true, predicted, average='macro')
-            hp['coverage_at_80'] = (confidence > .8).mean()
+            hp['f1_weighted'] = f1_score(true, predicted, average='weighted')
+            hp['f1_weighted_train'] = f1_score(true_train, predicted_train, average='weighted')
+            hp['precision_weighted'] = f1_score(true, predicted, average='weighted')
+            hp['precision_weighted_train'] = f1_score(true_train, predicted_train, average='weighted')
+            hp['recall_weighted'] = recall_score(true, predicted, average='weighted')
+            hp['recall_weighted_train'] = recall_score(true_train, predicted_train, average='weighted')
             hp['coverage_at_90'] = (confidence > .9).mean()
-            # TODO: add support for user provided functions
+            hp['coverage_at_90_train'] = (confidence_train > .9).mean()
+
         for uds in user_defined_scores:
             hp[uds[1]] = uds[0](true=true, predicted=predicted, confidence=confidence)
 
-        return hp
+        return hp, hp_imputer
 
     def tune(self,
              train_df: pd.DataFrame,
@@ -287,10 +326,6 @@ class HPO:
         # process_hp_configurations(hps) uses self.hps to populate self.hps_flat
         hps_flat = self.__preprocess_hps(train_df)
 
-        # train/test split if no test data given
-        if test_df is None:
-            train_df, test_df = random_split(train_df, [.8, .2])
-
         # sample configurations for random search
         if strategy == 'random':
             hps_flat = hps_flat.sample(n=min([num_evals, hps_flat.shape[0]]), random_state=10)
@@ -299,15 +334,21 @@ class HPO:
 
         # iterate over hp configurations and fit models. This loop should be parallelised
         hp_results = []
+        hp_imputers = []
         for hp_idx, hp in hps_flat.iterrows():
-            logger.info("Fitting hpo iteration " + str(hp_idx) + "with parameters\n" +
-                        '\n'.join([str(i) + ': ' + str(j) for i, j in hp.items()]))
+            # if concat_columns True, set all n.a. hps to n.a. TODO
+            logger.info("Fitting hpo iteration " + str(hp_idx) + " with parameters\n\t" +
+                        '\n\t'.join([str(i) + ': ' + str(j) for i, j in hp.items()]))
 
             # add results to hp
-            hp = self.__fit_hp(train_df, test_df, hp, user_defined_scores)
+            hp, hp_imputer = self.__fit_hp_config(train_df, test_df, hp, user_defined_scores)
 
             hp_results.append((hp_idx, hp))
+            hp_imputers.append([hp_idx, hp_imputer])
 
             logger.info('Finished hpo iteration ' + str(hp_idx))
 
-        return pd.DataFrame([series for _, series in hp_results], index=[idx for idx, _ in hp_results])
+        self.results = pd.DataFrame([series for _, series in hp_results],
+                                    index=[idx for idx, _ in hp_results])
+
+        return
