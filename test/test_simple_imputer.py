@@ -25,7 +25,7 @@ import pandas as pd
 import pytest
 from sklearn.metrics import f1_score, mean_squared_error
 
-from datawig.hpo import HPO
+# from datawig.hpo import HPO
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
@@ -236,13 +236,14 @@ def test_imputer_hpo_numeric(test_dir):
     hps['global']['final_fc_hidden_units'] = [[]]
     hps['global']['learning_rate'] = [1e-3, 1e-4]
     hps['global']['weight_decay'] = [0]
-    hps['global']['num_epochs'] = [50]
+    hps['global']['num_epochs'] = [200]
+    hps['global']['patience'] = [100]
+    hps['global']['concat_columns'] = [False]
 
-    hpo = HPO(imputer_numeric, hps)
+    imputer_numeric.fit_hpo(df_train, hps=hps)
+    results = imputer_numeric.hpo_results
 
-    results = hpo.tune(df)
-
-    assert results[results['mse'] == min(results['mse'])]['mse'].iloc[0] < 1.0
+    assert results[results['mse'] == min(results['mse'])]['mse'].iloc[0] < .3
 
 
 def test_imputer_hpo_text(test_dir, data_frame):
@@ -286,10 +287,9 @@ def test_imputer_hpo_text(test_dir, data_frame):
     hps['global']['weight_decay'] = [0]
     hps['global']['num_epochs'] = [30]
 
-    hpo = HPO(imputer_string, hps)
-    out = hpo.tune(df_train)
+    imputer_string.fit_hpo(df_train, hps=hps)
 
-    assert max(out['f1_micro']) > .9
+    assert max(imputer_string.hpo_results['f1_micro']) > .9
 
 
 def test_hpo_all_input_types(test_dir, data_frame):
@@ -370,8 +370,8 @@ def test_hpo_all_input_types(test_dir, data_frame):
            (coverage_check, 'coverage at 90')]
 
     imputer.fit_hpo(df_train, hps=hps, user_defined_scores=uds)
-    # hpo = HPO(imputer, hps)
-    # results, imputers = hpo.tune(df_train, user_defined_scores=uds)
+
+    results = imputer.hpo_results
 
     assert results[results['global:num_epochs'] == 50]['f1_micro'].iloc[0] > \
            results[results['global:num_epochs'] == 5]['f1_micro'].iloc[0]

@@ -135,10 +135,9 @@ class SimpleImputer:
                 train_df: pd.DataFrame,
                 test_df: pd.DataFrame = None,
                 hps: dict = None,
-                user_defined_scores: list = None,
                 strategy: str = 'random',
                 num_evals: int = 10,
-                ctx: mx.context = get_context(),
+                user_defined_scores: list = None,
                 num_epochs: int = None,
                 patience: int = None,
                 test_split: float = .2,
@@ -148,10 +147,11 @@ class SimpleImputer:
                 tokens_candidates: List[str] = None,
                 numeric_latent_dim_candidates: List[int] = None,
                 numeric_hidden_layers_candidates: List[int] = None,
-                hpo_max_train_samples: int = None,
-                normalize_numeric: bool = True,
                 final_fc_hidden_units: List[List[int]] = None,
-                learning_rate_candidates: List[float] = None) -> Any:
+                learning_rate_candidates: List[float] = None,
+                normalize_numeric: bool = True,
+                hpo_max_train_samples: int = None,
+                ctx: mx.context = get_context()) -> Any:
 
         """
 
@@ -162,46 +162,58 @@ class SimpleImputer:
 
         :param train_df: training data as dataframe
         :param test_df: test data as dataframe; if not provided, a ratio of test_split of the
-                            training data are used as test data
-        :param ctx: List of mxnet contexts (if no gpu's available, defaults to [mx.cpu()])
-                    User can also pass in a list gpus to be used, ex. [mx.gpu(0), mx.gpu(2), mx.gpu(4)]
-        :param learning_rate: learning rate for stochastic gradient descent (default 4e-4)
+            training data are used as test data
+        :param hps: nested dictionary where hps[global][parameter_name] is list of parameters. Similarly,
+            hps[column_name][parameter_name] is a list of parameter values for each input column.
+            Further, hps[column_name]['type'] is in ['numeric', 'categorical', 'string'] and is
+            inferred if not provided.
+        :param strategy: 'random' for random search or 'grid' for exhaustive search
+        :param num_evals: number of evaluations for random search
+        :param user_defined_scores: list with entries (Callable, str), where callable is a function
+            accepting **kwargs true, predicted, confidence. Allows custom scoring functions.
         :param num_epochs: maximal number of training epochs (default 10)
         :param patience: used for early stopping; after [patience] epochs with no improvement,
-                            training is stopped. (default 3)
+            training is stopped. (default 3)
         :param test_split: if no test_df is provided this is the ratio of test data to be held
-                            separate for determining model convergence
+            separate for determining model convergence
         :param weight_decay: regularizer (default 0)
         :param batch_size (default 16)
         :param num_hash_bucket_candidates: candidates for gridsearch hyperparameter
-                            optimization (default [2**10, 2**13, 2**15, 2**18, 2**20])
+            optimization (default [2**10, 2**13, 2**15, 2**18, 2**20])
         :param tokens_candidates: candidates for tokenization (default ['words', 'chars'])
         :param numeric_latent_dim_candidates: candidates for latent dimensionality of
-                            numerical features (default [10, 50, 100])
+            numerical features (default [10, 50, 100])
         :param numeric_hidden_layers_candidates: candidates for number of hidden layers of
-                            numerical features (default [0, 1, 2])
-        :param learning_rate_candidates: candidates for learning rate (default [1e-1, 1e-2, 1e-3])
-        :param hpo_max_train_samples: training set size for hyperparameter optimization
-                    use is deprecated.
-        :param normalize_numeric: boolean indicating whether or not to normalize numeric values
         :param final_fc_hidden_units: list of lists w/ dimensions for FC layers after the
-                            final concatenation (NOTE: for HPO, this expects a list of lists)
+            final concatenation (NOTE: for HPO, this expects a list of lists)
+        :param learning_rate_candidates: learning rate for stochastic gradient descent (default 4e-4)
+            numerical features (default [0, 1, 2])
+        :param learning_rate_candidates: candidates for learning rate (default [1e-1, 1e-2, 1e-3])
+        :param normalize_numeric: boolean indicating whether or not to normalize numeric values
+        :param hpo_max_train_samples: training set size for hyperparameter optimization.
+            use is deprecated.
+        :param ctx: List of mxnet contexts (if no gpu's available, defaults to [mx.cpu()])
+            User can also pass in a list gpus to be used, ex. [mx.gpu(0), mx.gpu(2), mx.gpu(4)]
+            This parameter is deprecated.s
 
-        :return: trained SimpleImputer model
+        :return: pd.DataFrame with with hyper-parameter configurations and results
         """
 
         # generate dictionary with default hyperparameter settings. Overwrite these defaults
         # with configurations that were passed via the old API where applicable.
         default_hps = dict()
         default_hps['global'] = dict()
-        default_hps['global']['learning_rate'] =\
+        default_hps['global']['learning_rate'] = \
             learning_rate_candidates if learning_rate_candidates is not None else [1e-4, 1e-3]
-        default_hps['global']['weight_decay'] =\
+        default_hps['global']['weight_decay'] = \
             weight_decay if weight_decay is not None else [0, 1e-4]
 
-        default_hps['global']['num_epochs'] = [100]
-        default_hps['global']['patience'] = [5]
-        default_hps['global']['batch_size'] = [16]
+        default_hps['global']['num_epochs'] = \
+            [num_epochs] if num_epochs is not None else [100]
+        default_hps['global']['patience'] = \
+            [patience] if patience is not None else [5]
+        default_hps['global']['batch_size'] = \
+            [batch_size] if batch_size is not None else [16]
         default_hps['global']['final_fc_hidden_units'] = \
             final_fc_hidden_units if final_fc_hidden_units is not None else [[], [100]]
         default_hps['global']['concat_columns'] = [True, False]
@@ -218,7 +230,8 @@ class SimpleImputer:
         default_hps['categorical']['embed_dim'] = [10]
 
         default_hps['numeric'] = {}
-        default_hps['numeric']['normalize'] = [True]
+        default_hps['numeric']['normalize'] = \
+            [normalize_numeric] if normalize_numeric is not None else [True]
         default_hps['numeric']['numeric_latent_dim'] = \
             numeric_latent_dim_candidates if numeric_latent_dim_candidates is not None else [10, 50]
         default_hps['numeric']['numeric_hidden_layers'] = \
@@ -256,7 +269,7 @@ class SimpleImputer:
                         '\n\t'.join([str(i) + ': ' + str(j) for i, j in hp.items()]))
 
             # add results to hp
-            hp, hp_imputer = self.__fit_hp(train_df, test_df, hp, user_defined_scores)
+            hp, hp_imputer = self.__fit_hp_config(train_df, test_df, hp, user_defined_scores, hp_idx)
 
             hp_results.append((hp_idx, hp))
             hp_imputers.append([hp_idx, hp_imputer])
@@ -311,10 +324,10 @@ class SimpleImputer:
 
         if len(self.string_columns) > 0:
             string_feature_column = "ngram_features-" + rand_string(10)
-            data_encoders += [TfIdfEncoder(input_columns=self.string_columns,
-                                           output_column=string_feature_column,
-                                           max_tokens=self.num_hash_buckets,
-                                           tokens=self.tokens)]
+            data_encoders += [BowEncoder(input_columns=self.string_columns,
+                                         output_column=string_feature_column,
+                                         max_tokens=self.num_hash_buckets,
+                                         tokens=self.tokens)]
             data_columns += [
                 BowFeaturizer(field_name=string_feature_column, max_tokens=self.num_hash_buckets)]
 
@@ -500,12 +513,12 @@ class SimpleImputer:
 
         return hp_df_from_dict(flatten_dict(hps))
 
-
-    def __fit_hp(self,
-                 train_df: pd.DataFrame,
-                 test_df: pd.DataFrame,
-                 hp: pd.Series,
-                 user_defined_scores: list = None):
+    def __fit_hp_config(self,
+                        train_df: pd.DataFrame,
+                        test_df: pd.DataFrame,
+                        hp: pd.Series,
+                        user_defined_scores: list = None,
+                        hp_idx: int = None):
         """
 
         Method initialises the model, performs fitting and returns the desired metrics.
@@ -515,12 +528,12 @@ class SimpleImputer:
         :param test_df: test data as dataframe; if not provided, a ratio of test_split of the
                           training data are used as test data
 
-        :param hp: pd.Series with hyperparameter configuration
+        :param hp: pd.Series with hyper-parameter configuration
         :param user_defined_scores: list with entries (Callable, str), where callable is a function
                           accepting **kwargs true, predicted, confidence. Allows custom scoring functions.
+        :param hp_idx: index to identify and load model.
 
-
-        :return:
+        :return: tuple
 
         """
 
@@ -540,7 +553,7 @@ class SimpleImputer:
                     # iterate over multiple embeddings (chars + strings for the same column)
                     for token in col_parms['tokens']:
                         # call kw. args. with: **{key: item for key, item in col_parms.items() if not key == 'type'})]
-                        data_encoders += [TfIdfEncoder(input_columns=[input_column],
+                        data_encoders += [BowEncoder(input_columns=[input_column],
                                                        output_column=input_column + '_' + token,
                                                        tokens=token,
                                                        max_tokens=col_parms['max_tokens'])]
@@ -563,7 +576,7 @@ class SimpleImputer:
                                                              numeric_latent_dim=col_parms['numeric_latent_dim'],
                                                              numeric_hidden_layers=col_parms['numeric_hidden_layers'])]
                 else:
-                    logger.warn('Found unknown column type. Canidates are string, categorical, numeric.')
+                    logger.warn('Found unknown column type. Candidates are string, categorical, numeric.')
 
         # Concatenate all columns
         else:
@@ -575,7 +588,7 @@ class SimpleImputer:
             col_parms = {key.split(':')[1]: val for key, val in hp.items() if 'concat' in key}
             for token in col_parms['tokens']:
                 field_name = 'concat' + '__'.join(self.input_columns) + '_' + token
-                data_encoders += [TfIdfEncoder(input_columns=self.input_columns,
+                data_encoders += [BowEncoder(input_columns=self.input_columns,
                                                output_column=field_name,
                                                tokens=token,
                                                max_tokens=col_parms['max_tokens'])]
@@ -596,7 +609,7 @@ class SimpleImputer:
         hp_imputer = Imputer(data_encoders=data_encoders,
                              data_featurizers=data_featurizers,
                              label_encoders=label_column,
-                             output_path=self.output_path)
+                             output_path=self.output_path + str(hp_idx))
 
         hp_imputer.fit(train_df=train_df,
                        test_df=test_df,
@@ -622,7 +635,7 @@ class SimpleImputer:
         if is_numeric_dtype(train_df[self.output_column]):
             hp['mse'] = mean_squared_error(true, predicted)
             hp['mse_train'] = mean_squared_error(true_train, predicted_train)
-            confidence = np.nan
+            confidence = float('nan')
         else:
             confidence = imputed[self.output_column + '_imputed_proba']
             confidence_train = imputed_train[self.output_column + '_imputed_proba']
@@ -641,3 +654,20 @@ class SimpleImputer:
             hp[uds[1]] = uds[0](true=true, predicted=predicted, confidence=confidence)
 
         return hp, hp_imputer
+
+    def load_imputer_hpo(self,
+                         hpo_idx: int = None):
+
+        """
+        Load model after hyperparameter optimisation has ran.
+
+        :param hpo_idx: Index of the model to be loaded. Default,
+                    load model with highest weighted precision
+        :return: imputer object
+        """
+
+        if hpo_idx is None:
+            hpo_idx = self.hpo_results['precision_weighted'].idxmax()
+
+        return Imputer.load(self.output_path + str(hpo_idx))
+
