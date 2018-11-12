@@ -241,7 +241,7 @@ def test_imputer_hpo_numeric(test_dir):
     hps['global']['concat_columns'] = [False]
 
     imputer_numeric.fit_hpo(df_train, hps=hps)
-    results = imputer_numeric.hpo_results
+    results = imputer_numeric.hpo.results
 
     assert results[results['mse'] == min(results['mse'])]['mse'].iloc[0] < .3
 
@@ -289,7 +289,7 @@ def test_imputer_hpo_text(test_dir, data_frame):
 
     imputer_string.fit_hpo(df_train, hps=hps)
 
-    assert max(imputer_string.hpo_results['f1_micro']) > .9
+    assert max(imputer_string.hpo.results['f1_micro']) > .9
 
 
 def test_hpo_all_input_types(test_dir, data_frame):
@@ -340,6 +340,9 @@ def test_hpo_all_input_types(test_dir, data_frame):
     hps['string_feature'] = {}
     hps['string_feature']['max_tokens'] = [2 ** 8]
     hps['string_feature']['tokens'] = [['words', 'chars']]
+    hps['string_feature']['ngram_range'] = {}
+    hps['string_feature']['ngram_range']['words'] = [(1, 4)]
+    hps['string_feature']['ngram_range']['chars'] = [(2, 4)]
 
     hps['categorical_feature'] = {}
     hps['categorical_feature']['type'] = ['categorical']
@@ -369,10 +372,21 @@ def test_hpo_all_input_types(test_dir, data_frame):
     uds = [(calibration_check, 'calibration check'),
            (coverage_check, 'coverage at 90')]
 
-    imputer.fit_hpo(df_train, hps=hps, user_defined_scores=uds)
+    imputer.fit_hpo(df_train,
+                    hps=hps,
+                    user_defined_scores=uds,
+                    num_evals=2,
+                    hpo_run_name='test1_')
 
-    results = imputer.hpo_results
+    imputer.fit_hpo(df_train,
+                    hps=hps,
+                    user_defined_scores=uds,
+                    num_evals=2,
+                    hpo_run_name='test2_',
+                    max_running_hours=1/3600)
+
+    results = imputer.hpo.results
 
     assert results[results['global:num_epochs'] == 50]['f1_micro'].iloc[0] > \
-           results[results['global:num_epochs'] == 5]['f1_micro'].iloc[0]
+            results[results['global:num_epochs'] == 5]['f1_micro'].iloc[0]
 
