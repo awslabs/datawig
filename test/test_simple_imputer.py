@@ -375,7 +375,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
     imputer.fit_hpo(df_train,
                     hps=hps,
                     user_defined_scores=uds,
-                    num_evals=2,
+                    num_evals=10,
                     hpo_run_name='test1_')
 
     imputer.fit_hpo(df_train,

@@ -248,10 +248,6 @@ class HPO:
                              label_encoders=label_column,
                              output_path=self.output_path + name)
 
-        print('\n\n\n')
-        print(hp)
-        print('\n\n\n')
-
         hp_imputer.fit(train_df=train_df,
                        test_df=test_df,
                        ctx=get_context(),
