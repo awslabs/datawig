@@ -148,7 +148,7 @@ class SimpleImputer:
 
         """
 
-        return col.sample(n=n_samples, replace=len(col) < 100).value_counts(
+        return col.sample(n=n_samples, replace=len(col) < n_samples).value_counts(
             normalize=True).min() >= min_value_histogram
 
     def fit_hpo(self,
