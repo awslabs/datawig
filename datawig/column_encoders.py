@@ -66,7 +66,7 @@ class ColumnEncoder():
     __metaclass__ = ABCMeta
 
     def __init__(self,
-                 input_columns: list[str],
+                 input_columns: List[str],
                  output_column=None,
                  output_dim=1):
 
@@ -449,14 +449,14 @@ class TfIdfEncoder(ColumnEncoder):
             ngram_range = (1, 3) if tokens == 'words' else (1, 5)
 
         if tokens == 'words':
-            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=ngram_range)
+            self.vectorizer = TfidfVectorizer(max_features=self.output_dim, ngram_range=ngram_range)
         elif tokens == 'chars':
-            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=ngram_range,
+            self.vectorizer = TfidfVectorizer(max_features=self.output_dim, ngram_range=ngram_range,
                                               analyzer="char")
         else:
             logger.info(
                 "BowEncoder attribute tokens has to be 'words' or 'chars', defaulting to 'chars'")
-            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim),
+            self.vectorizer = TfidfVectorizer(max_features=self.output_dim,
                                               ngram_range=ngram_range, analyzer="char")
 
         self.prefixed_concatenation = prefixed_concatenation
@@ -544,19 +544,23 @@ class BowEncoder(ColumnEncoder):
                  output_column: str = None,
                  max_tokens: int = 2 ** 18,
                  tokens: str = 'chars',
+                 ngram_range: tuple = None,
                  prefixed_concatenation: bool = True) -> None:
+
+        if ngram_range is None:
+            ngram_range = (1, 3) if tokens == 'words' else (1, 5)
 
         ColumnEncoder.__init__(self, input_columns, output_column, int(max_tokens))
 
         if tokens == 'words':
-            self.vectorizer = HashingVectorizer(n_features=int(self.output_dim), ngram_range=(1, 3))
+            self.vectorizer = HashingVectorizer(n_features=self.output_dim, ngram_range=ngram_range)
         elif tokens == 'chars':
-            self.vectorizer = HashingVectorizer(n_features=int(self.output_dim), ngram_range=(1, 5),
+            self.vectorizer = HashingVectorizer(n_features=self.output_dim, ngram_range=ngram_range,
                                                 analyzer="char")
         else:
             logger.info(
                 "BowEncoder attribute tokens has to be 'words' or 'chars', defaulting to 'chars'")
-            self.vectorizer = HashingVectorizer(n_features=int(self.output_dim), ngram_range=(1, 5),
+            self.vectorizer = HashingVectorizer(n_features=self.output_dim, ngram_range=ngram_range,
                                                 analyzer="char")
 
         self.prefixed_concatenation = prefixed_concatenation

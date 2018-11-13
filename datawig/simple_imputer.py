@@ -25,6 +25,8 @@ from typing import List, Dict, Any, Callable
 import itertools
 import mxnet as mx
 import pandas as pd
+import glob
+import shutil
 from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
 
@@ -114,7 +116,7 @@ class SimpleImputer:
         self.hpo = None
         self.numeric_columns = []
         self.string_columns = []
-        self.hpo = HPO(self)
+        self.hpo = HPO()
 
     def check_data_types(self, data_frame: pd.DataFrame) -> None:
         """
@@ -126,6 +128,7 @@ class SimpleImputer:
         """
         self.numeric_columns = [c for c in self.input_columns if is_numeric_dtype(data_frame[c])]
         self.string_columns = list(set(self.input_columns) - set(self.numeric_columns))
+        self.output_type = 'numeric' if is_numeric_dtype(data_frame[self.output_column]) else 'string'
 
         logger.info(
             "Assuming {} numeric input columns: {}".format(len(self.numeric_columns),
@@ -261,8 +264,9 @@ class SimpleImputer:
             train_df, test_df = random_split(train_df, [1-test_split, test_split])
 
         self.check_data_types(train_df)  # infer data types, saved self.string_columns, self.numeric_columns
-
-        self.hpo.tune(train_df, test_df, hps, strategy, num_evals, max_running_hours, user_defined_scores, hpo_run_name)
+        self.hpo.tune(train_df, test_df, hps, strategy, num_evals,
+                      max_running_hours, user_defined_scores, hpo_run_name, self)
+        self.save()
 
     def fit(self,
             train_df: pd.DataFrame,
@@ -385,7 +389,7 @@ class SimpleImputer:
 
         """
         self.imputer.save()
-        simple_imputer_params = {k: v for k, v in self.__dict__.items() if k not in ['imputer', 'hpo']}
+        simple_imputer_params = {k: v for k, v in self.__dict__.items() if k not in ['imputer']}
         pickle.dump(simple_imputer_params,
                     open(os.path.join(self.output_path, "simple_imputer.pickle"), "wb"))
 
@@ -428,7 +432,37 @@ class SimpleImputer:
         for key, value in simple_imputer_params.items():
             if key not in constructor_args:
                 setattr(simple_imputer, key, value)
-        # set imputer model
+
+        # set imputer model, only if it exists.
         simple_imputer.imputer = Imputer.load(output_path)
 
         return simple_imputer
+
+    def load_hpo_model(self, hpo_idx: int = None):
+        """
+        Load model after hyperparameter optimisation has ran. Overwrite local artifacts of self.imputer.
+
+        :param hpo_idx: Index of the model to be loaded. Default,
+                    load model with highest weighted precision or mean squared error.
+
+        :return: imputer object
+        """
+
+        if hpo_idx is None:
+            if self.output_type == 'numeric':
+                hpo_idx = self.hpo.results['mse'].astype(float).idxmax()
+            else:
+                hpo_idx = self.hpo.results['precision_weighted'].astype(float).idxmax()
+            logger.info("Selecting imputer with maximum weighted precision.")
+
+        # copy artifacts from hp run to self.output_path
+        imputer_dir = self.output_path + str(hpo_idx)
+        files_to_copy = glob.glob(imputer_dir + '/*.json') +\
+                        glob.glob(imputer_dir + '/*.pickle') +\
+                        glob.glob(imputer_dir + '/*.params')
+        for file in files_to_copy:
+            shutil.copy(file,  self.output_path)
+
+        self.imputer = Imputer.load(self.output_path)
+
+        return

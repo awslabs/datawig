@@ -23,6 +23,8 @@ import pandas as pd
 import itertools
 import time
 import os
+import glob
+import shutil
 
 from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
@@ -45,7 +47,7 @@ class HPO:
 
     """
 
-    def __init__(self, imputer):
+    def __init__(self):
 
         """
         Init method also defines default hyperparameter choices, global and for each input column type.
@@ -54,10 +56,9 @@ class HPO:
 
         """
 
-        self.imputer = imputer
-        self.output_path = imputer.output_path
         self.hps = None
         self.results = pd.DataFrame()
+        self.output_path = None
 
         # Define default hyperparameter choices for each column type (string, categorical, numeric)
         default_hps = dict()
@@ -91,12 +92,15 @@ class HPO:
 
         self.default_hps = default_hps
 
-    def __preprocess_hps(self, train_df: pd.DataFrame) -> pd.DataFrame:
+    def __preprocess_hps(self,
+                         train_df: pd.DataFrame,
+                         simple_imputer) -> pd.DataFrame:
         """
         Generates list of all possible combinations of hyperparameter from the nested hp dictionary.
         Requires the data to check whether the relevant columns are present and have the appropriate type.
 
         :param train_df: training data as dataframe
+        :param simple_imputer: Parent instance of SimpleImputer
 
         :return: Data frame where each row is a hyperparameter configuration and each column is a parameter.
                     Column names have the form colum:parameter, e.g. title:max_tokens or global:learning rate.
@@ -111,7 +115,7 @@ class HPO:
             self.hps['concat'] = {}
 
         # add type to column dictionaries if it was not specified, does not support categorical types
-        for column_name in self.imputer.input_columns:
+        for column_name in simple_imputer.input_columns:
             if 'type' not in self.hps[column_name].keys():
                 if is_numeric_dtype(train_df[column_name]):
                     self.hps[column_name]['type'] = ['numeric']
@@ -130,13 +134,13 @@ class HPO:
         self.hps['concat'] = merge_dicts(self.default_hps['concat'], self.hps['concat'])
 
         # augment provided self.hps with default self.hps, iterating over every input column
-        for column_name in self.imputer.input_columns:
+        for column_name in simple_imputer.input_columns:
             # add dictionary for input columns where no hyperparamters have been passed
             if column_name not in self.hps.keys():
                 self.hps[column_name] = {}
-                if column_name in self.imputer.numeric_columns:
+                if column_name in simple_imputer.numeric_columns:
                     self.hps[column_name]['type'] = ['numeric']
-                elif column_name in self.imputer.string_columns:
+                elif column_name in simple_imputer.string_columns:
                     self.hps[column_name]['type'] = ['string']
                 else:
                     logger.warn('Input type of column ' + str(column_name) + ' not determined.')
@@ -154,6 +158,7 @@ class HPO:
                  train_df: pd.DataFrame,
                  test_df: pd.DataFrame,
                  hp: pd.Series,
+                 simple_imputer,
                  user_defined_scores: list = None,
                  name: str = ''):
         """
@@ -164,8 +169,8 @@ class HPO:
         :param train_df: training data as dataframe
         :param test_df: test data as dataframe; if not provided, a ratio of test_split of the
                           training data are used as test data
-
         :param hp: pd.Series with hyperparameter configuration
+        :param simple_imputer: SimpleImputer instance from which to inherit column names etc.
         :param user_defined_scores: list with entries (Callable, str), where callable is a function
                           accepting **kwargs true, predicted, confidence. Allows custom scoring functions.
         :param name to identify the current setting of hps.
@@ -180,7 +185,7 @@ class HPO:
         if hp['global:concat_columns'] is False:
 
             # define column encoders and featurisers for each input column
-            for input_column in self.imputer.input_columns:
+            for input_column in simple_imputer.input_columns:
 
                 # extract parameters for the current input column, take everything after the first colon
                 col_parms = {':'.join(key.split(':')[1:]): val for key, val in hp.items() if input_column in key}
@@ -224,22 +229,22 @@ class HPO:
 
             col_parms = {':'.join(key.split(':')[1:]): val for key, val in hp.items() if 'concat' in key}
             for token in col_parms['tokens']:
-                data_encoders += [TfIdfEncoder(input_columns=self.imputer.input_columns,
-                                               output_column='-'.join(self.imputer.input_columns) + '_' + token,
+                data_encoders += [TfIdfEncoder(input_columns=simple_imputer.input_columns,
+                                               output_column='-'.join(simple_imputer.input_columns) + '_' + token,
                                                tokens=token,
                                                ngram_range=col_parms['ngram_range:' + token],
                                                max_tokens=col_parms['max_tokens'])]
-                data_featurizers += [BowFeaturizer(field_name='-'.join(self.imputer.input_columns) + '_' + token,
+                data_featurizers += [BowFeaturizer(field_name='-'.join(simple_imputer.input_columns) + '_' + token,
                                                    max_tokens=col_parms['max_tokens'])]
 
         # Define separate encoder and featurizer for each column
         # Define output column. Associated parameters are not tuned.
-        if is_numeric_dtype(train_df[self.imputer.output_column]):
-            label_column = [NumericalEncoder(self.imputer.output_column)]
-            logger.info("Assuming numeric output column: {}".format(self.imputer.output_column))
+        if is_numeric_dtype(train_df[simple_imputer.output_column]):
+            label_column = [NumericalEncoder(simple_imputer.output_column)]
+            logger.info("Assuming numeric output column: {}".format(simple_imputer.output_column))
         else:
-            label_column = [CategoricalEncoder(self.imputer.output_column)]
-            logger.info("Assuming categorical output column: {}".format(self.imputer.output_column))
+            label_column = [CategoricalEncoder(simple_imputer.output_column)]
+            logger.info("Assuming categorical output column: {}".format(simple_imputer.output_column))
 
         global_parms = {key.split(':')[1]: val for key, val in hp.iteritems() if 'global' in key}
 
@@ -263,20 +268,20 @@ class HPO:
 
         # add suitable metrics to hp series
         imputed = hp_imputer.predict(test_df)
-        true = imputed[self.imputer.output_column]
-        predicted = imputed[self.imputer.output_column + '_imputed']
+        true = imputed[simple_imputer.output_column]
+        predicted = imputed[simple_imputer.output_column + '_imputed']
 
         imputed_train = hp_imputer.predict(train_df.sample(min(train_df.shape[0], int(1e4))))
-        true_train = imputed_train[self.imputer.output_column]
-        predicted_train = imputed_train[self.imputer.output_column + '_imputed']
+        true_train = imputed_train[simple_imputer.output_column]
+        predicted_train = imputed_train[simple_imputer.output_column + '_imputed']
 
-        if is_numeric_dtype(train_df[self.imputer.output_column]):
+        if is_numeric_dtype(train_df[simple_imputer.output_column]):
             hp['mse'] = mean_squared_error(true, predicted)
             hp['mse_train'] = mean_squared_error(true_train, predicted_train)
             confidence = float('nan')
         else:
-            confidence = imputed[self.imputer.output_column + '_imputed_proba']
-            confidence_train = imputed_train[self.imputer.output_column + '_imputed_proba']
+            confidence = imputed[simple_imputer.output_column + '_imputed_proba']
+            confidence_train = imputed_train[simple_imputer.output_column + '_imputed_proba']
             hp['f1_micro'] = f1_score(true, predicted, average='micro')
             hp['f1_macro'] = f1_score(true, predicted, average='macro')
             hp['f1_weighted'] = f1_score(true, predicted, average='weighted')
@@ -287,6 +292,7 @@ class HPO:
             hp['recall_weighted_train'] = recall_score(true_train, predicted_train, average='weighted')
             hp['coverage_at_90'] = (confidence > .9).mean()
             hp['coverage_at_90_train'] = (confidence_train > .9).mean()
+            hp['true_precision_at_90'] = (predicted[confidence > .9] == true[confidence > .9]).mean()
             hp['ece_pre_calibration'] = hp_imputer.calibration_info['ece_post']
             hp['ece_post_calibration'] = hp_imputer.calibration_info['ece_post']
 
@@ -305,7 +311,8 @@ class HPO:
              num_evals: int = 10,
              max_running_hours: float = 96,
              user_defined_scores: list = None,
-             hpo_run_name: str = ''):
+             hpo_run_name: str = '',
+             simple_imputer = None):
 
         """
         Do grid search or random search for hyperparameter configurations. This method can not tune tfidf vs hashing
@@ -326,18 +333,21 @@ class HPO:
                           accepting **kwargs true, predicted, confidence. Allows custom scoring functions.
         :param hpo_run_name: Optional string identifier for this run.
                           Allows to sequentially run hpo jobs and keep previous iterations
-    
+        :param simple_imputer: SimpleImputer instance from which to inherit column names etc.
+
         :return: None
         """
+
+        self.output_path = simple_imputer.output_path
 
         if user_defined_scores is None:
             user_defined_scores = []
 
         self.hps = hps
-        self.imputer.check_data_types(train_df)  # infer data types, saved self.string_columns, self.numeric_columns
+        simple_imputer.check_data_types(train_df)  # infer data types, saved self.string_columns, self.numeric_columns
 
         # process_hp_configurations(hps) uses self.hps to populate self.hps_flat
-        hps_flat = self.__preprocess_hps(train_df)
+        hps_flat = self.__preprocess_hps(train_df, simple_imputer)
 
         # train/test split if no test data given
         if test_df is None:
@@ -367,6 +377,7 @@ class HPO:
             hp = self.__fit_hp(train_df,
                                test_df,
                                hp,
+                               simple_imputer,
                                user_defined_scores,
                                name)
 
@@ -374,32 +385,14 @@ class HPO:
             self.results = pd.concat([self.results, hp.to_frame(name).transpose()])
 
             # save to file in every iteration
-            if not os.path.exists(self.imputer.output_path):
-                os.makedirs(self.imputer.output_path)
-            self.results.to_csv(os.path.join(self.imputer.output_path, "hpo_results.csv"))
+            if not os.path.exists(simple_imputer.output_path):
+                os.makedirs(simple_imputer.output_path)
+            self.results.to_csv(os.path.join(simple_imputer.output_path, "hpo_results.csv"))
 
             logger.info('Finished hpo iteration ' + str(hp_idx))
             elapsed_time = (time.time() - start_time)/3600
 
-    def load_model(self, hpo_idx: int = None, inplace: bool = True):
-        """
-        Load model after hyperparameter optimisation has ran.
-
-        :param hpo_idx: Index of the model to be loaded. Default,
-                    load model with highest weighted precision
-        :param inplace: Selected model is assgined to the imputer object to the current model
-                    if inplace is True and is returned otherwise.
-        :return: imputer object
-        """
-
-        from . import Imputer  # import here to avoid circular dependency
-
-        if hpo_idx is None:
-            hpo_idx = self.results['precision_weighted'].astype(float).idxmax()
-            logger.info("Selecting imputer with maximum weighted precision.")
-
-        if inplace is True:
-            self.imputer.imputer = Imputer.load(self.output_path + str(hpo_idx))
-        else:
-            return Imputer.load(self.output_path + str(hpo_idx))
+        logger.info('Assigning model with highest weighted precision to SimpleImputer object and copying artifacts.')
+        simple_imputer.load_hpo_model()  # assign best model to simple_imputer.imputer and write artifacts.
+        simple_imputer.save()
 
