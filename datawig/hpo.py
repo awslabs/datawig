@@ -116,6 +116,8 @@ class HPO:
 
         # add type to column dictionaries if it was not specified, does not support categorical types
         for column_name in simple_imputer.input_columns:
+            if column_name not in self.hps.keys():
+                self.hps[column_name] = {}
             if 'type' not in self.hps[column_name].keys():
                 if is_numeric_dtype(train_df[column_name]):
                     self.hps[column_name]['type'] = ['numeric']
