@@ -66,7 +66,7 @@ class ColumnEncoder():
     __metaclass__ = ABCMeta
 
     def __init__(self,
-                 input_columns,
+                 input_columns: list[str],
                  output_column=None,
                  output_dim=1):
 
@@ -85,7 +85,7 @@ class ColumnEncoder():
 
         self.input_columns = input_columns
         self.output_column = output_column
-        self.output_dim = output_dim
+        self.output_dim = int(output_dim)
 
 
     @abstractmethod

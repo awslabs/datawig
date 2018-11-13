@@ -22,6 +22,7 @@ Implements hyperparameter optimisation for datawig
 import pandas as pd
 import itertools
 import time
+import os
 
 from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
@@ -286,9 +287,13 @@ class HPO:
             hp['recall_weighted_train'] = recall_score(true_train, predicted_train, average='weighted')
             hp['coverage_at_90'] = (confidence > .9).mean()
             hp['coverage_at_90_train'] = (confidence_train > .9).mean()
+            hp['ece_pre_calibration'] = hp_imputer.calibration_info['ece_post']
+            hp['ece_post_calibration'] = hp_imputer.calibration_info['ece_post']
 
         for uds in user_defined_scores:
             hp[uds[1]] = uds[0](true=true, predicted=predicted, confidence=confidence)
+
+        hp_imputer.save()
 
         return hp
 
@@ -298,7 +303,7 @@ class HPO:
              hps: dict = None,
              strategy: str = 'random',
              num_evals: int = 10,
-             max_running_hours = 96,
+             max_running_hours: float = 96,
              user_defined_scores: list = None,
              hpo_run_name: str = ''):
 
@@ -348,7 +353,7 @@ class HPO:
         start_time = time.time()
         elapsed_time = 0
 
-        for hp_idx, hp in hps_flat.iterrows():
+        for hp_idx, (_, hp) in enumerate(hps_flat.iterrows()):
             if elapsed_time > max_running_hours:
                 logger.info('Finishing hpo because max running time was reached.')
                 break
@@ -368,6 +373,11 @@ class HPO:
             # append output to results data frame
             self.results = pd.concat([self.results, hp.to_frame(name).transpose()])
 
+            # save to file in every iteration
+            if not os.path.exists(self.imputer.output_path):
+                os.makedirs(self.imputer.output_path)
+            self.results.to_csv(os.path.join(self.imputer.output_path, "hpo_results.csv"))
+
             logger.info('Finished hpo iteration ' + str(hp_idx))
             elapsed_time = (time.time() - start_time)/3600
 
@@ -385,7 +395,7 @@ class HPO:
         from . import Imputer  # import here to avoid circular dependency
 
         if hpo_idx is None:
-            hpo_idx = self.results['precision_weighted'].idxmax()
+            hpo_idx = self.results['precision_weighted'].astype(float).idxmax()
             logger.info("Selecting imputer with maximum weighted precision.")
 
         if inplace is True:

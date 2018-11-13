@@ -385,7 +385,7 @@ class SimpleImputer:
 
         """
         self.imputer.save()
-        simple_imputer_params = {k: v for k, v in self.__dict__.items() if k != 'imputer'}
+        simple_imputer_params = {k: v for k, v in self.__dict__.items() if k not in ['imputer', 'hpo']}
         pickle.dump(simple_imputer_params,
                     open(os.path.join(self.output_path, "simple_imputer.pickle"), "wb"))
 

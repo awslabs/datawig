@@ -381,12 +381,12 @@ def test_hpo_all_input_types(test_dir, data_frame):
     imputer.fit_hpo(df_train,
                     hps=hps,
                     user_defined_scores=uds,
-                    num_evals=2,
+                    num_evals=10,
                     hpo_run_name='test2_',
                     max_running_hours=1/3600)
 
     results = imputer.hpo.results
 
     assert results[results['global:num_epochs'] == 50]['f1_micro'].iloc[0] > \
-            results[results['global:num_epochs'] == 5]['f1_micro'].iloc[0]
+           results[results['global:num_epochs'] == 5]['f1_micro'].iloc[0]
 
