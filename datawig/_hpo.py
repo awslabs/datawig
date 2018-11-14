@@ -19,10 +19,13 @@ Implements hyperparameter optimisation for datawig
 
 """
 
-import pandas as pd
 import itertools
 import time
+import random
 import os
+
+import numpy as np
+import pandas as pd
 
 from datetime import datetime
 from pandas.api.types import is_numeric_dtype
@@ -72,9 +75,9 @@ class _HPO:
 
         default_hps['string'] = {}
         default_hps['string']['ngram_range'] = {}
-        default_hps['string']['max_tokens'] = [2 ** 8]
+        default_hps['string']['max_tokens'] = [2 ** 15]
         default_hps['string']['tokens'] = [['words']]
-        default_hps['string']['ngram_range']['words'] = [(1, 3)]
+        default_hps['string']['ngram_range']['words'] = [(1, 3),(1, 4)]
         default_hps['string']['ngram_range']['chars'] = [(1, 5)]
 
         default_hps['categorical'] = {}
@@ -93,13 +96,15 @@ class _HPO:
 
     def __preprocess_hps(self,
                          train_df: pd.DataFrame,
-                         simple_imputer) -> pd.DataFrame:
+                         simple_imputer,
+                         num_evals) -> pd.DataFrame:
         """
         Generates list of all possible combinations of hyperparameter from the nested hp dictionary.
         Requires the data to check whether the relevant columns are present and have the appropriate type.
 
         :param train_df: training data as dataframe
         :param simple_imputer: Parent instance of SimpleImputer
+        :param num_evals is the maximum number of hpo configurations to consider.
 
         :return: Data frame where each row is a hyperparameter configuration and each column is a parameter.
                     Column names have the form colum:parameter, e.g. title:max_tokens or global:learning rate.
@@ -153,7 +158,12 @@ class _HPO:
         # flatten nested dictionary structures and combine to data frame with all possible hp configurations
         hp_df_from_dict = lambda dict: pd.DataFrame(list(itertools.product(*dict.values())), columns=dict.keys())
 
-        return hp_df_from_dict(flatten_dict(self.hps))
+        from datawig.utils import random_cartesian_product
+        flat_dict = flatten_dict(self.hps)
+        hp_df = pd.DataFrame(random_cartesian_product([val for key, val in flat_dict.items()], num=num_evals),
+                             columns=flat_dict.keys())
+
+        return hp_df
 
     def __fit_hp(self,
                  train_df: pd.DataFrame,
@@ -370,16 +380,17 @@ class _HPO:
         self.hps = hps
         simple_imputer.check_data_types(train_df)  # infer data types, saved self.string_columns, self.numeric_columns
 
-        # process_hp_configurations(hps) uses self.hps to populate self.hps_flat
-        hps_flat = self.__preprocess_hps(train_df, simple_imputer)
-
         # train/test split if no test data given
         if test_df is None:
             train_df, test_df = random_split(train_df, [.8, .2])
 
-        # sample configurations for random search
-        if strategy == 'random':
-            hps_flat = hps_flat.sample(n=min([num_evals, hps_flat.shape[0]]), random_state=10)
+        # process_hp_configurations(hps) and return random configurations
+        hps_flat = self.__preprocess_hps(train_df, simple_imputer, num_evals)
+
+        # # sample configurations for random search
+        # if strategy == 'random':
+        #     hps_flat = pd.concat([hps_flat_iter() for i in range(min(num_evals, max_configs))], axis=1).transpose()
+        #     # hps_flat = hps_flat.sample(n=min([num_evals, hps_flat.shape[0]]), random_state=10)
 
         logger.info("Training starts for " + str(hps_flat.shape[0]) + "hyperparameter configurations.")
 

@@ -318,3 +318,45 @@ def generate_df_numeric(num_samples: int = 100,
         data_column_name: numeric_data,
         label_column_name: numeric_data ** 2 + np.random.normal(0, .01, (num_samples,)),
     })
+
+
+def random_cartesian_product(sets, num=10):
+    """
+    Return num random samples from the cartesian product of all iterators in sets.
+    Returns at most as many results as unique products exist.
+    """
+
+    # Determine cardinality of full cartisian product
+    N = np.prod([len(y) for y in sets])
+
+    # Draw random integers
+    idxs = np.random.choice(range(N), size=min(num, N), replace=False)
+
+    out = []
+    for idx in idxs:
+        out.append(sample_cartesian(sets, idx, N))
+
+    return out
+
+
+def sample_cartesian(sets, idx, N):
+    """
+    Draw a single sample from the cartesian product with index idx
+    """
+
+    out = []
+    width = N
+    for itemset in sets:
+        width = width/len(itemset)
+        bucket = np.floor(idx/width)
+
+        assert bucket == int(bucket)
+        bucket = int(bucket)
+
+        out.append(itemset[bucket])
+
+        idx = idx - bucket*width
+
+    assert width == 1
+
+    return out

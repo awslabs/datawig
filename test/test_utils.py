@@ -20,7 +20,7 @@ DataWig utils tests
 import numpy as np
 import pandas as pd
 
-from datawig.utils import merge_dicts, normalize_dataframe, random_split
+from datawig.utils import merge_dicts, normalize_dataframe, random_split, random_cartesian_product
 
 
 def test_random_split():
@@ -40,3 +40,15 @@ def test_merge_dicts():
     d2 = {'b': 2}
     merged = merge_dicts(d1, d2)
     assert merged == {'a': 1, 'b': 2}
+
+
+def test_random_cartesian_product():
+    A = [1, 2, 3]
+    B = ['A', 'B', 'C']
+    C = ['yes', 'no']
+
+    out = random_cartesian_product((A, B, C), 25)
+
+    print(out)
+
+

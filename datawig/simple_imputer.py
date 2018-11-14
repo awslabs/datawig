@@ -210,9 +210,6 @@ class SimpleImputer:
         :return: pd.DataFrame with with hyper-parameter configurations and results
         """
 
-        if hpo_run_name is None:
-            hpo_run_name = ""
-
         # generate dictionary with default hyperparameter settings. Overwrite these defaults
         # with configurations that were passed via the old API where applicable.
         default_hps = dict()
@@ -438,11 +435,11 @@ class SimpleImputer:
 
         return simple_imputer
 
-    def load_hpo_model(self, hpo_idx: int = None):
+    def load_hpo_model(self, hpo_name: int = None):
         """
         Load model after hyperparameter optimisation has ran. Overwrites local artifacts of self.imputer.
 
-        :param hpo_idx: Index of the model to be loaded. Default,
+        :param hpo_name: Index of the model to be loaded. Default,
                     load model with highest weighted precision or mean squared error.
 
         :return: imputer object
@@ -452,17 +449,17 @@ class SimpleImputer:
             logger.warn('No hpo run available. Run hpo calling SimpleImputer.fit_hpo().')
             return
 
-        if hpo_idx is None:
+        if hpo_name is None:
             if self.output_type == 'numeric':
-                hpo_idx = self.hpo.results['mse'].astype(float).idxmax()
+                hpo_name = self.hpo.results['mse'].astype(float).idxmax()
             else:
-                hpo_idx = self.hpo.results['precision_weighted'].astype(float).idxmax()
+                hpo_name = self.hpo.results['precision_weighted'].astype(float).idxmax()
             logger.info("Selecting imputer with maximum weighted precision.")
 
         # copy artifacts from hp run to self.output_path
-        imputer_dir = self.output_path + str(hpo_idx)
-        files_to_copy = glob.glob(imputer_dir + '/*.json') +\
-                        glob.glob(imputer_dir + '/*.pickle') +\
+        imputer_dir = self.output_path + str(hpo_name)
+        files_to_copy = glob.glob(imputer_dir + '/*.json') + \
+                        glob.glob(imputer_dir + '/*.pickle') + \
                         glob.glob(imputer_dir + '/*.params')
         for file_name in files_to_copy:
             shutil.copy(file_name,  self.output_path)

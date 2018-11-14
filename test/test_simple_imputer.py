@@ -390,8 +390,6 @@ def test_hpo_all_input_types(test_dir, data_frame):
 def test_hpo_defaults(test_dir, data_frame):
     """
 
-    Using sklearn advantages: parallelism, distributions of parameters, multiple cross-validation
-
     """
     label_col = "label"
 
@@ -424,3 +422,44 @@ def test_hpo_defaults(test_dir, data_frame):
     imputer.fit_hpo(df_train, num_evals=3)
 
     assert imputer.hpo.results.precision_weighted.max() > .8
+
+
+def test_hpo_many_columns(test_dir, data_frame):
+    """
+
+    """
+    label_col = "label"
+
+    n_samples = 1000
+    num_labels = 3
+    ncol = 0
+    seq_len = 20
+
+    # generate some random data
+    df = data_frame(feature_col="string_feature",
+                    label_col=label_col,
+                    num_labels=num_labels,
+                    num_words=seq_len,
+                    n_samples=n_samples)
+    for n in range(ncol):
+        df['string_feature_' + str(n)] = df.string_feature
+
+    # add categorical feature
+    df['categorical_feature'] = ['foo' if r > .5 else 'bar' for r in np.random.rand(n_samples)]
+
+    # add numerical feature
+    df['numeric_feature'] = np.random.rand(n_samples)
+
+    df_train, df_test = random_split(df, [.8, .2])
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
+
+    imputer = SimpleImputer(
+        input_columns=[col for col in df.columns if col not in ['label']],
+        output_column='label',
+        output_path=output_path
+    )
+
+    imputer.fit_hpo(df_train, num_evals=3)
+
+    assert imputer.hpo.results.precision_weighted.max() > .8
+
