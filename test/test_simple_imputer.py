@@ -28,7 +28,7 @@ from sklearn.metrics import f1_score, mean_squared_error
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
-from datawig.utils import logger, rand_string, random_split
+from datawig.utils import logger, rand_string, random_split, generate_df_numeric, generate_df_string
 
 warnings.filterwarnings("ignore")
 
@@ -386,7 +386,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
     assert results[results['global:num_epochs'] == 50]['f1_micro'].iloc[0] > \
            results[results['global:num_epochs'] == 5]['f1_micro'].iloc[0]
 
-
+    
 def test_hpo_defaults(test_dir, data_frame):
     """
 
@@ -424,42 +424,75 @@ def test_hpo_defaults(test_dir, data_frame):
     assert imputer.hpo.results.precision_weighted.max() > .8
 
 
-def test_hpo_many_columns(test_dir, data_frame):
+def test_imputer_categorical_heuristic(data_frame):
+    """
+    Tests the heuristic used for checking whether a column is categorical
+    :param data_frame:
     """
 
-    """
+    feature_col = "string_feature"
     label_col = "label"
 
     n_samples = 1000
     num_labels = 3
-    ncol = 0
     seq_len = 20
 
     # generate some random data
-    df = data_frame(feature_col="string_feature",
+    df = data_frame(feature_col=feature_col,
                     label_col=label_col,
                     num_labels=num_labels,
                     num_words=seq_len,
                     n_samples=n_samples)
-    for n in range(ncol):
-        df['string_feature_' + str(n)] = df.string_feature
 
-    # add categorical feature
-    df['categorical_feature'] = ['foo' if r > .5 else 'bar' for r in np.random.rand(n_samples)]
+    assert SimpleImputer._is_categorical(df[feature_col]) == False
+    assert SimpleImputer._is_categorical(df[label_col]) == True
 
-    # add numerical feature
-    df['numeric_feature'] = np.random.rand(n_samples)
 
-    df_train, df_test = random_split(df, [.8, .2])
-    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
+def test_imputer_complete():
+    """
+    Tests the heuristic used for checking whether a column is categorical
+    :param data_frame:
+    """
 
-    imputer = SimpleImputer(
-        input_columns=[col for col in df.columns if col not in ['label']],
-        output_column='label',
-        output_path=output_path
-    )
+    feature_col = "string_feature"
+    label_col = "label"
+    feature_col_numeric = "numeric_feature"
+    label_col_numeric = "numeric_label"
 
-    imputer.fit_hpo(df_train, num_evals=3)
+    num_samples = 1000
+    num_labels = 3
+    seq_len = 20
 
-    assert imputer.hpo.results.precision_weighted.max() > .8
+    missing_ratio = .1
 
+    df_string = generate_df_string(
+        num_labels=num_labels,
+        num_words=seq_len,
+        num_samples=num_samples,
+        label_column_name=label_col,
+        data_column_name=feature_col)
+
+    df_numeric = generate_df_numeric(num_samples=num_samples,
+                                     label_column_name=label_col_numeric,
+                                     data_column_name=feature_col_numeric)
+
+    df = pd.concat([
+        df_string[[feature_col, label_col]],
+        df_numeric[[feature_col_numeric, label_col_numeric]]
+    ], ignore_index=True, axis=1)
+    df.columns = [feature_col, label_col, feature_col_numeric, label_col_numeric]
+
+    # delete some entries
+    for col in df.columns:
+        missing = np.random.random(len(df)) < missing_ratio
+        df[col].iloc[missing] = np.nan
+
+    feature_col_missing = df[feature_col].isnull()
+    label_col_missing = df[label_col].isnull()
+
+    df = SimpleImputer.complete(data_frame=df)
+
+    assert all(df[feature_col].isnull() == feature_col_missing)
+    assert df[label_col].isnull().sum() < label_col_missing.sum()
+    assert df[feature_col_numeric].isnull().sum() == 0
+    assert df[label_col_numeric].isnull().sum() == 0
