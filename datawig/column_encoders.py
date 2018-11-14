@@ -431,6 +431,7 @@ class TfIdfEncoder(ColumnEncoder):
     :param output_column: Name of output field, used as field name in downstream MxNet iterator
     :param max_tokens: Number of feature buckets (dimensionality of sparse ngram vector). default 2**18
     :param tokens: How to tokenize the input data, supports 'words' and 'chars'.
+    :param ngram_range: length of ngrams to use as features
     :param prefixed_concatenation: whether or not to prefix values with column name before concat
 
     """
@@ -535,6 +536,7 @@ class BowEncoder(ColumnEncoder):
     :param output_column: Name of output field, used as field name in downstream MxNet iterator
     :param max_tokens: Number of hash buckets (dimensionality of sparse ngram vector). default 2**18
     :param tokens: How to tokenize the input data, supports 'words' and 'chars'.
+    :param ngram_range: length of ngrams to use as features
     :param prefixed_concatenation: whether or not to prefix values with column name before concat
 
     """

@@ -25,7 +25,6 @@ import pandas as pd
 import pytest
 from sklearn.metrics import f1_score, mean_squared_error
 
-# from datawig.hpo import HPO
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
@@ -355,19 +354,16 @@ def test_hpo_all_input_types(test_dir, data_frame):
     hps['numeric_feature']['numeric_hidden_layers'] = [1]
 
     # user defined score function for hyperparameters
-    def calibration_check(**kwargs):
+    def calibration_check(true, predicted, confidence):
         """
         expect kwargs: true, predicted, confidence
         here we compute a calibration sanity check
         """
-        true = kwargs['true']
-        confidence = kwargs['confidence']
-        predicted = kwargs['predicted']
         return (np.mean(true[confidence > .9] == predicted[confidence > .9]),
                 np.mean(true[confidence > .5] == predicted[confidence > .5]))
 
-    def coverage_check(**kwargs):
-        return np.mean(kwargs['confidence'] > .9)
+    def coverage_check(true, predicted, confidence):
+        return np.mean(confidence > .9)
 
     uds = [(calibration_check, 'calibration check'),
            (coverage_check, 'coverage at 90')]
@@ -425,17 +421,6 @@ def test_hpo_defaults(test_dir, data_frame):
         output_path=output_path
     )
 
-    # Define default hyperparameter choices for each column type (string, categorical, numeric)
-
-    # hps = {}
-    # hps['global'] = {}
-    # hps['string_feature'] = {}
-    # hps['categorical_feature'] = {}
-    # hps['numeric_feature'] = {}
-
     imputer.fit_hpo(df_train, num_evals=3)
 
-    results = imputer.hpo.results
-
-    temp = 0
-
+    assert imputer.hpo.results.precision_weighted.max() > .8

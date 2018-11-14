@@ -30,7 +30,7 @@ import shutil
 from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
 
-from datawig.hpo import HPO
+from ._hpo import _HPO
 from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts
 from .imputer import Imputer
 from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder, TfIdfEncoder
@@ -116,7 +116,7 @@ class SimpleImputer:
         self.hpo = None
         self.numeric_columns = []
         self.string_columns = []
-        self.hpo = HPO()
+        self.hpo = _HPO()
 
     def check_data_types(self, data_frame: pd.DataFrame) -> None:
         """
@@ -440,13 +440,17 @@ class SimpleImputer:
 
     def load_hpo_model(self, hpo_idx: int = None):
         """
-        Load model after hyperparameter optimisation has ran. Overwrite local artifacts of self.imputer.
+        Load model after hyperparameter optimisation has ran. Overwrites local artifacts of self.imputer.
 
         :param hpo_idx: Index of the model to be loaded. Default,
                     load model with highest weighted precision or mean squared error.
 
         :return: imputer object
         """
+
+        if self.hpo.results is None:
+            logger.warn('No hpo run available. Run hpo calling SimpleImputer.fit_hpo().')
+            return
 
         if hpo_idx is None:
             if self.output_type == 'numeric':
@@ -460,8 +464,8 @@ class SimpleImputer:
         files_to_copy = glob.glob(imputer_dir + '/*.json') +\
                         glob.glob(imputer_dir + '/*.pickle') +\
                         glob.glob(imputer_dir + '/*.params')
-        for file in files_to_copy:
-            shutil.copy(file,  self.output_path)
+        for file_name in files_to_copy:
+            shutil.copy(file_name,  self.output_path)
 
         self.imputer = Imputer.load(self.output_path)
 
