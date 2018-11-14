@@ -302,6 +302,7 @@ def generate_df_string(word_length: int = 5,
 
     return pd.DataFrame({data_column_name: sentences, label_column_name: labels})
 
+
 def generate_df_numeric(num_samples: int = 100,
                         label_column_name: str = "f(x)",
                         data_column_name: str = "x") -> pd.DataFrame:
@@ -329,8 +330,15 @@ def random_cartesian_product(sets, num=10):
     # Determine cardinality of full cartisian product
     N = np.prod([len(y) for y in sets])
 
-    # Draw random integers
-    idxs = np.random.choice(range(N), size=min(num, N), replace=False)
+    # Draw random integers without replacement
+    if N > 1e6:  # avoid materialising all integers if data is large
+        idxs = []
+        while len(idxs) < min(num, N):
+            idx_candidate = np.random.randint(N)
+            if idx_candidate not in idxs:
+                idxs.append(idx_candidate)
+    else:
+        idxs = np.random.choice(range(N), size=min(num, N), replace=False)
 
     out = []
     for idx in idxs:

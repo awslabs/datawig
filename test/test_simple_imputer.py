@@ -421,6 +421,40 @@ def test_hpo_defaults(test_dir, data_frame):
 
     imputer.fit_hpo(df_train, num_evals=3)
 
+    assert imputer.hpo.results.precision_weighted.max() > .7
+
+def test_hpo_many_columns(test_dir, data_frame):
+    """
+
+    """
+    label_col = "label"
+
+    n_samples = 300
+    num_labels = 3
+    ncols = 10
+    seq_len = 4
+
+    # generate some random data
+    df = data_frame(feature_col="string_feature",
+                    label_col=label_col,
+                    num_labels=num_labels,
+                    num_words=seq_len,
+                    n_samples=n_samples)
+
+    for col in range(ncols):
+        df['string_featur_' + str(col)] = df['string_feature']
+
+    df_train, df_test = random_split(df, [.8, .2])
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
+
+    imputer = SimpleImputer(
+        input_columns=[col for col in df.columns if not col in ['label']],
+        output_column='label',
+        output_path=output_path
+    )
+
+    imputer.fit_hpo(df_train, num_evals=2)
+
     assert imputer.hpo.results.precision_weighted.max() > .8
 
 
