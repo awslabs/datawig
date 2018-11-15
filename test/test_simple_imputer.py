@@ -328,16 +328,16 @@ def test_hpo_all_input_types(test_dir, data_frame):
     # Define default hyperparameter choices for each column type (string, categorical, numeric)
     hps = dict()
     hps['global'] = {}
-    hps['global']['learning_rate'] = [1e-4]
-    hps['global']['weight_decay'] = [3e-4]
-    hps['global']['num_epochs'] = [5, 50]
+    hps['global']['learning_rate'] = [3e-4]
+    hps['global']['weight_decay'] = [1e-8]
+    hps['global']['num_epochs'] = [50]
     hps['global']['patience'] = [5]
     hps['global']['batch_size'] = [16]
     hps['global']['final_fc_hidden_units'] = [[]]
     hps['global']['concat_columns'] = [True, False]
 
     hps['string_feature'] = {}
-    hps['string_feature']['max_tokens'] = [2 ** 8]
+    hps['string_feature']['max_tokens'] = [2 ** 15]
     hps['string_feature']['tokens'] = [['words', 'chars']]
     hps['string_feature']['ngram_range'] = {}
     hps['string_feature']['ngram_range']['words'] = [(1, 4)]
@@ -345,7 +345,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
 
     hps['categorical_feature'] = {}
     hps['categorical_feature']['type'] = ['categorical']
-    hps['categorical_feature']['max_tokens'] = [2 ** 8]
+    hps['categorical_feature']['max_tokens'] = [2 ** 15]
     hps['categorical_feature']['embed_dim'] = [10]
 
     hps['numeric_feature'] = {}

@@ -65,8 +65,8 @@ class _HPO:
         # Define default hyperparameter choices for each column type (string, categorical, numeric)
         default_hps = dict()
         default_hps['global'] = {}
-        default_hps['global']['learning_rate'] = [1e-4, 1e-3]
-        default_hps['global']['weight_decay'] = [0, 1e-4]
+        default_hps['global']['learning_rate'] = [3e-4]
+        default_hps['global']['weight_decay'] = [0, 1e-7]
         default_hps['global']['num_epochs'] = [100]
         default_hps['global']['patience'] = [5]
         default_hps['global']['batch_size'] = [16]
@@ -77,11 +77,11 @@ class _HPO:
         default_hps['string']['ngram_range'] = {}
         default_hps['string']['max_tokens'] = [2 ** 15]
         default_hps['string']['tokens'] = [['words']]
-        default_hps['string']['ngram_range']['words'] = [(1, 3),(1, 4)]
+        default_hps['string']['ngram_range']['words'] = [(1, 3)]
         default_hps['string']['ngram_range']['chars'] = [(1, 5)]
 
         default_hps['categorical'] = {}
-        default_hps['categorical']['max_tokens'] = [2 ** 8]
+        default_hps['categorical']['max_tokens'] = [2 ** 12, 2 ** 15]
         default_hps['categorical']['embed_dim'] = [10]
 
         default_hps['numeric'] = {}
@@ -213,6 +213,11 @@ class _HPO:
 
         if hp['global:concat_columns'] is False:
 
+            # mark unused parameter
+            for key, val in hp.items():
+                if 'concat:' in key:
+                    hp[key] = 'n.a.'
+
             # define column encoders and featurisers for each input column
             for input_column in simple_imputer.input_columns:
 
@@ -265,6 +270,10 @@ class _HPO:
                                                max_tokens=col_parms['max_tokens'])]
                 data_featurizers += [BowFeaturizer(field_name='-'.join(simple_imputer.input_columns) + '_' + token,
                                                    max_tokens=col_parms['max_tokens'])]
+                # mark unused parameter
+                for key, val in hp.items():
+                    if not ('global:' in key or 'concat:' in key):
+                        hp[key] = 'n.a.'
 
         # Define separate encoder and featurizer for each column
         # Define output column. Associated parameters are not tuned.
