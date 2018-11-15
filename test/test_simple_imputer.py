@@ -301,7 +301,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
 
     n_samples = 1000
     num_labels = 3
-    seq_len = 20
+    seq_len = 12
 
     # generate some random data
     df = data_frame(feature_col="string_feature",
@@ -330,7 +330,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
     hps['global'] = {}
     hps['global']['learning_rate'] = [3e-4]
     hps['global']['weight_decay'] = [1e-8]
-    hps['global']['num_epochs'] = [50]
+    hps['global']['num_epochs'] = [5, 50]
     hps['global']['patience'] = [5]
     hps['global']['batch_size'] = [16]
     hps['global']['final_fc_hidden_units'] = [[]]
@@ -371,13 +371,13 @@ def test_hpo_all_input_types(test_dir, data_frame):
     imputer.fit_hpo(df_train,
                     hps=hps,
                     user_defined_scores=uds,
-                    num_evals=10,
+                    num_evals=5,
                     hpo_run_name='test1_')
 
     imputer.fit_hpo(df_train,
                     hps=hps,
                     user_defined_scores=uds,
-                    num_evals=10,
+                    num_evals=5,
                     hpo_run_name='test2_',
                     max_running_hours=1/3600)
 
