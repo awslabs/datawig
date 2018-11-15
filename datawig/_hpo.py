@@ -395,11 +395,6 @@ class _HPO:
         # process_hp_configurations(hps) and return random configurations
         hps_flat = self.__preprocess_hps(train_df, simple_imputer, num_evals)
 
-        # # sample configurations for random search
-        # if strategy == 'random':
-        #     hps_flat = pd.concat([hps_flat_iter() for i in range(min(num_evals, max_configs))], axis=1).transpose()
-        #     # hps_flat = hps_flat.sample(n=min([num_evals, hps_flat.shape[0]]), random_state=10)
-
         logger.info("Training starts for " + str(hps_flat.shape[0]) + "hyperparameter configurations.")
 
         # iterate over hp configurations and fit models. This loop could be parallelized
