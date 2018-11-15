@@ -395,7 +395,7 @@ def test_hpo_defaults(test_dir, data_frame):
 
     n_samples = 1000
     num_labels = 3
-    seq_len = 20
+    seq_len = 10
 
     # generate some random data
     df = data_frame(feature_col="string_feature",
@@ -419,7 +419,7 @@ def test_hpo_defaults(test_dir, data_frame):
         output_path=output_path
     )
 
-    imputer.fit_hpo(df_train, num_evals=3)
+    imputer.fit_hpo(df_train, num_evals=2)
 
     assert imputer.hpo.results.precision_weighted.max() > .7
 
