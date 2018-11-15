@@ -22,7 +22,8 @@ import warnings
 import pandas as pd
 
 from datawig.evaluation import (evaluate_model_outputs,
-                                evaluate_model_outputs_single_attribute)
+                                evaluate_model_outputs_single_attribute,
+                                evaluate_and_persist_metrics)
 
 warnings.filterwarnings("ignore")
 
@@ -97,3 +98,18 @@ def test_evaluation():
     evaluation_df = evaluate_model_outputs(df)
 
     assert evaluation_df == wrong_df
+
+
+def test_evaluate_and_persist_metrics():
+    true_labels_string = {'labels': ['a', 'b', 'c']}
+    true_labels_int = {'labels': np.array([1, 2, 3], dtype=float)}  # start at 0?
+    predictions = {'labels': pd.Series(['c', 'b', 'a'])}
+    predictions_proba = {'labels': np.array([[.1, .1, .1, .7],
+                                             [.1, .1, .7, .1],
+                                             [.1, .7, .1, .1]], dtype=float)}
+
+    evaluate_and_persist_metrics(
+        true_labels_string,
+        true_labels_int,
+        predictions,
+        predictions_proba)
