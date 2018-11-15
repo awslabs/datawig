@@ -543,4 +543,3 @@ class SimpleImputer:
 
         self.imputer = Imputer.load(self.output_path)
 
-        return
