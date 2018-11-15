@@ -20,6 +20,7 @@ DataWig evaluation tests
 import warnings
 
 import pandas as pd
+import numpy as np
 
 from datawig.evaluation import (evaluate_model_outputs,
                                 evaluate_model_outputs_single_attribute,
