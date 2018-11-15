@@ -21,11 +21,10 @@ import contextlib
 import itertools
 import logging
 import math
-import os
 import random
 import sys
 import time
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Dict
 import collections
 
 import mxnet as mx
@@ -46,10 +45,17 @@ logger.addHandler(consoleHandler)
 logger.setLevel("INFO")
 
 
-def flatten_dict(d, parent_key='', sep=':'):
+def flatten_dict(d: Dict,
+                 parent_key: str ='',
+                 sep: str =':') -> Dict:
     """
     Flatten a nested dictionary and create new keys by concatenation
+
+    :param d: input dictionary (nested)
+    :param parent_key: Prefix for keys of the flat dictionary
+    :param sep: Separator when concatenating dictionary keys from different levels.
     """
+
     items = []
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
@@ -321,10 +327,20 @@ def generate_df_numeric(num_samples: int = 100,
     })
 
 
-def random_cartesian_product(sets, num=10):
+def random_cartesian_product(sets: List,
+                             num: int = 10) -> List:
     """
-    Return num random samples from the cartesian product of all iterators in sets.
+    Return random samples from the cartesian product of all iterators in sets.
     Returns at most as many results as unique products exist.
+    Does not require materialization of the full product but is still truly random,
+    wich can't be achieved with itertools.
+
+    Example usage:
+    >>> random_cartesian_product([range(2**50), ['a', 'b']], num=2)
+    >>> [[558002326003088, 'a'], [367785400774751, 'a']]
+
+    :param sets: List of iteratbles
+    :param num: Number of random samples to draw
     """
 
     # Determine cardinality of full cartisian product
@@ -347,24 +363,36 @@ def random_cartesian_product(sets, num=10):
     return out
 
 
-def sample_cartesian(sets, idx, N):
+def sample_cartesian(sets: List,
+                     idx: int,
+                     n: int = None) -> List:
     """
-    Draw a single sample from the cartesian product with index idx
+    Draw a single sample from the cartesian product of all iterables in sets.
+    Each row in the cartesian product has a unique index. This function returns
+    the row with index idx without materialising any of the other rows.
+
+    For a cartesian products of lists with length l1, l2, ... lm, taking the cartesian
+    product can be thought of as traversing through all lists picking one element of each
+    and repeating this until all possible combinations are exhausted. The number of combinations
+    is N=l1*l2*...*lm. By taking the first element from every list that leads to a new combination,
+    we can define a unique enumeration of all combinations.
+
+    :param sets: List of iteratbles
+    :param idx: Index of desired row in the cartersian product
+    :param n: Number of rows in the cartesian product
     """
 
-    out = []
-    width = N
-    for itemset in sets:
-        width = width/len(itemset)
-        bucket = np.floor(idx/width)
+    if n is None:
+        n = np.prod([len(y) for y in sets])
 
-        assert bucket == int(bucket)
-        bucket = int(bucket)
+    out = []  # prepare list to append elements to.
+    width = n  # width of the index set in which the desired row falls.
+    for item_set in sets:
+        width = width/len(item_set)  # map index set onto first item_set
+        bucket = int(np.floor(idx/width))  # determine index of the first item_set
+        out.append(item_set[bucket])
+        idx = idx - bucket*width  # restrict index to next item_set in the hierarchy (could use modulo operator here.)
 
-        out.append(itemset[bucket])
-
-        idx = idx - bucket*width
-
-    assert width == 1
+    assert width == 1  # at the end of this procedure, the leaf index set should have width 1.
 
     return out
