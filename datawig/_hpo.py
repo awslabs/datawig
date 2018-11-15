@@ -16,7 +16,6 @@
 DataWig HPO
 Implements hyperparameter optimisation for datawig
 
-
 """
 
 import itertools
