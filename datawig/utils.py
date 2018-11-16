@@ -21,11 +21,11 @@ import contextlib
 import itertools
 import logging
 import math
-import os
 import random
 import sys
 import time
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Dict
+import collections
 
 import mxnet as mx
 import numpy as np
@@ -43,6 +43,27 @@ consoleHandler.setFormatter(log_formatter)
 logger.addHandler(consoleHandler)
 
 logger.setLevel("INFO")
+
+
+def flatten_dict(d: Dict,
+                 parent_key: str ='',
+                 sep: str =':') -> Dict:
+    """
+    Flatten a nested dictionary and create new keys by concatenation
+
+    :param d: input dictionary (nested)
+    :param parent_key: Prefix for keys of the flat dictionary
+    :param sep: Separator when concatenating dictionary keys from different levels.
+    """
+
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
 
 class ColumnOverwriteException(Exception):
@@ -287,6 +308,7 @@ def generate_df_string(word_length: int = 5,
 
     return pd.DataFrame({data_column_name: sentences, label_column_name: labels})
 
+
 def generate_df_numeric(num_samples: int = 100,
                         label_column_name: str = "f(x)",
                         data_column_name: str = "x") -> pd.DataFrame:
@@ -303,3 +325,74 @@ def generate_df_numeric(num_samples: int = 100,
         data_column_name: numeric_data,
         label_column_name: numeric_data ** 2 + np.random.normal(0, .01, (num_samples,)),
     })
+
+
+def random_cartesian_product(sets: List,
+                             num: int = 10) -> List:
+    """
+    Return random samples from the cartesian product of all iterators in sets.
+    Returns at most as many results as unique products exist.
+    Does not require materialization of the full product but is still truly random,
+    wich can't be achieved with itertools.
+
+    Example usage:
+    >>> random_cartesian_product([range(2**50), ['a', 'b']], num=2)
+    >>> [[558002326003088, 'a'], [367785400774751, 'a']]
+
+    :param sets: List of iteratbles
+    :param num: Number of random samples to draw
+    """
+
+    # Determine cardinality of full cartisian product
+    N = np.prod([len(y) for y in sets])
+
+    # Draw random integers without replacement
+    if N > 1e6:  # avoid materialising all integers if data is large
+        idxs = []
+        while len(idxs) < min(num, N):
+            idx_candidate = np.random.randint(N)
+            if idx_candidate not in idxs:
+                idxs.append(idx_candidate)
+    else:
+        idxs = np.random.choice(range(N), size=min(num, N), replace=False)
+
+    out = []
+    for idx in idxs:
+        out.append(sample_cartesian(sets, idx, N))
+
+    return out
+
+
+def sample_cartesian(sets: List,
+                     idx: int,
+                     n: int = None) -> List:
+    """
+    Draw a single sample from the cartesian product of all iterables in sets.
+    Each row in the cartesian product has a unique index. This function returns
+    the row with index idx without materialising any of the other rows.
+
+    For a cartesian products of lists with length l1, l2, ... lm, taking the cartesian
+    product can be thought of as traversing through all lists picking one element of each
+    and repeating this until all possible combinations are exhausted. The number of combinations
+    is N=l1*l2*...*lm. By taking the first element from every list that leads to a new combination,
+    we can define a unique enumeration of all combinations.
+
+    :param sets: List of iteratbles
+    :param idx: Index of desired row in the cartersian product
+    :param n: Number of rows in the cartesian product
+    """
+
+    if n is None:
+        n = np.prod([len(y) for y in sets])
+
+    out = []  # prepare list to append elements to.
+    width = n  # width of the index set in which the desired row falls.
+    for item_set in sets:
+        width = width/len(item_set)  # map index set onto first item_set
+        bucket = int(np.floor(idx/width))  # determine index of the first item_set
+        out.append(item_set[bucket])
+        idx = idx - bucket*width  # restrict index to next item_set in the hierarchy (could use modulo operator here.)
+
+    assert width == 1  # at the end of this procedure, the leaf index set should have width 1.
+
+    return out

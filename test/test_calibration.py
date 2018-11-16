@@ -98,11 +98,11 @@ def test_automatic_calibration(data_frame):
 
     # generate some random data
     random_data = data_frame(feature_col=feature_col,
-                                             label_col=label_col,
-                                             vocab_size=vocab_size,
-                                             num_labels=num_labels,
-                                             num_words=seq_len,
-                                             n_samples=n_samples)
+                             label_col=label_col,
+                             vocab_size=vocab_size,
+                             num_labels=num_labels,
+                             num_words=seq_len,
+                             n_samples=n_samples)
 
     # we use a the label prefixes as a dummy categorical input variable
     random_data[categorical_col] = random_data[label_col].apply(lambda x: x[:2])
@@ -119,7 +119,7 @@ def test_automatic_calibration(data_frame):
     data_cols = [
         BowFeaturizer(
             feature_col + "_bow",
-            vocab_size=vocab_size),
+            max_tokens=vocab_size),
         LSTMFeaturizer(
             field_name=feature_col + "_lstm",
             seq_len=seq_len,
@@ -127,11 +127,11 @@ def test_automatic_calibration(data_frame):
             num_hidden=30,
             embed_dim=embed_dim,
             num_layers=2,
-            vocab_size=num_labels),
+            max_tokens=num_labels),
         EmbeddingFeaturizer(
             field_name=categorical_col,
             embed_dim=embed_dim,
-            vocab_size=num_labels)
+            max_tokens=num_labels)
     ]
 
     num_epochs = 20

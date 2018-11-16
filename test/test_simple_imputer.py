@@ -216,27 +216,33 @@ def test_imputer_hpo_numeric(test_dir):
     })
 
     df_train, df_test = random_split(df, [.8, .2])
-    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_numeric_hpo")
+    output_path = os.path.join(test_dir, "tmp", "experiment_numeric_hpo")
 
     imputer_numeric = SimpleImputer(
         input_columns=['x'],
         output_column="**2",
-        output_path=output_path
-    )
-    imputer_numeric.fit_hpo(
-        train_df=df_train,
-        learning_rate=1e-3,
-        num_epochs=100,
-        patience=10,
-        num_hash_bucket_candidates=[2 ** 10],
-        tokens_candidates=['words'],
-        numeric_latent_dim_candidates=[10, 50, 100],
-        numeric_hidden_layers_candidates=[1, 2]
-    )
+        output_path=output_path)
 
-    imputer_numeric.predict(df_test, inplace=True)
+    feature_col = 'x'
 
-    assert mean_squared_error(df_test['**2'], df_test['**2_imputed']) < 1.0
+    hps = {}
+    hps[feature_col] = {}
+    hps[feature_col]['type'] = ['numeric']
+    hps[feature_col]['numeric_latent_dim'] = [30]
+    hps[feature_col]['numeric_hidden_layers'] = [1]
+
+    hps['global'] = {}
+    hps['global']['final_fc_hidden_units'] = [[]]
+    hps['global']['learning_rate'] = [1e-3, 1e-4]
+    hps['global']['weight_decay'] = [0]
+    hps['global']['num_epochs'] = [200]
+    hps['global']['patience'] = [100]
+    hps['global']['concat_columns'] = [False]
+
+    imputer_numeric.fit_hpo(df_train, hps=hps)
+    results = imputer_numeric.hpo.results
+
+    assert results[results['mse'] == min(results['mse'])]['mse'].iloc[0] < .3
 
 
 def test_imputer_hpo_text(test_dir, data_frame):
@@ -260,34 +266,202 @@ def test_imputer_hpo_text(test_dir, data_frame):
                     n_samples=n_samples)
 
     df_train, df_test = random_split(df, [.8, .2])
-    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
+
+    output_path = os.path.join(test_dir, "tmp", "experiment_text_hpo")
 
     imputer_string = SimpleImputer(
         input_columns=[feature_col],
         output_column=label_col,
         output_path=output_path
     )
-    imputer_string.fit_hpo(
-        train_df=df_train,
-        num_epochs=100,
-        patience=3,
-        num_hash_bucket_candidates=[2 ** 10, 2 ** 15],
-        tokens_candidates=['words'],
-        numeric_latent_dim_candidates=[10],
-        hpo_max_train_samples=1000
+
+    hps = {}
+    hps[feature_col] = {}
+    hps[feature_col]['type'] = ['string']
+    hps[feature_col]['tokens'] = [['words'], ['chars']]
+
+    hps['global'] = {}
+    hps['global']['final_fc_hidden_units'] = [[]]
+    hps['global']['learning_rate'] = [1e-3]
+    hps['global']['weight_decay'] = [0]
+    hps['global']['num_epochs'] = [30]
+
+    imputer_string.fit_hpo(df_train, hps=hps)
+
+    assert max(imputer_string.hpo.results['f1_micro']) > .9
+
+
+def test_hpo_all_input_types(test_dir, data_frame):
+    """
+
+    Using sklearn advantages: parallelism, distributions of parameters, multiple cross-validation
+
+    """
+    label_col = "label"
+
+    n_samples = 1000
+    num_labels = 3
+    seq_len = 12
+
+    # generate some random data
+    df = data_frame(feature_col="string_feature",
+                    label_col=label_col,
+                    num_labels=num_labels,
+                    num_words=seq_len,
+                    n_samples=n_samples)
+
+    # add categorical feature
+    df['categorical_feature'] = ['foo' if r > .5 else 'bar' for r in np.random.rand(n_samples)]
+
+    # add numerical feature
+    df['numeric_feature'] = np.random.rand(n_samples)
+
+    df_train, df_test = random_split(df, [.8, .2])
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
+
+    imputer = SimpleImputer(
+        input_columns=['string_feature', 'categorical_feature', 'numeric_feature'],
+        output_column='label',
+        output_path=output_path
     )
 
-    imputer_string.predict(df_test, inplace=True)
+    # Define default hyperparameter choices for each column type (string, categorical, numeric)
+    hps = dict()
+    hps['global'] = {}
+    hps['global']['learning_rate'] = [3e-4]
+    hps['global']['weight_decay'] = [1e-8]
+    hps['global']['num_epochs'] = [5, 50]
+    hps['global']['patience'] = [5]
+    hps['global']['batch_size'] = [16]
+    hps['global']['final_fc_hidden_units'] = [[]]
+    hps['global']['concat_columns'] = [True, False]
 
-    assert f1_score(df_test[label_col], df_test[label_col + '_imputed'], average="weighted") > .7
+    hps['string_feature'] = {}
+    hps['string_feature']['max_tokens'] = [2 ** 15]
+    hps['string_feature']['tokens'] = [['words', 'chars']]
+    hps['string_feature']['ngram_range'] = {}
+    hps['string_feature']['ngram_range']['words'] = [(1, 4)]
+    hps['string_feature']['ngram_range']['chars'] = [(2, 4)]
+
+    hps['categorical_feature'] = {}
+    hps['categorical_feature']['type'] = ['categorical']
+    hps['categorical_feature']['max_tokens'] = [2 ** 15]
+    hps['categorical_feature']['embed_dim'] = [10]
+
+    hps['numeric_feature'] = {}
+    hps['numeric_feature']['normalize'] = [True]
+    hps['numeric_feature']['numeric_latent_dim'] = [10]
+    hps['numeric_feature']['numeric_hidden_layers'] = [1]
+
+    # user defined score function for hyperparameters
+    def calibration_check(true, predicted, confidence):
+        """
+        expect kwargs: true, predicted, confidence
+        here we compute a calibration sanity check
+        """
+        return (np.mean(true[confidence > .9] == predicted[confidence > .9]),
+                np.mean(true[confidence > .5] == predicted[confidence > .5]))
+
+    def coverage_check(true, predicted, confidence):
+        return np.mean(confidence > .9)
+
+    uds = [(calibration_check, 'calibration check'),
+           (coverage_check, 'coverage at 90')]
+
+    imputer.fit_hpo(df_train,
+                    hps=hps,
+                    user_defined_scores=uds,
+                    num_evals=5,
+                    hpo_run_name='test1_')
+
+    imputer.fit_hpo(df_train,
+                    hps=hps,
+                    user_defined_scores=uds,
+                    num_evals=5,
+                    hpo_run_name='test2_',
+                    max_running_hours=1/3600)
+
+    results = imputer.hpo.results
+
+    assert results[results['global:num_epochs'] == 50]['f1_micro'].iloc[0] > \
+           results[results['global:num_epochs'] == 5]['f1_micro'].iloc[0]
+
+    
+def test_hpo_defaults(test_dir, data_frame):
+    """
+
+    """
+    label_col = "label"
+
+    n_samples = 1000
+    num_labels = 3
+    seq_len = 10
+
+    # generate some random data
+    df = data_frame(feature_col="string_feature",
+                    label_col=label_col,
+                    num_labels=num_labels,
+                    num_words=seq_len,
+                    n_samples=n_samples)
+
+    # add categorical feature
+    df['categorical_feature'] = ['foo' if r > .5 else 'bar' for r in np.random.rand(n_samples)]
+
+    # add numerical feature
+    df['numeric_feature'] = np.random.rand(n_samples)
+
+    df_train, df_test = random_split(df, [.8, .2])
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
+
+    imputer = SimpleImputer(
+        input_columns=['string_feature', 'categorical_feature', 'numeric_feature'],
+        output_column='label',
+        output_path=output_path
+    )
+
+    imputer.fit_hpo(df_train, num_evals=2)
+
+    assert imputer.hpo.results.precision_weighted.max() > .7
+
+def test_hpo_many_columns(test_dir, data_frame):
+    """
+
+    """
+    label_col = "label"
+
+    n_samples = 300
+    num_labels = 3
+    ncols = 10
+    seq_len = 4
+
+    # generate some random data
+    df = data_frame(feature_col="string_feature",
+                    label_col=label_col,
+                    num_labels=num_labels,
+                    num_words=seq_len,
+                    n_samples=n_samples)
+
+    for col in range(ncols):
+        df['string_featur_' + str(col)] = df['string_feature']
+
+    df_train, df_test = random_split(df, [.8, .2])
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
+
+    imputer = SimpleImputer(
+        input_columns=[col for col in df.columns if not col in ['label']],
+        output_column='label',
+        output_path=output_path
+    )
+
+    imputer.fit_hpo(df_train, num_evals=2)
+
+    assert imputer.hpo.results.precision_weighted.max() > .8
 
 
 def test_imputer_categorical_heuristic(data_frame):
     """
     Tests the heuristic used for checking whether a column is categorical
-
     :param data_frame:
-
     """
 
     feature_col = "string_feature"
@@ -311,9 +485,7 @@ def test_imputer_categorical_heuristic(data_frame):
 def test_imputer_complete():
     """
     Tests the heuristic used for checking whether a column is categorical
-
     :param data_frame:
-
     """
 
     feature_col = "string_feature"

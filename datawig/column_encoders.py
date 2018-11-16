@@ -66,7 +66,7 @@ class ColumnEncoder():
     __metaclass__ = ABCMeta
 
     def __init__(self,
-                 input_columns,
+                 input_columns: List[str],
                  output_column=None,
                  output_dim=1):
 
@@ -85,7 +85,7 @@ class ColumnEncoder():
 
         self.input_columns = input_columns
         self.output_column = output_column
-        self.output_dim = output_dim
+        self.output_dim = int(output_dim)
 
 
     @abstractmethod
@@ -431,6 +431,7 @@ class TfIdfEncoder(ColumnEncoder):
     :param output_column: Name of output field, used as field name in downstream MxNet iterator
     :param max_tokens: Number of feature buckets (dimensionality of sparse ngram vector). default 2**18
     :param tokens: How to tokenize the input data, supports 'words' and 'chars'.
+    :param ngram_range: length of ngrams to use as features
     :param prefixed_concatenation: whether or not to prefix values with column name before concat
 
     """
@@ -440,19 +441,24 @@ class TfIdfEncoder(ColumnEncoder):
                  output_column: str = None,
                  max_tokens: int = 2 ** 18,
                  tokens: str = 'chars',
+                 ngram_range: tuple = None,
                  prefixed_concatenation: bool = True) -> None:
 
         ColumnEncoder.__init__(self, input_columns, output_column, int(max_tokens))
 
+        if ngram_range is None:
+            ngram_range = (1, 3) if tokens == 'words' else (1, 5)
+
         if tokens == 'words':
-            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=(1, 3))
+            self.vectorizer = TfidfVectorizer(max_features=self.output_dim, ngram_range=ngram_range)
         elif tokens == 'chars':
-            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=(1, 5),
-                                                analyzer="char")
+            self.vectorizer = TfidfVectorizer(max_features=self.output_dim, ngram_range=ngram_range,
+                                              analyzer="char")
         else:
             logger.info(
                 "BowEncoder attribute tokens has to be 'words' or 'chars', defaulting to 'chars'")
-            self.vectorizer = TfidfVectorizer(max_features=int(self.output_dim), ngram_range=(1, 5), analyzer="char")
+            self.vectorizer = TfidfVectorizer(max_features=self.output_dim,
+                                              ngram_range=ngram_range, analyzer="char")
 
         self.prefixed_concatenation = prefixed_concatenation
 
@@ -530,6 +536,7 @@ class BowEncoder(ColumnEncoder):
     :param output_column: Name of output field, used as field name in downstream MxNet iterator
     :param max_tokens: Number of hash buckets (dimensionality of sparse ngram vector). default 2**18
     :param tokens: How to tokenize the input data, supports 'words' and 'chars'.
+    :param ngram_range: length of ngrams to use as features
     :param prefixed_concatenation: whether or not to prefix values with column name before concat
 
     """
@@ -539,19 +546,23 @@ class BowEncoder(ColumnEncoder):
                  output_column: str = None,
                  max_tokens: int = 2 ** 18,
                  tokens: str = 'chars',
+                 ngram_range: tuple = None,
                  prefixed_concatenation: bool = True) -> None:
+
+        if ngram_range is None:
+            ngram_range = (1, 3) if tokens == 'words' else (1, 5)
 
         ColumnEncoder.__init__(self, input_columns, output_column, int(max_tokens))
 
         if tokens == 'words':
-            self.vectorizer = HashingVectorizer(n_features=int(self.output_dim), ngram_range=(1, 3))
+            self.vectorizer = HashingVectorizer(n_features=self.output_dim, ngram_range=ngram_range)
         elif tokens == 'chars':
-            self.vectorizer = HashingVectorizer(n_features=int(self.output_dim), ngram_range=(1, 5),
+            self.vectorizer = HashingVectorizer(n_features=self.output_dim, ngram_range=ngram_range,
                                                 analyzer="char")
         else:
             logger.info(
                 "BowEncoder attribute tokens has to be 'words' or 'chars', defaulting to 'chars'")
-            self.vectorizer = HashingVectorizer(n_features=int(self.output_dim), ngram_range=(1, 5),
+            self.vectorizer = HashingVectorizer(n_features=self.output_dim, ngram_range=ngram_range,
                                                 analyzer="char")
 
         self.prefixed_concatenation = prefixed_concatenation
