@@ -28,7 +28,7 @@ from sklearn.metrics import f1_score, mean_squared_error
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
-from datawig.utils import logger, rand_string, random_split, generate_df_numeric, generate_df_string
+from datawig.utils import logger, rand_string, random_split, generate_df_numeric, generate_df_string, logger_settings
 
 warnings.filterwarnings("ignore")
 
@@ -70,6 +70,8 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
     df_train_cols_before = df_train.columns.tolist()
 
     input_columns = [feature_col]
+
+    logger_settings(file='/Users/tammruka/Downloads/mylogs.log')
 
     imputer = SimpleImputer(
         input_columns=input_columns,

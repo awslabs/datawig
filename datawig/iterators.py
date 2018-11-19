@@ -30,7 +30,7 @@ from .utils import logger
 class ImputerIter(mx.io.DataIter):
     """
 
-    Constructs an MxNet Iterator for an datawig.imputation.Imputer given a table in csv format
+    Constructs an MxNet Iterator for a datawig.imputation.Imputer given a table in csv format
 
     :param data_columns: list of featurizers, see datawig.column_featurizer
     :param label_columns: list of featurizers
@@ -184,7 +184,7 @@ class ImputerIter(mx.io.DataIter):
 class ImputerIterDf(ImputerIter):
     """
 
-    Constructs an MxNet Iterator for an datawig.imputation.Imputer given a pandas dataframe
+    Constructs an MxNet Iterator for a datawig.imputation.Imputer given a pandas dataframe
 
     :param data_frame: pandas dataframe
     :param data_columns: list of featurizers, see datawig.column_featurizer

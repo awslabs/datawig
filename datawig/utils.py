@@ -45,6 +45,18 @@ logger.addHandler(consoleHandler)
 logger.setLevel("INFO")
 
 
+def logger_settings(level: str = "INFO",
+                    file: str = None) -> None:
+
+    logger.setLevel(level)
+
+    log_formatter = logging.Formatter("%(asctime)s [%(levelname)s]  %(message)s")
+    if file is not None:
+        fileHandler = logging.FileHandler(file)
+        fileHandler.setFormatter(log_formatter)
+        logger.addHandler(fileHandler)
+
+
 def flatten_dict(d: Dict,
                  parent_key: str ='',
                  sep: str =':') -> Dict:
