@@ -71,7 +71,9 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
 
     input_columns = [feature_col]
 
-    logger_settings(file='/Users/tammruka/Downloads/mylogs.log')
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+    logger_settings(file=output_path + '/test_logging.log')
 
     imputer = SimpleImputer(
         input_columns=input_columns,
