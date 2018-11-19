@@ -79,6 +79,8 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
         train_df=df_train
     )
 
+    imputer = SimpleImputer().load(imputer.output_path)
+
     assert imputer.output_path == output_path
     assert imputer.imputer.data_featurizers[0].__class__ == BowFeaturizer
     assert imputer.imputer.data_encoders[0].__class__ == BowEncoder

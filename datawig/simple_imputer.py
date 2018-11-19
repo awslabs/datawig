@@ -87,8 +87,8 @@ class SimpleImputer:
     """
 
     def __init__(self,
-                 input_columns: List[str],
-                 output_column: str,
+                 input_columns: List[str] = None,
+                 output_column: str = "",
                  output_path: str = "",
                  num_hash_buckets: int = int(2 ** 15),
                  num_labels: int = 100,
@@ -103,6 +103,9 @@ class SimpleImputer:
 
         if not isinstance(output_column, str):
             raise ValueError("SimpleImputer.output_column must be str type, was {}".format(type(output_column)))
+
+        if input_columns is None:
+            input_columns = []
 
         self.input_columns = input_columns
         self.output_column = output_column
