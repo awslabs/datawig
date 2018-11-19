@@ -97,15 +97,15 @@ class SimpleImputer:
                  numeric_hidden_layers: int = 1
                  ) -> None:
 
+        if input_columns is None:
+            input_columns = []
+
         for col in input_columns:
             if not isinstance(col, str):
                 raise ValueError("SimpleImputer.input_columns must be str type, was {}".format(type(col)))
 
         if not isinstance(output_column, str):
             raise ValueError("SimpleImputer.output_column must be str type, was {}".format(type(output_column)))
-
-        if input_columns is None:
-            input_columns = []
 
         self.input_columns = input_columns
         self.output_column = output_column
