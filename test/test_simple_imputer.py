@@ -28,7 +28,7 @@ from sklearn.metrics import f1_score, mean_squared_error
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
-from datawig.utils import logger, rand_string, random_split, generate_df_numeric, generate_df_string, logger_settings
+from datawig.utils import logger, rand_string, random_split, generate_df_numeric, generate_df_string
 
 warnings.filterwarnings("ignore")
 
@@ -71,10 +71,6 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
 
     input_columns = [feature_col]
 
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-    logger_settings(file=output_path + '/test_logging.log')
-
     imputer = SimpleImputer(
         input_columns=input_columns,
         output_column=label_col,
@@ -83,11 +79,16 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
         train_df=df_train
     )
 
+    logfile = os.path.join(imputer.output_path, 'logger.log')
+    assert os.path.exists(logfile)
+    assert os.path.getsize(logfile) > 0
+
     assert imputer.output_path == output_path
     assert imputer.imputer.data_featurizers[0].__class__ == BowFeaturizer
     assert imputer.imputer.data_encoders[0].__class__ == BowEncoder
     assert set(imputer.imputer.data_encoders[0].input_columns) == set(input_columns)
     assert set(imputer.imputer.label_encoders[0].input_columns) == set([label_col])
+
 
     assert all([after == before for after, before in zip(df_train.columns, df_train_cols_before)])
 
