@@ -29,6 +29,7 @@ from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
 from datawig.utils import logger, rand_string, random_split, generate_df_numeric, generate_df_string
+from datawig import column_encoders
 
 warnings.filterwarnings("ignore")
 
@@ -535,3 +536,62 @@ def test_imputer_complete():
     assert df[label_col].isnull().sum() < label_col_missing.sum()
     assert df[feature_col_numeric].isnull().sum() == 0
     assert df[label_col_numeric].isnull().sum() == 0
+
+
+def test_default_no_explainable_simple_imputer():
+    imputer = SimpleImputer(
+        ['features'],
+        'label'
+    )
+    assert not imputer.is_explainable
+
+
+def test_explainable_simple_imputer_unfitted():
+    label_col = 'label'
+
+    imputer = SimpleImputer(
+        ['features'],
+        label_col,
+        is_explainable=True
+    )
+
+    assert imputer.is_explainable
+
+    try:
+        imputer.explain('some class')
+        raise pytest.fail('imputer.explain should fail with an appropriate error message')
+    except ValueError as exception:
+        assert exception.args[0] == 'Need to call .fit() before'
+
+    instance = pd.Series({'features': 'some feature text'})
+    try:
+        imputer.explain_instance(instance)
+        raise pytest.fail('imputer.explain_instance should fail with an appropriate error message')
+    except ValueError as exception:
+        assert exception.args[0] == 'Need to call .fit() before'
+
+
+def test_explainable_simple_imputer(test_dir, data_frame):
+    label_col = 'label'
+    df = data_frame(n_samples=100, label_col=label_col)
+
+    output_path = os.path.join(test_dir, "tmp")
+    imputer = SimpleImputer(
+        ['features'],
+        label_col,
+        output_path=output_path,
+        is_explainable=True
+    ).fit(df)
+
+    assert imputer.is_explainable
+
+    assert isinstance(imputer.imputer.data_encoders[0], column_encoders.TfIdfEncoder)
+
+    # explain should not raise an exception
+    _ = imputer.explain(df[label_col].unique()[0])
+
+    # explain_instance should not raise an exception
+    instance = pd.Series({'features': 'some feature text'})
+    _ = imputer.explain_instance(instance)
+
+    assert True
