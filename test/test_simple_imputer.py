@@ -79,11 +79,16 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
         train_df=df_train
     )
 
+    logfile = os.path.join(imputer.output_path, 'imputer.log')
+    assert os.path.exists(logfile)
+    assert os.path.getsize(logfile) > 0
+
     assert imputer.output_path == output_path
     assert imputer.imputer.data_featurizers[0].__class__ == BowFeaturizer
     assert imputer.imputer.data_encoders[0].__class__ == BowEncoder
     assert set(imputer.imputer.data_encoders[0].input_columns) == set(input_columns)
     assert set(imputer.imputer.label_encoders[0].input_columns) == set([label_col])
+
 
     assert all([after == before for after, before in zip(df_train.columns, df_train_cols_before)])
 
@@ -340,8 +345,8 @@ def test_hpo_all_input_types(test_dir, data_frame):
     hps['string_feature']['max_tokens'] = [2 ** 15]
     hps['string_feature']['tokens'] = [['words', 'chars']]
     hps['string_feature']['ngram_range'] = {}
-    hps['string_feature']['ngram_range']['words'] = [(1, 4)]
-    hps['string_feature']['ngram_range']['chars'] = [(2, 4)]
+    hps['string_feature']['ngram_range']['words'] = [(1, 4), (2, 5)]
+    hps['string_feature']['ngram_range']['chars'] = [(2, 4), (3, 5)]
 
     hps['categorical_feature'] = {}
     hps['categorical_feature']['type'] = ['categorical']

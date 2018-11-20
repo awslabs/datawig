@@ -35,13 +35,12 @@ mx.random.seed(1)
 random.seed(1)
 np.random.seed(42)
 
+# set global logger variables
 log_formatter = logging.Formatter("%(asctime)s [%(levelname)s]  %(message)s")
 logger = logging.getLogger()
-
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(log_formatter)
 logger.addHandler(consoleHandler)
-
 logger.setLevel("INFO")
 
 

@@ -41,7 +41,8 @@ from .iterators import ImputerIterDf
 from .mxnet_input_symbols import Featurizer
 from .utils import (AccuracyMetric, ColumnOverwriteException,
                     LogMetricCallBack, MeanSymbol, get_context, logger,
-                    merge_dicts, random_split, timing)
+                    merge_dicts, random_split, timing, log_formatter)
+from logging import FileHandler
 
 
 class Imputer:
@@ -67,6 +68,7 @@ class Imputer:
                  data_featurizers: List[Featurizer],
                  label_encoders: List[ColumnEncoder],
                  output_path="") -> None:
+
 
         self.ctx = None
         self.module = None
@@ -127,6 +129,7 @@ class Imputer:
                         ", ".join(encoder_outputs), featurizer_type))
             # TODO: check whether encoder type matches requirements of featurizer
 
+
         # collect names of data and label columns
         input_col_names = [c.field_name for c in self.data_featurizers]
         label_col_names = list(itertools.chain(*[c.input_columns for c in self.label_encoders]))
@@ -148,9 +151,27 @@ class Imputer:
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
 
+        self.__attach_log_filehandler(filename=os.path.join(self.output_path, 'imputer.log'))
+
         self.module_path = os.path.join(self.output_path, "model")
 
         self.metrics_path = os.path.join(self.output_path, "fit-test-metrics.json")
+
+    def __attach_log_filehandler(self, filename: str, level: str = "INFO") -> None:
+        """
+        Modifies global logger object and attaches filehandler
+
+        :param filename: path to logfile
+        :param level: logging level
+
+        """
+
+        logger.setLevel(level)
+
+        fileHandler = FileHandler(filename, mode='a')
+        fileHandler.setLevel(level)
+        fileHandler.setFormatter(log_formatter)
+        logger.addHandler(fileHandler)
 
     def __check_data(self, data_frame: pd.DataFrame) -> None:
         """
@@ -474,10 +495,12 @@ class Imputer:
                     initializer=mx.init.Xavier(factor_type="in", magnitude=2.34),
                     optimizer='adam',
                     optimizer_params=(('learning_rate', learning_rate), ('wd', weight_decay)),
-                    batch_end_callback=[train_cb,
-                                        mx.callback.Speedometer(iter_train.batch_size, 20,
+                    batch_end_callback=[mx.callback.Speedometer(iter_train.batch_size,
+                                                                int(np.ceil(
+                                                                    iter_train.df_iterator.data[0][1].shape[0] /
+                                                                    iter_train.batch_size / 2)),
                                                                 auto_reset=True)],
-                    eval_end_callback=test_cb,
+                    eval_end_callback=[test_cb, train_cb],
                     epoch_end_callback=checkpoint
                 )
             except StopIteration:
