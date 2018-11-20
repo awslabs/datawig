@@ -79,7 +79,7 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
         train_df=df_train
     )
 
-    logfile = os.path.join(imputer.output_path, 'logger.log')
+    logfile = os.path.join(imputer.output_path, 'imputer.log')
     assert os.path.exists(logfile)
     assert os.path.getsize(logfile) > 0
 
@@ -345,8 +345,8 @@ def test_hpo_all_input_types(test_dir, data_frame):
     hps['string_feature']['max_tokens'] = [2 ** 15]
     hps['string_feature']['tokens'] = [['words', 'chars']]
     hps['string_feature']['ngram_range'] = {}
-    hps['string_feature']['ngram_range']['words'] = [(1, 4)]
-    hps['string_feature']['ngram_range']['chars'] = [(2, 4)]
+    hps['string_feature']['ngram_range']['words'] = [(1, 4), (2, 5)]
+    hps['string_feature']['ngram_range']['chars'] = [(2, 4), (3, 5)]
 
     hps['categorical_feature'] = {}
     hps['categorical_feature']['type'] = ['categorical']
