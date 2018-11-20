@@ -33,6 +33,7 @@ def reset_random_seed():
 
     yield
 
+
 @pytest.fixture
 def test_dir():
     file_dir = os.path.dirname(os.path.realpath(__file__))

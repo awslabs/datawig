@@ -546,14 +546,12 @@ def test_default_no_explainable_simple_imputer():
     assert not imputer.is_explainable
 
 
-def test_explainable_simple_imputer_unfitted(test_dir):
+def test_explainable_simple_imputer_unfitted():
     label_col = 'label'
 
-    output_path = os.path.join(test_dir, "tmp")
     imputer = SimpleImputer(
         ['features'],
         label_col,
-        output_path=output_path,
         is_explainable=True
     )
 
