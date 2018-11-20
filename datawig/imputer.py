@@ -151,7 +151,7 @@ class Imputer:
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
 
-        self.__attach_log_filehandler(filename=os.path.join(self.output_path, 'logger.log'))
+        self.__attach_log_filehandler(filename=os.path.join(self.output_path, 'imputer.log'))
 
         self.module_path = os.path.join(self.output_path, "model")
 
