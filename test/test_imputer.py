@@ -32,8 +32,13 @@ from datawig.imputer import Imputer
 from datawig.mxnet_input_symbols import (BowFeaturizer, EmbeddingFeaturizer,
                                          LSTMFeaturizer, NumericalFeaturizer)
 from datawig.utils import random_split
+import os
+import datawig
+from datawig.utils import random_split
+from sklearn.metrics import precision_score
 
 warnings.filterwarnings("ignore")
+
 
 def test_drop_missing(test_dir):
     """
@@ -619,3 +624,124 @@ def test_inplace_prediction(test_dir, data_frame):
     predicted = imputer.predict(df, inplace=True)
 
     assert predicted is df
+
+
+def test_not_explainable(test_dir, data_frame):
+    label_col = 'label'
+    df = data_frame(n_samples=100, label_col=label_col)
+
+    data_encoder_cols = [BowEncoder('features')]
+    label_encoder_cols = [CategoricalEncoder(label_col)]
+    data_cols = [BowFeaturizer('features')]
+
+    output_path = os.path.join(test_dir, "tmp", "out")
+
+    imputer = Imputer(
+        data_featurizers=data_cols,
+        label_encoders=label_encoder_cols,
+        data_encoders=data_encoder_cols,
+        output_path=output_path
+    ).fit(train_df=df, num_epochs=1)
+
+    assert not imputer.is_explainable
+
+    try:
+        imputer.explain('some label')
+        raise pytest.fail('imputer.explain should fail with an appropriate error message')
+    except ValueError as exception:
+        assert exception.args[0] == 'No explainable data encoders available.'
+
+    instance = pd.Series({'features': 'some feature text'})
+    try:
+        imputer.explain_instance(instance)
+        raise pytest.fail('imputer.explain_instance should fail with an appropriate error message')
+    except ValueError as exception:
+        assert exception.args[0] == 'No explainable data encoders available.'
+
+
+def test_explain_instance_without_label(test_dir, data_frame):
+    label_col = 'label'
+    df = data_frame(n_samples=100, label_col=label_col)
+
+    data_encoder_cols = [TfIdfEncoder('features')]
+    label_encoder_cols = [CategoricalEncoder(label_col)]
+    data_cols = [BowFeaturizer('features')]
+
+    output_path = os.path.join(test_dir, "tmp", "out")
+
+    imputer = Imputer(
+        data_featurizers=data_cols,
+        label_encoders=label_encoder_cols,
+        data_encoders=data_encoder_cols,
+        output_path=output_path
+    ).fit(train_df=df, num_epochs=1)
+
+    assert imputer.is_explainable
+
+    instance = pd.Series({'features': 'some feature text'})
+    # explain_instance should not raise an exception
+    _ = imputer.explain_instance(instance)
+    assert True
+
+
+def test_explain_method_synthetic(test_dir):
+    # Generate simulated data for testing explain method
+    # Predict output column with entries in ['foo', 'bar'] from two columns, one
+    # categorical in ['foo', 'dummy'], one text in ['text_foo_text', 'text_dummy_text'].
+    # the output column is deterministically 'foo', if 'foo' occurs anywhere in any input column.
+    N = 100
+    cat_in_col = ['foo' if r > (1 / 2) else 'dummy' for r in np.random.rand(N)]
+    text_in_col = ['fff' if r > (1 / 2) else 'ddd' for r in np.random.rand(N)]
+    hash_in_col = ['h' for r in range(N)]
+    cat_out_col = ['foo' if 'f' in input[0] + input[1] else 'bar' for input in zip(cat_in_col, text_in_col)]
+
+    df = pd.DataFrame()
+    df['in_cat'] = cat_in_col
+    df['in_text'] = text_in_col
+    df['in_text_hash'] = hash_in_col
+    df['out_cat'] = cat_out_col
+
+    # Specify encoders and featurizers #
+    data_encoder_cols = [datawig.column_encoders.TfIdfEncoder('in_text', tokens="chars"),
+                         datawig.column_encoders.CategoricalEncoder('in_cat', max_tokens=10),
+                         datawig.column_encoders.BowEncoder('in_text_hash', tokens="chars")]
+    data_featurizer_cols = [datawig.mxnet_input_symbols.BowFeaturizer('in_text'),
+                            datawig.mxnet_input_symbols.EmbeddingFeaturizer('in_cat'),
+                            datawig.mxnet_input_symbols.BowFeaturizer('in_text_hash')]
+
+    label_encoder_cols = [datawig.column_encoders.CategoricalEncoder('out_cat')]
+
+    # Specify model
+    imputer = datawig.Imputer(
+       data_featurizers=data_featurizer_cols,
+       label_encoders=label_encoder_cols,
+       data_encoders=data_encoder_cols,
+       output_path=os.path.join(test_dir, "tmp", "explanation_tests")
+       )
+
+    # Train
+    tr, te = random_split(df.sample(90), [.8, .2])
+    imputer.fit(train_df=tr, test_df=te, num_epochs=20, learning_rate = 1e-2)
+    predictions = imputer.predict(te)
+
+    # Evaluate
+    assert precision_score(predictions.out_cat, predictions.out_cat_imputed, average='weighted') > .99
+
+    # assert item explanation, iterate over some inputs
+    for i in np.random.choice(N, 10):
+        explanation = imputer.explain_instance(df.iloc[i])
+        top_label = explanation['explained_label']
+
+        if top_label == 'bar':
+            assert (explanation['in_text'][0][0] == 'd' and explanation['in_cat'][0][0] == 'dummy')
+        elif top_label == 'foo':
+            assert (explanation['in_text'][0][0] == 'f' or explanation['in_cat'][0][0] == 'foo')
+
+    # assert class explanations
+    assert np.all(['f' in token for token, weight in imputer.explain('foo')['in_text']][:3])
+    assert ['f' in token for token, weight in imputer.explain('foo')['in_cat']][0]
+
+    # test serialisation to disk
+    imputer.save()
+    imputer_from_disk = Imputer.load(imputer.output_path)
+    assert np.all(['f' in token for token, weight in imputer_from_disk.explain('foo')['in_text']][:3])

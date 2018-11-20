@@ -59,6 +59,9 @@ class SimpleImputer:
                 for n-grams, only used for non-numerical input columns, ignored otherwise
     :param numeric_latent_dim: int, number of latent dimensions for hidden layer of NumericalFeaturizers;
                 only used for numerical input columns, ignored otherwise
+    :param numeric_hidden_layers: number of numeric hidden layers
+    :param is_explainable: if this is True, a stateful tf-idf encoder is used that allows
+                           explaining classes and single instances
 
 
     Example usage:
@@ -94,8 +97,8 @@ class SimpleImputer:
                  num_labels: int = 100,
                  tokens: str = 'chars',
                  numeric_latent_dim: int = 100,
-                 numeric_hidden_layers: int = 1
-                 ) -> None:
+                 numeric_hidden_layers: int = 1,
+                 is_explainable: bool = False) -> None:
 
         for col in input_columns:
             if not isinstance(col, str):
@@ -117,6 +120,7 @@ class SimpleImputer:
         self.numeric_columns = []
         self.string_columns = []
         self.hpo = _HPO()
+        self.is_explainable = is_explainable
 
     def check_data_types(self, data_frame: pd.DataFrame) -> None:
         """
@@ -329,10 +333,16 @@ class SimpleImputer:
 
         if len(self.string_columns) > 0:
             string_feature_column = "ngram_features-" + rand_string(10)
-            data_encoders += [BowEncoder(input_columns=self.string_columns,
-                                         output_column=string_feature_column,
-                                         max_tokens=self.num_hash_buckets,
-                                         tokens=self.tokens)]
+            if self.is_explainable:
+                data_encoders += [TfIdfEncoder(input_columns=self.string_columns,
+                                               output_column=string_feature_column,
+                                               max_tokens=self.num_hash_buckets,
+                                               tokens=self.tokens)]
+            else:
+                data_encoders += [BowEncoder(input_columns=self.string_columns,
+                                             output_column=string_feature_column,
+                                             max_tokens=self.num_hash_buckets,
+                                             tokens=self.tokens)]
             data_columns += [
                 BowFeaturizer(field_name=string_feature_column, max_tokens=self.num_hash_buckets)]
 
@@ -399,6 +409,40 @@ class SimpleImputer:
                                            score_suffix, inplace=inplace)
 
         return imputations
+
+    def explain(self, label: str, k: int = 10, label_column: str = None) -> dict:
+        """
+        Return dictionary with a list of tuples for each explainable input column.
+        Each tuple denotes one of the top k features with highest correlation to the label.
+
+        :param label: label value to explain
+        :param k: number of explanations for each input encoder to return. If not given, return top 10 explanations.
+        :param label_column: name of label column to be explained (optional, defaults to the first available column.)
+        """
+        if self.imputer is None:
+            raise ValueError("Need to call .fit() before")
+
+        return self.imputer.explain(label, k, label_column)
+
+    def explain_instance(self,
+                         instance: pd.core.series.Series,
+                         k: int = 10,
+                         label_column: str = None,
+                         label: str = None) -> dict:
+        """
+        Return dictionary with list of tuples for each explainable input column of the given instance.
+        Each entry shows the most highly correlated features to the given label
+        (or the top predicted label of not provided).
+
+        :param instance: row of data frame (or dictionary)
+        :param k: number of explanations (ngrams) for text inputs
+        :param label_column: name of label column to be explained (optional)
+        :param label: explain why instance is classified as label, otherwise explain top-label per input
+        """
+        if self.imputer is None:
+            raise ValueError("Need to call .fit() before")
+
+        return self.imputer.explain_instance(instance, k, label_column, label)
 
     @staticmethod
     def complete(data_frame: pd.DataFrame,

@@ -279,7 +279,6 @@ class Imputer:
 
         return self
 
-
     def __persist_class_prototypes(self, iter_train, train_df):
         """
         Save mean feature pattern as self.__class_patterns for each label_encoder, for each label, for each data encoder,
@@ -405,6 +404,9 @@ class Imputer:
         :param label_column: name of label column to be explained (optional)
         :param label: explain why instance is classified as label, otherwise explain top-label per input
         """
+
+        if not self.is_explainable:
+            raise ValueError("No explainable data encoders available.")
 
         label_encoder = self.__get_label_encoder(label_column)
 
