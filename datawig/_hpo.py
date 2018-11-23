@@ -71,6 +71,7 @@ class _HPO:
         default_hps['global']['batch_size'] = [16]
         default_hps['global']['final_fc_hidden_units'] = [[], [100]]
         default_hps['global']['concat_columns'] = [False]
+        default_hps['global']['is_explainable'] = [False]
 
         default_hps['string'] = {}
         default_hps['string']['ngram_range'] = {}
@@ -210,6 +211,11 @@ class _HPO:
         data_encoders = []
         data_featurizers = []
 
+        if hp['global:is_explainable'] is True:
+            StringEncoder = TfIdfEncoder
+        else:
+            StringEncoder = BowEncoder
+
         if hp['global:concat_columns'] is False:
 
             # mark unused parameter
@@ -228,11 +234,11 @@ class _HPO:
                     # iterate over multiple embeddings (chars + strings for the same column)
                     for token in col_parms['tokens']:
                         # call kw. args. with: **{key: item for key, item in col_parms.items() if not key == 'type'})]
-                        data_encoders += [TfIdfEncoder(input_columns=[input_column],
-                                                       output_column=input_column + '_' + token,
-                                                       tokens=token,
-                                                       ngram_range=col_parms['ngram_range:'+token],
-                                                       max_tokens=col_parms['max_tokens'])]
+                        data_encoders += [StringEncoder(input_columns=[input_column],
+                                                        output_column=input_column + '_' + token,
+                                                        tokens=token,
+                                                        ngram_range=col_parms['ngram_range:'+token],
+                                                        max_tokens=col_parms['max_tokens'])]
                         data_featurizers += [BowFeaturizer(field_name=input_column + '_' + token,
                                                            max_tokens=col_parms['max_tokens'])]
 
@@ -262,11 +268,11 @@ class _HPO:
 
             col_parms = {':'.join(key.split(':')[1:]): val for key, val in hp.items() if 'concat' in key}
             for token in col_parms['tokens']:
-                data_encoders += [TfIdfEncoder(input_columns=simple_imputer.input_columns,
-                                               output_column='-'.join(simple_imputer.input_columns) + '_' + token,
-                                               tokens=token,
-                                               ngram_range=col_parms['ngram_range:' + token],
-                                               max_tokens=col_parms['max_tokens'])]
+                data_encoders += [StringEncoder(input_columns=simple_imputer.input_columns,
+                                                output_column='-'.join(simple_imputer.input_columns) + '_' + token,
+                                                tokens=token,
+                                                ngram_range=col_parms['ngram_range:' + token],
+                                                max_tokens=col_parms['max_tokens'])]
                 data_featurizers += [BowFeaturizer(field_name='-'.join(simple_imputer.input_columns) + '_' + token,
                                                    max_tokens=col_parms['max_tokens'])]
                 # mark unused parameter

@@ -448,13 +448,13 @@ def test_hpo_many_columns(test_dir, data_frame):
                     n_samples=n_samples)
 
     for col in range(ncols):
-        df['string_featur_' + str(col)] = df['string_feature']
+        df['string_feature_' + str(col)] = df['string_feature']
 
     df_train, df_test = random_split(df, [.8, .2])
     output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
 
     imputer = SimpleImputer(
-        input_columns=[col for col in df.columns if not col in ['label']],
+        input_columns=[col for col in df.columns if col not in ['label']],
         output_column='label',
         output_path=output_path
     )
