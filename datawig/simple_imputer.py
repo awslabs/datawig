@@ -51,8 +51,8 @@ class SimpleImputer:
     :param input_columns: list of input column names (as strings)
     :param output_column: output column name (as string)
     :param output_path: path to store model and metrics
-    :param num_hash_buckets: number of hash buckets used for the n-gram hashing vectorizer, only
-                                used for non-numerical input columns, ignored otherwise
+    :param num_hash_buckets: number of hash buckets used for the n-gram hashing vectorizer or max_tokens
+                                for the tfidf vectorizer, only used for non-numerical input columns, ignored otherwise.
     :param num_labels: number of imputable values considered after, only used for non-numerical
                         input columns, ignored otherwise
     :param tokens: string, 'chars' or 'words' (default 'chars'), determines tokenization strategy
@@ -62,7 +62,6 @@ class SimpleImputer:
     :param numeric_hidden_layers: number of numeric hidden layers
     :param is_explainable: if this is True, a stateful tf-idf encoder is used that allows
                            explaining classes and single instances
-
 
     Example usage:
 
@@ -232,7 +231,7 @@ class SimpleImputer:
             User can also pass in a list gpus to be used, ex. [mx.gpu(0), mx.gpu(2), mx.gpu(4)]
             This parameter is deprecated.s
 
-        :return: pd.DataFrame with with hyper-parameter configurations and results
+        :return: None
         """
 
         # generate dictionary with default hyperparameter settings. Overwrite these defaults

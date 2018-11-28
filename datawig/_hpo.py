@@ -408,6 +408,10 @@ class _HPO:
         elapsed_time = 0
 
         for hp_idx, (_, hp) in enumerate(hps_flat.iterrows()):
+            if np.any([np.all(row == hp) for idx, row in self.results.iterrows()]):
+                logger.info('Configuration has already been learned. Move to next one.')
+                continue
+
             if elapsed_time > max_running_hours:
                 logger.info('Finishing hpo because max running time was reached.')
                 break
