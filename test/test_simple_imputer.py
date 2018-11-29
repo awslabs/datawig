@@ -51,9 +51,9 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
     feature_col = "string_feature"
     label_col = "label"
 
-    n_samples = 2000
+    n_samples = 500
     num_labels = 3
-    seq_len = 100
+    seq_len = 30
     vocab_size = int(2 ** 15)
 
     # generate some random data
@@ -377,7 +377,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
     imputer.fit_hpo(df_train,
                     hps=hps,
                     user_defined_scores=uds,
-                    num_evals=3,
+                    num_evals=2,
                     hpo_run_name='test1_')
 
     imputer.fit_hpo(df_train,
@@ -391,43 +391,6 @@ def test_hpo_all_input_types(test_dir, data_frame):
 
     assert results[results['global:num_epochs'] == 50]['f1_micro'].iloc[0] > \
            results[results['global:num_epochs'] == 5]['f1_micro'].iloc[0]
-
-    
-def test_hpo_defaults(test_dir, data_frame):
-    """
-
-    """
-    label_col = "label"
-
-    n_samples = 1000
-    num_labels = 3
-    seq_len = 10
-
-    # generate some random data
-    df = data_frame(feature_col="string_feature",
-                    label_col=label_col,
-                    num_labels=num_labels,
-                    num_words=seq_len,
-                    n_samples=n_samples)
-
-    # add categorical feature
-    df['categorical_feature'] = ['foo' if r > .5 else 'bar' for r in np.random.rand(n_samples)]
-
-    # add numerical feature
-    df['numeric_feature'] = np.random.rand(n_samples)
-
-    df_train, df_test = random_split(df, [.8, .2])
-    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
-
-    imputer = SimpleImputer(
-        input_columns=['string_feature', 'categorical_feature', 'numeric_feature'],
-        output_column='label',
-        output_path=output_path
-    )
-
-    imputer.fit_hpo(df_train, num_evals=2)
-
-    assert imputer.hpo.results.precision_weighted.max() > .7
 
 def test_hpo_many_columns(test_dir, data_frame):
     """
