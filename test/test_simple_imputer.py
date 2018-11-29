@@ -459,7 +459,11 @@ def test_hpo_many_columns(test_dir, data_frame):
         output_path=output_path
     )
 
-    imputer.fit_hpo(df_train, num_evals=2)
+    hps = {}
+    hps['global'] = {}
+    hps['global']['num_epochs'] = [10]
+
+    imputer.fit_hpo(df_train, hps=hps, num_evals=2)
 
     assert imputer.hpo.results.precision_weighted.max() > .8
 
