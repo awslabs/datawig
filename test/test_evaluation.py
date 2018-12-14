@@ -109,8 +109,9 @@ def test_evaluate_and_persist_metrics():
                                              [.1, .1, .7, .1],
                                              [.1, .7, .1, .1]], dtype=float)}
 
-    evaluate_and_persist_metrics(
-        true_labels_string,
-        true_labels_int,
-        predictions,
-        predictions_proba)
+    metrics = evaluate_and_persist_metrics(true_labels_string,
+                                           true_labels_int,
+                                           predictions,
+                                           predictions_proba)
+
+    assert metrics['labels']['avg_accuracy'] == 1/3
