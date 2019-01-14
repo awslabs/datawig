@@ -81,7 +81,7 @@ class _HPO:
         default_hps['string']['ngram_range']['chars'] = [(1, 5)]
 
         default_hps['categorical'] = {}
-        default_hps['categorical']['max_tokens'] = [2 ** 15, 2 ** 12]
+        default_hps['categorical']['max_tokens'] = [2 ** 12, 2 ** 15]
         default_hps['categorical']['embed_dim'] = [10]
 
         default_hps['numeric'] = {}
