@@ -69,7 +69,6 @@ class Imputer:
                  label_encoders: List[ColumnEncoder],
                  output_path="") -> None:
 
-
         self.ctx = None
         self.module = None
         self.data_encoders = data_encoders
@@ -151,7 +150,9 @@ class Imputer:
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
 
-        self.__attach_log_filehandler(filename=os.path.join(self.output_path, 'imputer.log'))
+        # logging to file as a default can cause problems with sagemaker inference
+        # where the model path is not writable
+        # self.__attach_log_filehandler(filename=os.path.join(self.output_path, 'imputer.log'))
 
         self.module_path = os.path.join(self.output_path, "model")
 
@@ -571,8 +572,8 @@ class Imputer:
             if not encoder.is_fitted():
                 encoder_type = type(encoder)
                 logger.info(
-                    "Fitting data encoder {} on columns {} and {} rows of training data".format(
-                        encoder_type, ", ".join(encoder.input_columns), len(train_df)))
+                    "Fitting data encoder {} on columns {} and {} rows of training data with parameters {}".format(
+                        encoder_type, ", ".join(encoder.input_columns), len(train_df), encoder.__dict__))
 
                 encoder.fit(train_df)
 

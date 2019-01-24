@@ -1,5 +1,5 @@
 sphinx
-numpy==1.14.0
+numpy
 mxnet
 python-dateutil
 pandas
