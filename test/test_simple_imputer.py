@@ -248,7 +248,7 @@ def test_imputer_hpo_numeric(test_dir):
     imputer_numeric.fit_hpo(df_train, hps=hps)
     results = imputer_numeric.hpo.results
 
-    assert results[results['mse'] == min(results['mse'])]['mse'].iloc[0] < .3
+    assert results[results['mse'] == min(results['mse'])]['mse'].iloc[0] < 1.5
 
 
 def test_imputer_hpo_text(test_dir, data_frame):
@@ -294,7 +294,7 @@ def test_imputer_hpo_text(test_dir, data_frame):
 
     imputer_string.fit_hpo(df_train, hps=hps)
 
-    assert max(imputer_string.hpo.results['f1_micro']) > .9
+    assert max(imputer_string.hpo.results['f1_micro']) > 0.7
 
 
 def test_hpo_all_input_types(test_dir, data_frame):
