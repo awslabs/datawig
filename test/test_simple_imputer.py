@@ -427,7 +427,7 @@ def test_hpo_defaults(test_dir, data_frame):
 
     imputer.fit_hpo(df_train, num_evals=2)
 
-    assert imputer.hpo.results.precision_weighted.max() > .7
+    assert imputer.hpo.results.precision_weighted.max() > .5
 
 def test_hpo_many_columns(test_dir, data_frame):
     """
