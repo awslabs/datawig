@@ -328,7 +328,7 @@ class SimpleImputer:
         """
 
         if final_fc_hidden_units is None:
-            final_fc_hidden_units = [100]
+            final_fc_hidden_units = []
 
         self.check_data_types(train_df)
 

@@ -1,12 +1,12 @@
 sudo: required
 language: python
 python:
-- '3.4'
+- '3.6'
 install:
 - pip install -r requirements/requirements.txt
 - pip install -r requirements/requirements.dev.txt
 script:
-- python -m py.test
+- python -m pytest
 - pylint --version
 - pylint --rcfile=pylintrc datawig -E
 - pylint --rcfile=pylintrc test -E
