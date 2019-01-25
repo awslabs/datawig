@@ -326,10 +326,6 @@ class SimpleImputer:
         :param final_fc_hidden_units: list dimensions for FC layers after the final concatenation
 
         """
-
-        if final_fc_hidden_units is None:
-            final_fc_hidden_units = []
-
         self.check_data_types(train_df)
 
         data_encoders = []
