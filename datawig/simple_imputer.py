@@ -239,45 +239,49 @@ class SimpleImputer:
         # with configurations that were passed via the old API where applicable.
         default_hps = dict()
         default_hps['global'] = dict()
-        default_hps['global']['learning_rate'] = \
-            learning_rate_candidates if learning_rate_candidates is not None else [1e-4, 1e-3]
-        default_hps['global']['weight_decay'] = \
-            weight_decay if weight_decay is not None else [0, 1e-4]
+        if learning_rate_candidates:
+            default_hps['global']['learning_rate'] = [learning_rate_candidates]
+        if weight_decay:
+            default_hps['global']['weight_decay'] = [weight_decay]
+        if num_epochs:
+            default_hps['global']['num_epochs'] = [num_epochs]
 
-        default_hps['global']['num_epochs'] = \
-            [num_epochs] if num_epochs is not None else [100]
-        default_hps['global']['patience'] = \
-            [patience] if patience is not None else [5]
-        default_hps['global']['batch_size'] = \
-            [batch_size] if batch_size is not None else [16]
-        default_hps['global']['final_fc_hidden_units'] = \
-            final_fc_hidden_units if final_fc_hidden_units is not None else [[], [100]]
-        default_hps['global']['concat_columns'] = [True, False]
+        if patience:
+            default_hps['global']['patience'] = [patience]
+
+        if batch_size:
+            default_hps['global']['batch_size'] = [batch_size]
+        if final_fc_hidden_units:
+            default_hps['global']['final_fc_hidden_units'] = [final_fc_hidden_units]
 
         default_hps['string'] = {}
-        default_hps['string']['max_tokens'] = \
-            num_hash_bucket_candidates if num_hash_bucket_candidates is not None else [2 ** 8]
-        default_hps['string']['tokens'] = \
-            [[cand] for cand in tokens_candidates] if tokens_candidates is not None else [['words']]
+        if num_hash_bucket_candidates:
+            default_hps['string']['max_tokens'] = [num_hash_bucket_candidates]
+
+        if tokens_candidates:
+            default_hps['string']['tokens'] = [[c] for c in tokens_candidates]
 
         default_hps['categorical'] = {}
-        default_hps['categorical']['max_tokens'] = \
-            num_hash_bucket_candidates if num_hash_bucket_candidates is not None else [2 ** 8]
-        default_hps['categorical']['embed_dim'] = [10]
+        if num_hash_bucket_candidates:
+            default_hps['categorical']['max_tokens'] = num_hash_bucket_candidates
 
         default_hps['numeric'] = {}
-        default_hps['numeric']['normalize'] = \
-            [normalize_numeric] if normalize_numeric is not None else [True]
-        default_hps['numeric']['numeric_latent_dim'] = \
-            numeric_latent_dim_candidates if numeric_latent_dim_candidates is not None else [10, 50]
-        default_hps['numeric']['numeric_hidden_layers'] = \
-            numeric_hidden_layers_candidates if numeric_hidden_layers_candidates is not None else [1, 2]
+        if normalize_numeric:
+            default_hps['numeric']['normalize'] = [normalize_numeric]
+        if numeric_latent_dim_candidates:
+            default_hps['numeric']['numeric_latent_dim'] = [numeric_latent_dim_candidates]
 
-        # parameters for a single column of concatenated strings
-        default_hps['concat'] = default_hps['string'].copy()
+        if numeric_hidden_layers_candidates:
+            default_hps['numeric']['numeric_hidden_layers'] = [numeric_hidden_layers_candidates]
 
         if hps is None:
             hps = {}
+
+        # give parameters in `hps` precedence over default parameters
+        parameters_in_both = set(default_hps.keys()).intersection(set(hps.keys()))
+        for param in parameters_in_both:
+            del default_hps[param]
+        hps = merge_dicts(hps, default_hps)
 
         if user_defined_scores is None:
             user_defined_scores = []

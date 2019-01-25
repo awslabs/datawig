@@ -461,7 +461,7 @@ def test_hpo_many_columns(test_dir, data_frame):
 
     imputer.fit_hpo(df_train, num_evals=2)
 
-    assert imputer.hpo.results.precision_weighted.max() > .8
+    assert imputer.hpo.results.precision_weighted.max() > .75
 
 
 def test_imputer_categorical_heuristic(data_frame):
@@ -595,3 +595,121 @@ def test_explainable_simple_imputer(test_dir, data_frame):
     _ = imputer.explain_instance(instance)
 
     assert True
+
+
+def test_hpo_runs(test_dir, data_frame):
+    """
+
+    """
+    label_col = "label"
+
+    n_samples = 300
+    num_labels = 3
+    seq_len = 4
+
+    # generate some random data
+    df = data_frame(feature_col="string_feature",
+                    label_col=label_col,
+                    num_labels=num_labels,
+                    num_words=seq_len,
+                    n_samples=n_samples)
+
+    df_train, df_test = random_split(df, [.8, .2])
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
+
+    imputer = SimpleImputer(
+        input_columns=[col for col in df.columns if col != label_col],
+        output_column=label_col,
+        output_path=output_path
+    )
+
+    hps = {}
+    hps['string'] = {}
+
+    # if only this, does not affect anything
+    # hps['string']['max_tokens'] = [512]
+    # if specified, has precendence over global
+    hps['string_feature'] = {'max_tokens': [1024, 2048]}
+    hps['global'] = {}
+    hps['global']['concat_columns'] = [False]
+    hps['global']['num_epochs'] = [10]
+
+    imputer.fit_hpo(df_train, hps=hps)
+
+    # only search over specified parameter ranges
+    assert imputer.hpo.results.shape[0] == 2
+
+
+def test_hpo_feature_specific_setting(test_dir, data_frame):
+    """
+
+    """
+    label_col = "label"
+
+    n_samples = 300
+    num_labels = 3
+    seq_len = 4
+
+    # generate some random data
+    df = data_frame(feature_col="string_feature",
+                    label_col=label_col,
+                    num_labels=num_labels,
+                    num_words=seq_len,
+                    n_samples=n_samples)
+
+    df_train, df_test = random_split(df, [.8, .2])
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
+
+    imputer = SimpleImputer(
+        input_columns=[col for col in df.columns if col != label_col],
+        output_column=label_col,
+        output_path=output_path
+    )
+
+    hps = {}
+    hps['string_feature'] = {'max_tokens': [1024]}
+    hps['global'] = {}
+    hps['global']['concat_columns'] = [False]
+    hps['global']['num_epochs'] = [10]
+
+    imputer.fit_hpo(df_train, hps=hps)
+
+    assert imputer.hpo.results.shape[0] == 1
+    assert imputer.imputer.data_encoders[0].vectorizer.max_features == 1024
+
+
+def test_hpo_feature_type_setting(test_dir, data_frame):
+    """
+
+    """
+    label_col = "label"
+
+    n_samples = 300
+    num_labels = 3
+    seq_len = 4
+
+    # generate some random data
+    df = data_frame(feature_col="string_feature",
+                    label_col=label_col,
+                    num_labels=num_labels,
+                    num_words=seq_len,
+                    n_samples=n_samples)
+
+    df_train, df_test = random_split(df, [.8, .2])
+    output_path = os.path.join(test_dir, "tmp", "real_data_experiment_text_hpo")
+
+    imputer = SimpleImputer(
+        input_columns=[col for col in df.columns if col != label_col],
+        output_column=label_col,
+        output_path=output_path
+    )
+
+    hps = {}
+    hps['string'] = {'max_tokens': [512]}
+    hps['global'] = {}
+    hps['global']['concat_columns'] = [False]
+    hps['global']['num_epochs'] = [10]
+
+    imputer.fit_hpo(df_train, hps=hps)
+
+    assert imputer.imputer.data_encoders[0].vectorizer.max_features == 512
