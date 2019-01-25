@@ -621,11 +621,6 @@ def test_hpo_runs(test_dir, data_frame):
     )
 
     hps = {}
-    hps['string'] = {}
-
-    # if only this, does not affect anything
-    # hps['string']['max_tokens'] = [512]
-    # if specified, has precendence over global
     hps['string_feature'] = {'max_tokens': [1024, 2048]}
     hps['global'] = {}
     hps['global']['concat_columns'] = [False]
