@@ -150,9 +150,7 @@ class Imputer:
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
 
-        # logging to file as a default can cause problems with sagemaker inference
-        # where the model path is not writable
-        # self.__attach_log_filehandler(filename=os.path.join(self.output_path, 'imputer.log'))
+        self.__attach_log_filehandler(filename=os.path.join(self.output_path, 'imputer.log'))
 
         self.module_path = os.path.join(self.output_path, "model")
 
@@ -169,10 +167,13 @@ class Imputer:
 
         logger.setLevel(level)
 
-        fileHandler = FileHandler(filename, mode='a')
-        fileHandler.setLevel(level)
-        fileHandler.setFormatter(log_formatter)
-        logger.addHandler(fileHandler)
+        if os.access(os.path.dirname(filename), os.W_OK):
+            file_handler = FileHandler(filename, mode='a')
+            file_handler.setLevel(level)
+            file_handler.setFormatter(log_formatter)
+            logger.addHandler(file_handler)
+        else:
+            logger.warning("Could not attach file log handler, {} is not writable.".format(filename))
 
     def __check_data(self, data_frame: pd.DataFrame) -> None:
         """
