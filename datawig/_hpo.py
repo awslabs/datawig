@@ -34,6 +34,8 @@ from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, C
 from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer, EmbeddingFeaturizer
 from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts
 
+from datawig.utils import random_cartesian_product
+
 
 class _HPO:
     """
@@ -65,12 +67,12 @@ class _HPO:
         default_hps = dict()
         default_hps['global'] = {}
         default_hps['global']['learning_rate'] = [3e-4]
-        default_hps['global']['weight_decay'] = [0, 1e-7]
-        default_hps['global']['num_epochs'] = [100]
+        default_hps['global']['weight_decay'] = [1e-7]
+        default_hps['global']['num_epochs'] = [25]
         default_hps['global']['patience'] = [5]
         default_hps['global']['batch_size'] = [16]
-        default_hps['global']['final_fc_hidden_units'] = [[], [100]]
-        default_hps['global']['concat_columns'] = [True, False]
+        default_hps['global']['final_fc_hidden_units'] = [[]]
+        default_hps['global']['concat_columns'] = [False]
 
         default_hps['string'] = {}
         default_hps['string']['ngram_range'] = {}
@@ -80,13 +82,13 @@ class _HPO:
         default_hps['string']['ngram_range']['chars'] = [(1, 5)]
 
         default_hps['categorical'] = {}
-        default_hps['categorical']['max_tokens'] = [2 ** 12, 2 ** 15]
+        default_hps['categorical']['max_tokens'] = [2 ** 12]
         default_hps['categorical']['embed_dim'] = [10]
 
         default_hps['numeric'] = {}
         default_hps['numeric']['normalize'] = [True]
-        default_hps['numeric']['numeric_latent_dim'] = [10, 50]
-        default_hps['numeric']['numeric_hidden_layers'] = [1, 2]
+        default_hps['numeric']['numeric_latent_dim'] = [10]
+        default_hps['numeric']['numeric_hidden_layers'] = [1]
 
         # parameters for a single column of concatenated strings
         default_hps['concat'] = default_hps['string'].copy()
@@ -151,13 +153,17 @@ class _HPO:
                     logger.warn('Input type of column ' + str(column_name) + ' not determined.')
             # join all column specific hp dictionaries with type-specific default values
             # self.hps[column_name] = {**self.default_hps[self.hps[column_name]['type'][0]], **self.hps[column_name]}
-            self.hps[column_name] = merge_dicts(self.default_hps[self.hps[column_name]['type'][0]],
-                                                self.hps[column_name])
 
-        # flatten nested dictionary structures and combine to data frame with all possible hp configurations
-        hp_df_from_dict = lambda dict: pd.DataFrame(list(itertools.product(*dict.values())), columns=dict.keys())
+            # delete intersection keys from default hps
+            default_type_hps = self.default_hps[self.hps[column_name]['type'][0]].copy()
+            type_hps = self.hps[self.hps[column_name]['type'][0]]
+            # specified data type hps have precedence over default ones
+            shared_keys = set(default_type_hps.keys()).intersection(set(type_hps.keys()))
+            for key in shared_keys:
+                del default_type_hps[key]
 
-        from datawig.utils import random_cartesian_product
+            self.hps[column_name] = merge_dicts(merge_dicts(default_type_hps, type_hps), self.hps[column_name])
+
         flat_dict = flatten_dict(self.hps)
         hp_df = pd.DataFrame(random_cartesian_product([val for key, val in flat_dict.items()], num=num_evals),
                              columns=flat_dict.keys())

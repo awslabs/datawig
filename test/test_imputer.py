@@ -17,14 +17,16 @@ DataWig imputer tests
 
 """
 
-import os
-import random
-import warnings
-
 import numpy as np
+import os
 import pandas as pd
 import pytest
+import warnings
+from sklearn.metrics import precision_score
+from stat import *
+import string
 
+import datawig
 from datawig.column_encoders import (BowEncoder, CategoricalEncoder,
                                      NumericalEncoder, SequentialEncoder,
                                      TfIdfEncoder)
@@ -32,10 +34,6 @@ from datawig.imputer import Imputer
 from datawig.mxnet_input_symbols import (BowFeaturizer, EmbeddingFeaturizer,
                                          LSTMFeaturizer, NumericalFeaturizer)
 from datawig.utils import random_split
-import os
-import datawig
-from datawig.utils import random_split
-from sklearn.metrics import precision_score
 
 warnings.filterwarnings("ignore")
 
@@ -745,3 +743,52 @@ def test_explain_method_synthetic(test_dir):
     imputer.save()
     imputer_from_disk = Imputer.load(imputer.output_path)
     assert np.all(['f' in token for token, weight in imputer_from_disk.explain('foo')['in_text']][:3])
+
+
+def test_non_writable_output_path(test_dir, data_frame):
+    label_col = 'label'
+    df = data_frame(n_samples=100, label_col=label_col)
+
+    data_encoder_cols = [TfIdfEncoder('features')]
+    label_encoder_cols = [CategoricalEncoder(label_col)]
+    data_cols = [BowFeaturizer('features')]
+
+    output_path = os.path.join(test_dir, 'non_writable')
+
+    Imputer(
+        data_featurizers=data_cols,
+        label_encoders=label_encoder_cols,
+        data_encoders=data_encoder_cols,
+        output_path=output_path
+    ).fit(
+        train_df=df,
+        num_epochs=1
+    ).save()
+
+    from datawig.utils import logger
+
+    try:
+        # make output dir of imputer read-only
+        os.chmod(output_path, S_IREAD | S_IXUSR)
+
+        # make log file read only
+        os.chmod(os.path.join(output_path, "imputer.log"), S_IREAD)
+        imputer = Imputer.load(output_path)
+        _ = imputer.predict(df)
+        logger.warning("this should not fail")
+
+        # remove log file
+        os.chmod(os.path.join(output_path, "imputer.log"), S_IREAD | S_IXUSR | S_IWUSR)
+        os.chmod(output_path, S_IREAD | S_IXUSR | S_IWUSR)
+        os.remove(os.path.join(output_path, "imputer.log"))
+
+        # make output dir of imputer read-only
+        os.chmod(output_path, S_IREAD | S_IXUSR)
+
+        imputer = Imputer.load(output_path)
+        _ = imputer.predict(df)
+        logger.warning("this should not fail")
+        os.chmod(output_path, S_IREAD | S_IXUSR | S_IWUSR)
+    except Exception as e:
+        print(e)
+        pytest.fail("This invocation not raise any Exception")

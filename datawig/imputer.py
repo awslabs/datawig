@@ -69,7 +69,6 @@ class Imputer:
                  label_encoders: List[ColumnEncoder],
                  output_path="") -> None:
 
-
         self.ctx = None
         self.module = None
         self.data_encoders = data_encoders
@@ -168,10 +167,13 @@ class Imputer:
 
         logger.setLevel(level)
 
-        fileHandler = FileHandler(filename, mode='a')
-        fileHandler.setLevel(level)
-        fileHandler.setFormatter(log_formatter)
-        logger.addHandler(fileHandler)
+        if os.access(os.path.dirname(filename), os.W_OK):
+            file_handler = FileHandler(filename, mode='a')
+            file_handler.setLevel(level)
+            file_handler.setFormatter(log_formatter)
+            logger.addHandler(file_handler)
+        else:
+            logger.warning("Could not attach file log handler, {} is not writable.".format(filename))
 
     def __check_data(self, data_frame: pd.DataFrame) -> None:
         """
@@ -571,8 +573,8 @@ class Imputer:
             if not encoder.is_fitted():
                 encoder_type = type(encoder)
                 logger.info(
-                    "Fitting data encoder {} on columns {} and {} rows of training data".format(
-                        encoder_type, ", ".join(encoder.input_columns), len(train_df)))
+                    "Fitting data encoder {} on columns {} and {} rows of training data with parameters {}".format(
+                        encoder_type, ", ".join(encoder.input_columns), len(train_df), encoder.__dict__))
 
                 encoder.fit(train_df)
 
