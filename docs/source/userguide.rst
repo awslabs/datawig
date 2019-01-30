@@ -248,13 +248,12 @@ The steps for training a model with HPO are identical to the default :code:`Simp
         output_path='imputer_model'
     )
 
-    #Fit an imputer model with customized hyperparameters
+    # fit an imputer model with customized hyperparameters
     imputer.fit_hpo(
         train_df=df_train,
         num_epochs=100,
         patience=3,
-        learning_rate_candidates=[1e-3, 3e-4, 1e-4],
-        hpo_max_train_samples=1000
+        learning_rate_candidates=[1e-3, 3e-4, 1e-4]
     )
 
 See the SimpleImputer_ for more details on parameters.
