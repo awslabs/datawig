@@ -54,16 +54,6 @@ class _HPO:
         self.results = pd.DataFrame()
         self.output_path = None
 
-        # Define default hyperparameter choices for each column type (string, categorical, numeric)
-        self.default_hps = dict()
-        self.default_hps['global'] = {}
-        self.default_hps['global']['learning_rate'] = [3e-4]
-        self.default_hps['global']['weight_decay'] = [1e-7]
-        self.default_hps['global']['num_epochs'] = [25]
-        self.default_hps['global']['patience'] = [5]
-        self.default_hps['global']['batch_size'] = [16]
-        self.default_hps['global']['final_fc_hidden_units'] = [[]]
-
     def __preprocess_hps(self,
                          train_df: pd.DataFrame,
                          simple_imputer,
@@ -81,6 +71,14 @@ class _HPO:
         """
 
         default_hps = dict()
+        # Define default hyperparameter choices for each column type (string, categorical, numeric)
+        default_hps['global'] = {}
+        default_hps['global']['learning_rate'] = [3e-4]
+        default_hps['global']['weight_decay'] = [1e-7]
+        default_hps['global']['num_epochs'] = [25]
+        default_hps['global']['patience'] = [5]
+        default_hps['global']['batch_size'] = [16]
+        default_hps['global']['final_fc_hidden_units'] = [[]]
         default_hps['string'] = {}
         default_hps['string']['ngram_range'] = {}
         default_hps['string']['max_tokens'] = [2 ** 15]
@@ -101,6 +99,13 @@ class _HPO:
         if 'global' not in self.hps.keys():
             self.hps['global'] = {}
 
+        # merge data type default parameters with the ones in self.hps
+        # giving precedence over the parameters specified in self.hps
+        for data_type in ['string', 'categorical', 'numeric']:
+            for parameter_key, values in default_hps[data_type].items():
+                if parameter_key in self.hps[data_type]:
+                    default_hps[data_type][parameter_key] = self.hps[data_type][parameter_key]
+
         # add type to column dictionaries if it was not specified, does not support categorical types
         for column_name in simple_imputer.input_columns:
             if column_name not in self.hps.keys():
@@ -116,8 +121,13 @@ class _HPO:
                 if parameter_key not in self.hps[column_name]:
                     self.hps[column_name][parameter_key] = values
 
+        # all of the data type specific parameters have been copied to the column encoder parameters
+        del self.hps['string']
+        del self.hps['numeric']
+        del self.hps['categorical']
+
         # merge global parameters with defaults
-        for parameter_key, values in self.default_hps['global'].items():
+        for parameter_key, values in default_hps['global'].items():
             if parameter_key not in self.hps['global']:
                 self.hps['global'][parameter_key] = values
 
@@ -182,7 +192,7 @@ class _HPO:
         for input_column in simple_imputer.input_columns:
 
             # extract parameters for the current input column, take everything after the first colon
-            col_parms = {':'.join(key.split(':')[1:]): val for key, val in hp.items() if input_column in key}
+            col_parms = {':'.join(key.split(':')[1:]): val for key, val in hp.items() if key.startswith(input_column)}
 
             # define all input columns
             if col_parms['type'] == 'string':

@@ -740,3 +740,73 @@ def test_hpo_mixed_hps_and_kwargs_precedence(test_dir, data_frame):
 
     # give parameters in `hps` precedence over fit_hpo() kwargs
     assert imputer.hpo.results['global:learning_rate'].values[0] == 0.11
+
+
+def test_hpo_similar_input_col_mixed_types(test_dir, data_frame):
+    feature_col, label_col = "feature", "label"
+    numeric_col = "numeric_feature"
+    categorical_col = "categorical_col"
+
+    df = data_frame(feature_col=feature_col,
+                    label_col=label_col)
+
+    df.loc[:, numeric_col] = np.random.randn(df.shape[0])
+    df.loc[:, categorical_col] = np.random.randint(df.shape[0])
+
+    imputer = SimpleImputer(
+        input_columns=[feature_col, numeric_col, categorical_col],
+        output_column=label_col,
+        output_path=test_dir
+    )
+
+    imputer.fit_hpo(df)
+
+
+def test_hpo_kwargs_only_support(test_dir, data_frame):
+    feature_col, label_col = "feature", "label"
+    numeric_col = "numeric_feature"
+    categorical_col = "categorical_col"
+
+    df = data_frame(feature_col=feature_col,
+                    label_col=label_col)
+
+    df.loc[:, numeric_col] = np.random.randn(df.shape[0])
+    df.loc[:, categorical_col] = np.random.randint(df.shape[0])
+
+    imputer = SimpleImputer(
+        input_columns=[feature_col, numeric_col, categorical_col],
+        output_column=label_col,
+        output_path=test_dir
+    )
+
+    imputer.fit_hpo(
+        df,
+        num_epochs=1,
+        patience=1,
+        weight_decay=[0.001],
+        batch_size=320,
+        num_hash_bucket_candidates=[3],
+        tokens_candidates=['words'],
+        numeric_latent_dim_candidates=[1],
+        numeric_hidden_layers_candidates=[1],
+        final_fc_hidden_units=[[1]],
+        learning_rate_candidates=[0.1],
+        normalize_numeric=False
+    )
+
+    def assert_val(col, value):
+        assert imputer.hpo.results[col].values[0] == value
+
+    assert_val('global:num_epochs', 1)
+    assert_val('global:patience', 1)
+    assert_val('global:weight_decay', 0.001)
+
+    assert_val('global:batch_size', 320)
+    assert_val(feature_col + ':max_tokens', 3)
+    assert_val(feature_col + ':tokens', ['words'])
+
+    assert_val(numeric_col + ':numeric_latent_dim', 1)
+    assert_val(numeric_col + ':numeric_hidden_layers', 1)
+
+    assert_val('global:final_fc_hidden_units', [1])
+    assert_val('global:learning_rate', 0.1)
