@@ -701,3 +701,42 @@ def test_hpo_multiple_columns_only_one_used(test_dir, data_frame):
 
     assert imputer.hpo.results.shape[0] == 1
     assert imputer.imputer.data_encoders[0].vectorizer.max_features == 1024
+
+
+def test_hpo_mixed_hps_and_kwargs(test_dir, data_frame):
+    feature_col, label_col = "feature", "label"
+
+    df = data_frame(feature_col=feature_col,
+                    label_col=label_col)
+
+    imputer = SimpleImputer(
+        input_columns=[feature_col],
+        output_column=label_col,
+        output_path=test_dir
+    )
+
+    hps = {feature_col: {'max_tokens': [1024]}}
+
+    imputer.fit_hpo(df, hps=hps, learning_rate_candidates=[0.1])
+
+    assert imputer.hpo.results['global:learning_rate'].values[0] == 0.1
+
+
+def test_hpo_mixed_hps_and_kwargs_precedence(test_dir, data_frame):
+    feature_col, label_col = "feature", "label"
+
+    df = data_frame(feature_col=feature_col,
+                    label_col=label_col)
+
+    imputer = SimpleImputer(
+        input_columns=[feature_col],
+        output_column=label_col,
+        output_path=test_dir
+    )
+
+    hps = {feature_col: {'max_tokens': [1024]}, 'global': {'learning_rate': [0.11]}}
+
+    imputer.fit_hpo(df, hps=hps, learning_rate_candidates=[0.1])
+
+    # give parameters in `hps` precedence over fit_hpo() kwargs
+    assert imputer.hpo.results['global:learning_rate'].values[0] == 0.11

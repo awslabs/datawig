@@ -18,23 +18,18 @@ Implements hyperparameter optimisation for datawig
 
 """
 
-import itertools
-import time
-import random
 import os
-
-import numpy as np
-import pandas as pd
-
+import time
 from datetime import datetime
-from pandas.api.types import is_numeric_dtype
-from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
 
-from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder, TfIdfEncoder
-from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer, EmbeddingFeaturizer
-from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts
+import pandas as pd
+from pandas.api.types import is_numeric_dtype
+from sklearn.metrics import mean_squared_error, f1_score, recall_score
 
 from datawig.utils import random_cartesian_product
+from .column_encoders import CategoricalEncoder, NumericalEncoder, TfIdfEncoder
+from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, EmbeddingFeaturizer
+from .utils import logger, get_context, random_split, flatten_dict
 
 
 class _HPO:
@@ -51,12 +46,8 @@ class _HPO:
     """
 
     def __init__(self):
-
         """
         Init method also defines default hyperparameter choices, global and for each input column type.
-
-        :param imputer: SimpleImputer instance with input_colums and output_column and output_path specified.
-
         """
 
         self.hps = None

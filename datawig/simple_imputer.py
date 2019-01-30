@@ -237,9 +237,9 @@ class SimpleImputer:
         default_hps = dict()
         default_hps['global'] = dict()
         if learning_rate_candidates:
-            default_hps['global']['learning_rate'] = [learning_rate_candidates]
+            default_hps['global']['learning_rate'] = learning_rate_candidates
         if weight_decay:
-            default_hps['global']['weight_decay'] = [weight_decay]
+            default_hps['global']['weight_decay'] = weight_decay
         if num_epochs:
             default_hps['global']['num_epochs'] = [num_epochs]
 
