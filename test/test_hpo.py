@@ -31,6 +31,9 @@ def test_single_hpo(test_dir, data_frame):
     hps[feature_col] = {'max_tokens': [1024]}
     hps['global'] = {}
     hps['global']['num_epochs'] = [10]
+    hps['string'] = {}
+    hps['categorical'] = {}
+    hps['numeric'] = {}
 
     hpo = _HPO()
     hpo.tune(

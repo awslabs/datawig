@@ -765,16 +765,14 @@ def test_hpo_similar_input_col_mixed_types(test_dir, data_frame):
 def test_hpo_kwargs_only_support(test_dir, data_frame):
     feature_col, label_col = "feature", "label"
     numeric_col = "numeric_feature"
-    categorical_col = "categorical_col"
 
     df = data_frame(feature_col=feature_col,
                     label_col=label_col)
 
     df.loc[:, numeric_col] = np.random.randn(df.shape[0])
-    df.loc[:, categorical_col] = np.random.randint(df.shape[0])
 
     imputer = SimpleImputer(
-        input_columns=[feature_col, numeric_col, categorical_col],
+        input_columns=[feature_col, numeric_col],
         output_column=label_col,
         output_path=test_dir
     )

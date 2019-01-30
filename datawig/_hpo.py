@@ -234,7 +234,7 @@ class _HPO:
             label_column = [CategoricalEncoder(simple_imputer.output_column)]
             logger.info("Assuming categorical output column: {}".format(simple_imputer.output_column))
 
-        global_parms = {key.split(':')[1]: val for key, val in hp.iteritems() if 'global' in key}
+        global_parms = {key.split(':')[1]: val for key, val in hp.iteritems() if key.startswith('global:')}
 
         hp_time = time.time()
 
