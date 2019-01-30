@@ -165,7 +165,6 @@ class SimpleImputer:
                 train_df: pd.DataFrame,
                 test_df: pd.DataFrame = None,
                 hps: dict = None,
-                strategy: str = 'random',
                 num_evals: int = 10,
                 max_running_hours: float = 96.0,
                 hpo_run_name: str = None,
@@ -186,8 +185,7 @@ class SimpleImputer:
                 ctx: mx.context = get_context()) -> Any:
 
         """
-
-        Fits an imputer model with gridsearch hyperparameter optimization (hpo)
+        Fits an imputer model with hyperparameter optimization. The parameter ranges are searched randomly.
 
         Grids are specified using the *_candidates arguments (old)
         or with more flexibility via the dictionary hps.
@@ -199,7 +197,6 @@ class SimpleImputer:
             hps[column_name][parameter_name] is a list of parameter values for each input column.
             Further, hps[column_name]['type'] is in ['numeric', 'categorical', 'string'] and is
             inferred if not provided.
-        :param strategy: 'random' for random search or 'grid' for exhaustive search
         :param num_evals: number of evaluations for random search
         :param max_running_hours: Time before the hpo run is terminated in hours.
         :param hpo_run_name: string to identify the current hpo run.
@@ -230,7 +227,7 @@ class SimpleImputer:
             use is deprecated.
         :param ctx: List of mxnet contexts (if no gpu's available, defaults to [mx.cpu()])
             User can also pass in a list gpus to be used, ex. [mx.gpu(0), mx.gpu(2), mx.gpu(4)]
-            This parameter is deprecated.s
+            This parameter is deprecated.
 
         :return: pd.DataFrame with with hyper-parameter configurations and results
         """
@@ -290,7 +287,7 @@ class SimpleImputer:
             train_df, test_df = random_split(train_df, [1-test_split, test_split])
 
         self.check_data_types(train_df)  # infer data types, saved self.string_columns, self.numeric_columns
-        self.hpo.tune(train_df, test_df, hps, strategy, num_evals,
+        self.hpo.tune(train_df, test_df, hps, num_evals,
                       max_running_hours, user_defined_scores, hpo_run_name, self)
         self.save()
 
