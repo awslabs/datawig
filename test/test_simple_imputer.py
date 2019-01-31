@@ -816,11 +816,11 @@ def test_hpo_numeric_best_pick(test_dir, data_frame):
     df = data_frame(feature_col=feature_col,
                     label_col=label_col)
 
-    df.loc[:, 'target'] = np.random.randn(df.shape[0])
+    df.loc[:, label_col] = np.random.randn(df.shape[0])
 
     imputer = SimpleImputer(
         input_columns=[feature_col],
-        output_column='target',
+        output_column=label_col,
         output_path=test_dir
     )
 
