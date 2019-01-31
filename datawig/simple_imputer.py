@@ -569,10 +569,10 @@ class SimpleImputer:
         if hpo_name is None:
             if self.output_type == 'numeric':
                 hpo_name = self.hpo.results['mse'].astype(float).idxmin()
-                logger.info("Selecting imputer minimal mean squared error.")
+                logger.info("Selecting imputer with minimal mean squared error.")
             else:
                 hpo_name = self.hpo.results['precision_weighted'].astype(float).idxmax()
-                logger.info("Selecting imputer with maximum weighted precision.")
+                logger.info("Selecting imputer with maximal weighted precision.")
 
         # copy artifacts from hp run to self.output_path
         imputer_dir = self.output_path + str(hpo_name)
