@@ -808,3 +808,32 @@ def test_hpo_kwargs_only_support(test_dir, data_frame):
 
     assert_val('global:final_fc_hidden_units', [1])
     assert_val('global:learning_rate', 0.1)
+
+
+def test_hpo_numeric_best_pick(test_dir, data_frame):
+    feature_col, label_col = "feature", "label"
+
+    df = data_frame(feature_col=feature_col,
+                    label_col=label_col)
+
+    df.loc[:, 'target'] = np.random.randn(df.shape[0])
+
+    imputer = SimpleImputer(
+        input_columns=[feature_col],
+        output_column='target',
+        output_path=test_dir
+    )
+
+    hps = {feature_col: {'max_tokens': [1, 2, 3]}}
+
+    imputer.fit_hpo(df, hps=hps)
+
+    results = imputer.hpo.results
+
+    max_tokens_of_encoder = imputer.imputer.data_encoders[0].vectorizer.max_features
+
+    # model with minimal MSE
+    best_hpo_run = imputer.hpo.results['mse'].astype('float').idxmin()
+    loaded_hpo_run = results.loc[results[feature_col+':max_tokens'] == max_tokens_of_encoder].index[0]
+
+    assert best_hpo_run == loaded_hpo_run
