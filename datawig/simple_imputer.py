@@ -361,10 +361,12 @@ class SimpleImputer:
             label_column = [CategoricalEncoder(self.output_column, max_tokens=self.num_labels)]
             logger.info("Assuming categorical output column: {}".format(self.output_column))
 
-        self.imputer = Imputer(data_encoders=data_encoders,
-                               data_featurizers=data_columns,
-                               label_encoders=label_column,
-                               output_path=self.output_path)
+        # to make consecutive calls to .fit() continue where the previous call finished
+        if self.imputer is None:
+            self.imputer = Imputer(data_encoders=data_encoders,
+                                   data_featurizers=data_columns,
+                                   label_encoders=label_column,
+                                   output_path=self.output_path)
 
         self.output_path = self.imputer.output_path
 

@@ -837,3 +837,26 @@ def test_hpo_numeric_best_pick(test_dir, data_frame):
     loaded_hpo_run = results.loc[results[feature_col+':max_tokens'] == max_tokens_of_encoder].index[0]
 
     assert best_hpo_run == loaded_hpo_run
+
+
+def test_fit_resumes(test_dir, data_frame):
+    feature_col, label_col = "feature", "label"
+
+    df = data_frame(feature_col=feature_col,
+                    label_col=label_col)
+
+    imputer = SimpleImputer(
+        input_columns=[feature_col],
+        output_column=label_col,
+        output_path=test_dir
+    )
+
+    assert imputer.imputer is None
+
+    imputer.fit(df)
+    first_fit_imputer = imputer.imputer
+
+    imputer.fit(df)
+    second_fit_imputer = imputer.imputer
+
+    assert first_fit_imputer == second_fit_imputer
