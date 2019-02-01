@@ -1,4 +1,4 @@
-# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"). You may not
 # use this file except in compliance with the License. A copy of the License
@@ -16,22 +16,22 @@ from datawig.utils import random_split
 from sklearn.metrics import f1_score, classification_report
 import pandas as pd
 
-'''
+"""
 Load Data
-'''
-df = pd.read_csv('../finish_val_data_sample.csv')
+"""
+df = pd.read_csv('mae_train_dataset.csv')
 df_train, df_test = random_split(df, split_ratios=[0.8, 0.2])
 
-#------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
 
-'''
+"""
 Run default SimpleImputer
-'''
+"""
 # Initialize a SimpleImputer model
 imputer = SimpleImputer(
-    input_columns=['title', 'text'], #columns containing information about the column we want to impute
-    output_column='finish', #the column we'd like to impute values for
-    output_path='imputer_model' #stores model data and metrics
+    input_columns=['title', 'text'],  # columns containing information about the column we want to impute
+    output_column='finish',  # the column we'd like to impute values for
+    output_path='imputer_model'  # stores model data and metrics
 )
 
 # Fit an imputer model on the train data
@@ -46,11 +46,11 @@ f1 = f1_score(predictions['finish'], predictions['finish_imputed'], average='wei
 # Print overall classification report
 print(classification_report(predictions['finish'], predictions['finish_imputed']))
 
-#------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
 
-'''
+"""
 Run SimpleImputer with hyperparameter optimization
-'''
+"""
 # Initialize a SimpleImputer model
 imputer = SimpleImputer(
     input_columns=['title', 'text'],
@@ -71,11 +71,11 @@ imputer.fit_hpo(
     tokens_candidates=['words', 'chars']
 )
 
-#------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
 
-'''
+"""
 Load saved model and get metrics from SimpleImputer
-'''
+"""
 # Load saved model
 imputer = SimpleImputer.load('./imputer_model')
 

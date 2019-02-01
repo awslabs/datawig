@@ -1,4 +1,4 @@
-# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"). You may not
 # use this file except in compliance with the License. A copy of the License
@@ -16,10 +16,10 @@ import pandas as pd
 from datawig import SimpleImputer
 from datawig.utils import random_split
 
-'''
+"""
 Text Data
-'''
-df = pd.read_csv('../finish_val_data_sample.csv')
+"""
+df = pd.read_csv('mae_train_dataset.csv')
 df_train, df_test = random_split(df, split_ratios=[0.8, 0.2])
 
 #Fit a Model Without HPO
@@ -55,9 +55,9 @@ imputer_text.fit_hpo(
 
 #------------------------------------------------------------------------------------
 
-'''
+"""
 Numerical Data
-'''
+"""
 #Generate synthetic numerical data
 numeric_data = np.random.uniform(-np.pi, np.pi, (n_samples,))
 df = pd.DataFrame({
