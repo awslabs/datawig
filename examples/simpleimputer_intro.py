@@ -35,7 +35,7 @@ imputer = SimpleImputer(
 )
 
 # Fit an imputer model on the train data
-imputer.fit(train_df=df_train)
+imputer.fit(train_df=df_train, num_epochs=5)
 
 # Impute missing values and return original dataframe with predictions
 predictions = imputer.predict(df_test)
@@ -64,7 +64,7 @@ imputer.fit_hpo(train_df=df_train)
 # Fit an imputer model with customized HPO
 imputer.fit_hpo(
     train_df=df_train,
-    num_epochs=50,
+    num_epochs=5,
     patience=3,
     learning_rate_candidates=[1e-3, 1e-4],
     num_hash_bucket_candidates=[2 ** 15],

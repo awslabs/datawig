@@ -62,7 +62,7 @@ imputer = Imputer(
     output_path='imputer_model'
 )
 
-imputer.fit(train_df=df_train)
+imputer.fit(train_df=df_train, num_epochs=5)
 predictions = imputer.predict(df_test)
 
 # ------------------------------------------------------------------------------------
