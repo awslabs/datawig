@@ -20,7 +20,7 @@ import pandas as pd
 """
 Load Data
 """
-df = pd.read_csv('mae_train_dataset.csv')
+df = pd.read_csv('mae_train_dataset.csv').sample(n=1000)
 df_train, df_test = random_split(df, split_ratios=[0.8, 0.2])
 
 # ------------------------------------------------------------------------------------
