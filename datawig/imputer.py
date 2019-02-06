@@ -214,7 +214,8 @@ class Imputer:
             weight_decay: float = 0.,
             batch_size: int = 16,
             final_fc_hidden_units: List[int] = None,
-            calibrate: bool = True):
+            calibrate: bool = True,
+            class_weights: pd.DataFrame = None):
         """
         Trains and stores imputer model
 
@@ -244,6 +245,7 @@ class Imputer:
 
         self.batch_size = batch_size
         self.final_fc_hidden_units = final_fc_hidden_units
+        self.class_weights = class_weights
 
         self.ctx = ctx
         logger.info('Using [{}] as the context for training'.format(ctx))
@@ -585,7 +587,8 @@ class Imputer:
             data_frame=train_df,
             data_columns=self.data_encoders,
             label_columns=self.label_encoders,
-            batch_size=self.batch_size
+            batch_size=self.batch_size,
+            class_weights=self.class_weights
         )
 
         logger.info("Building Test Iterator with {} elements".format(len(test_df)))
@@ -666,6 +669,7 @@ class Imputer:
         :return: dict of {'column_name': array}, array is a numpy array of shape samples-by-labels
         """
         if not self.module.for_training:
+            # [d for d in mxnet_iter.provide_data if d.name in self.module.data_names]
             self.module.bind(data_shapes=mxnet_iter.provide_data,
                              label_shapes=mxnet_iter.provide_label)
         # FIXME: truncation to [:mxnet_iter.start_padding_idx] because of having to set last_batch_handle to discard.
@@ -1098,7 +1102,8 @@ class _MXNetModule:
         self.label_encoders = label_encoders
         self.final_fc_hidden_units = final_fc_hidden_units
 
-    def __call__(self, iter_train: ImputerIterDf) -> mx.mod.Module:
+    def __call__(self,
+                 iter_train: ImputerIterDf) -> mx.mod.Module:
         """
         Given a training iterator, build MXNet module and return it
 
@@ -1117,10 +1122,12 @@ class _MXNetModule:
         mod = mx.mod.Module(
             mx.sym.Group([loss] + output_symbols),
             context=self.ctx,
-            data_names=[name for name, dim in iter_train.provide_data],
+            # [name for name, dim in iter_train.provide_data],
+            data_names=[name for name, dim in iter_train.provide_data if name in loss.list_arguments()],
             label_names=[name for name, dim in iter_train.provide_label]
         )
-        mod.bind(data_shapes=iter_train.provide_data, label_shapes=iter_train.provide_label)
+        mod.bind(data_shapes=[d for d in iter_train.provide_data if d.name in loss.list_arguments()],  # iter_train.provide_data,
+                 label_shapes=iter_train.provide_label)
 
         return mod
 
@@ -1162,6 +1169,7 @@ class _MXNetModule:
                             data=latents,
                             num_hidden=layer)
 
+        class_weights = mx.sym.Variable('class_weights')
         pred = mx.sym.softmax(fully_connected)
         label = mx.sym.Variable(label_field_name)
 
@@ -1184,6 +1192,7 @@ class _MXNetModule:
 
         # compute the cross entropy only when labels are positive
         cross_entropy = mx.sym.pick(mx.sym.log_softmax(fully_connected), label) * -1 * positive_mask
+        cross_entropy = cross_entropy * mx.sym.pick(class_weights, label)  # TODO: this is possibly wrong.
 
         # normalize the cross entropy by the number of positive label
         num_positive_indices = mx.sym.sum(positive_mask)
@@ -1197,7 +1206,8 @@ class _MXNetModule:
         return pred, cross_entropy
 
     @staticmethod
-    def __make_numerical_loss(latents: mx.symbol, label_field_name: str) -> Tuple[Any, Any]:
+    def __make_numerical_loss(latents: mx.symbol,
+                              label_field_name: str) -> Tuple[Any, Any]:
         """
         Generate output symbol for univariate numeric loss
 

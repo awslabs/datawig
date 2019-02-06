@@ -130,6 +130,16 @@ class ImputerIter(mx.io.DataIter):
                 logger.info("Could not find column {} in DataFrame, \
                              setting {} labels to missing".format(col_enc.input_columns[0], n_samples))
 
+        # transform label weights to mxnet nd array
+        assert len(labels.keys()) == 1  # make sure we only have one output lable
+        num_training_instances = labels[list(labels.keys())[0]].shape[0]
+        if self.class_weights is None:
+            self.class_weights = np.ones([num_training_instances, 1])
+        else:
+            assert num_training_instances == len(self.class_weights)
+
+        data['class_weights'] = mx.nd.array(self.class_weights)
+
         # mxnet requires to use last_batch_handle='discard' for sparse data
         # if there are not enough data points for a batch, we cannot construct an iterator
         return mx.io.NDArrayIter(data, labels, batch_size=self.batch_size,
@@ -197,12 +207,14 @@ class ImputerIterDf(ImputerIter):
                  data_frame: pd.DataFrame,
                  data_columns: List[ColumnEncoder],
                  label_columns: List[ColumnEncoder],
-                 batch_size: int = 512) -> None:
+                 batch_size: int = 512,
+                 class_weights: pd.DataFrame = None) -> None:
         super(ImputerIterDf, self).__init__(data_columns, label_columns, batch_size)
 
         if not isinstance(data_frame, pd.core.frame.DataFrame):
             raise ValueError("Only pandas data frames are supported")
 
+        self.class_weights = class_weights
 
         # fill string nan with empty string, numerical nan with np.nan
         numerical_columns = [c for c in data_frame.columns if is_numeric_dtype(data_frame[c])]
