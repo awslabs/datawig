@@ -49,8 +49,9 @@ def test_iter_df_bow(data_frame):
 def test_iter_provide_label_or_data_df(data_frame):
     it = get_new_iterator_df(data_frame())
      # pylint: disable=unsubscriptable-object
-    assert it.provide_data[0][0] == label_col
-    assert it.provide_data[0][1] == (2, 2)
+    assert it.provide_data[0][0] == 'class_weight'
+    assert it.provide_data[1][0] == label_col
+    assert it.provide_data[1][1] == (2, 2)
     assert it.provide_label[0][0] == label_col
     assert it.provide_label[0][1] == (2, 1)
 

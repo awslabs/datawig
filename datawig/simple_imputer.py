@@ -654,7 +654,7 @@ class SimpleImputer:
         logger.warn('\n\tThe estimated true label marginals are ' + str(list(zip(labels, true_marginals_target))) +
                     '\n\tMarginals in the trainign data are ' + str(list(zip(labels, marginals_test))) +
                     '\n\tReweighting factors are empirical risk minimization' + str(label_weights_dict) +
-                    '\n\tThe smallest eigenvalue of the confusion matrix is ' + str(ev))
+                    '\n\tThe smallest eigenvalue of the confusion matrix is ' + str(ev) + ' (needs to be > 0).')
 
         return label_weights_dict, true_marginals_target, ev
 
