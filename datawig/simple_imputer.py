@@ -166,7 +166,6 @@ class SimpleImputer:
                 train_df: pd.DataFrame,
                 test_df: pd.DataFrame = None,
                 hps: dict = None,
-                strategy: str = 'random',
                 num_evals: int = 10,
                 max_running_hours: float = 96.0,
                 hpo_run_name: str = None,
@@ -187,8 +186,7 @@ class SimpleImputer:
                 ctx: mx.context = get_context()) -> Any:
 
         """
-
-        Fits an imputer model with gridsearch hyperparameter optimization (hpo)
+        Fits an imputer model with hyperparameter optimization. The parameter ranges are searched randomly.
 
         Grids are specified using the *_candidates arguments (old)
         or with more flexibility via the dictionary hps.
@@ -200,7 +198,6 @@ class SimpleImputer:
             hps[column_name][parameter_name] is a list of parameter values for each input column.
             Further, hps[column_name]['type'] is in ['numeric', 'categorical', 'string'] and is
             inferred if not provided.
-        :param strategy: 'random' for random search or 'grid' for exhaustive search
         :param num_evals: number of evaluations for random search
         :param max_running_hours: Time before the hpo run is terminated in hours.
         :param hpo_run_name: string to identify the current hpo run.
@@ -231,7 +228,7 @@ class SimpleImputer:
             use is deprecated.
         :param ctx: List of mxnet contexts (if no gpu's available, defaults to [mx.cpu()])
             User can also pass in a list gpus to be used, ex. [mx.gpu(0), mx.gpu(2), mx.gpu(4)]
-            This parameter is deprecated.s
+            This parameter is deprecated.
 
         :return: pd.DataFrame with with hyper-parameter configurations and results
         """
@@ -241,9 +238,9 @@ class SimpleImputer:
         default_hps = dict()
         default_hps['global'] = dict()
         if learning_rate_candidates:
-            default_hps['global']['learning_rate'] = [learning_rate_candidates]
+            default_hps['global']['learning_rate'] = learning_rate_candidates
         if weight_decay:
-            default_hps['global']['weight_decay'] = [weight_decay]
+            default_hps['global']['weight_decay'] = weight_decay
         if num_epochs:
             default_hps['global']['num_epochs'] = [num_epochs]
 
@@ -253,11 +250,11 @@ class SimpleImputer:
         if batch_size:
             default_hps['global']['batch_size'] = [batch_size]
         if final_fc_hidden_units:
-            default_hps['global']['final_fc_hidden_units'] = [final_fc_hidden_units]
+            default_hps['global']['final_fc_hidden_units'] = final_fc_hidden_units
 
         default_hps['string'] = {}
         if num_hash_bucket_candidates:
-            default_hps['string']['max_tokens'] = [num_hash_bucket_candidates]
+            default_hps['string']['max_tokens'] = num_hash_bucket_candidates
 
         if tokens_candidates:
             default_hps['string']['tokens'] = [[c] for c in tokens_candidates]
@@ -270,10 +267,10 @@ class SimpleImputer:
         if normalize_numeric:
             default_hps['numeric']['normalize'] = [normalize_numeric]
         if numeric_latent_dim_candidates:
-            default_hps['numeric']['numeric_latent_dim'] = [numeric_latent_dim_candidates]
+            default_hps['numeric']['numeric_latent_dim'] = numeric_latent_dim_candidates
 
         if numeric_hidden_layers_candidates:
-            default_hps['numeric']['numeric_hidden_layers'] = [numeric_hidden_layers_candidates]
+            default_hps['numeric']['numeric_hidden_layers'] = numeric_hidden_layers_candidates
 
         if hps is None:
             hps = {}
@@ -291,8 +288,7 @@ class SimpleImputer:
             train_df, test_df = random_split(train_df, [1-test_split, test_split])
 
         self.check_data_types(train_df)  # infer data types, saved self.string_columns, self.numeric_columns
-        self.hpo.tune(train_df, test_df, hps, strategy, num_evals,
-                      max_running_hours, user_defined_scores, hpo_run_name, self)
+        self.hpo.tune(train_df, test_df, hps, num_evals, max_running_hours, user_defined_scores, hpo_run_name, self)
         self.save()
 
     def fit(self,
@@ -367,10 +363,12 @@ class SimpleImputer:
             label_column = [CategoricalEncoder(self.output_column, max_tokens=self.num_labels)]
             logger.info("Assuming categorical output column: {}".format(self.output_column))
 
-        self.imputer = Imputer(data_encoders=data_encoders,
-                               data_featurizers=data_columns,
-                               label_encoders=label_column,
-                               output_path=self.output_path)
+        # to make consecutive calls to .fit() continue where the previous call finished
+        if self.imputer is None:
+            self.imputer = Imputer(data_encoders=data_encoders,
+                                   data_featurizers=data_columns,
+                                   label_encoders=label_column,
+                                   output_path=self.output_path)
 
         self.output_path = self.imputer.output_path
 
@@ -569,15 +567,16 @@ class SimpleImputer:
         """
 
         if self.hpo.results is None:
-            logger.warn('No hpo run available. Run hpo calling SimpleImputer.fit_hpo().')
+            logger.warn('No hpo run available. Run hpo by calling SimpleImputer.fit_hpo().')
             return
 
         if hpo_name is None:
             if self.output_type == 'numeric':
-                hpo_name = self.hpo.results['mse'].astype(float).idxmax()
+                hpo_name = self.hpo.results['mse'].astype(float).idxmin()
+                logger.info("Selecting imputer with minimal mean squared error.")
             else:
                 hpo_name = self.hpo.results['precision_weighted'].astype(float).idxmax()
-            logger.info("Selecting imputer with maximum weighted precision.")
+                logger.info("Selecting imputer with maximal weighted precision.")
 
         # copy artifacts from hp run to self.output_path
         imputer_dir = self.output_path + str(hpo_name)

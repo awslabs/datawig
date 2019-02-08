@@ -792,3 +792,27 @@ def test_non_writable_output_path(test_dir, data_frame):
     except Exception as e:
         print(e)
         pytest.fail("This invocation not raise any Exception")
+
+
+def test_fit_resumes(test_dir, data_frame):
+    feature_col, label_col = "feature", "label"
+
+    df = data_frame(feature_col=feature_col,
+                    label_col=label_col)
+
+    imputer = Imputer(
+        data_encoders=[TfIdfEncoder([feature_col])],
+        data_featurizers=[datawig.mxnet_input_symbols.BowFeaturizer(feature_col)],
+        label_encoders=[CategoricalEncoder(label_col)],
+        output_path=test_dir
+    )
+
+    assert imputer.module is None
+
+    imputer.fit(df, num_epochs=20)
+    first_fit_module = imputer.module
+
+    imputer.fit(df, num_epochs=20)
+    second_fit_module = imputer.module
+
+    assert first_fit_module == second_fit_module

@@ -258,7 +258,10 @@ class Imputer:
 
         self.__check_data(test_df)
 
-        self.module = self.__build_module(iter_train)
+        # to make consecutive calls to .fit() continue where the previous call finished
+        if self.module is None:
+            self.module = self.__build_module(iter_train)
+
         self.__fit_module(iter_train, iter_test, learning_rate, num_epochs, patience, weight_decay)
 
         # Check whether calibration is needed, if so ompute and set internal parameter
@@ -453,7 +456,6 @@ class Imputer:
                     feature_dict[output_col] = [(token, top_class_weight)]
 
         return feature_dict
-
 
     def __fit_module(self,
                      iter_train: ImputerIterDf,
