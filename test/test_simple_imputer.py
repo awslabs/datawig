@@ -28,8 +28,11 @@ from sklearn.metrics import f1_score, mean_squared_error
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
-from datawig.utils import logger, rand_string, random_split, generate_df_numeric, generate_df_string
+from datawig.utils import (logger, rand_string, random_split, generate_df_numeric,
+                           generate_df_string, synthetic_label_shift_simple, add_class_weight_to_df)
+
 from datawig import column_encoders
+
 
 warnings.filterwarnings("ignore")
 
@@ -41,6 +44,83 @@ def test_simple_imputer_no_string_column_name():
         SimpleImputer([0], '1')
     with pytest.raises(ValueError):
         SimpleImputer(['0'], 1)
+
+
+def test_simple_imputer_label_shift(test_dir):
+    """
+    Test capabilities for detecting and correcting label shift
+    """
+
+    tr = synthetic_label_shift_simple(N=1000, label_proportions=[.2, .8], error_proba=.05, covariates=['foo', 'bar'])
+    val = synthetic_label_shift_simple(N=500, label_proportions=[.9, .1], error_proba=.05, covariates=['foo', 'bar'])
+
+    # randomly make covariate uninformative
+    rand_idxs = np.random.choice(range(val.shape[0]), size=int(val.shape[0]/3), replace=False)
+    val.loc[rand_idxs, 'covariate'] = 'foo bar'
+
+    tr, te = random_split(tr, [.8, .2])
+
+    # train domain classifier
+    imputer = SimpleImputer(
+        input_columns=['covariate'],
+        output_column='label',
+        output_path=os.path.join(test_dir, "tmp", "label_weighting_experiments"))
+
+    # Fit an imputer model on the train data (coo_imputed_proba, coo_imputed)
+    imputer.fit(tr, te, num_epochs=15, learning_rate=3e-4, weight_decay=0)
+    pred = imputer.predict(val)
+
+    # compute estimate of ratio of marginals and add corresponding label to the training data
+    weights, val_marginals, ev = imputer.check_for_label_shift(val)
+    add_class_weight_to_df(tr, weights, 'label')
+
+    # retrain classifier with balancing
+    imputer_balanced = SimpleImputer(
+        input_columns=['covariate'],
+        output_column='label',
+        output_path=os.path.join(test_dir, "tmp", "label_weighting_experiments"))
+
+    # Fit an imputer model on the train data (coo_imputed_proba, coo_imputed)
+    imputer_balanced.fit(tr, te, num_epochs=15, learning_rate=3e-4, weight_decay=0)
+
+    pred_balanced = imputer_balanced.predict(val)
+
+    acc_balanced = (pred_balanced.label == pred_balanced['label_imputed']).mean()
+    acc_classic = (pred.label == pred['label_imputed']).mean()
+
+    # check that weighted performance is better
+    assert acc_balanced > acc_classic
+
+
+def test_label_shift_weight_computation():
+    """
+    Tests that label shift detection can determine the label marginals of validation data.
+    """
+
+    train_proportion = [.7, .3]
+    target_proportion = [.3, .7]
+
+    data = synthetic_label_shift_simple(N=2000, label_proportions=train_proportion,
+                                        error_proba=.1, covariates=['foo', 'bar'])
+
+    # original train test splits
+    tr, te = random_split(data, [.5, .5])
+
+    # train domain classifier
+    imputer = SimpleImputer(
+        input_columns=['covariate'],
+        output_column='label',
+        output_path='/tmp/imputer_model')
+
+    # Fit an imputer model on the train data (coo_imputed_proba, coo_imputed)
+    imputer.fit(tr, te, num_epochs=15, learning_rate=3e-4, weight_decay=0)
+
+    target_data = synthetic_label_shift_simple(1000, target_proportion,
+                                               error_proba=.1, covariates=['foo', 'bar'])
+
+    _, true_marginals_target, ev = imputer.check_for_label_shift(target_data)
+
+    assert np.all(true_marginals_target - target_proportion < .15)
 
 
 def test_simple_imputer_real_data_default_args(test_dir, data_frame):
@@ -90,8 +170,8 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
     assert set(imputer.imputer.data_encoders[0].input_columns) == set(input_columns)
     assert set(imputer.imputer.label_encoders[0].input_columns) == set([label_col])
 
-
     assert all([after == before for after, before in zip(df_train.columns, df_train_cols_before)])
+
 
     df_no_label_column = df_test.copy()
     true_labels = df_test[label_col]

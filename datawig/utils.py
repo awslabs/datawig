@@ -395,3 +395,42 @@ def sample_cartesian(sets: List,
     assert width == 1  # at the end of this procedure, the leaf index set should have width 1.
 
     return out
+
+
+### Functionality for label shift detection. Experimental. ###
+
+def synthetic_label_shift_simple(N, label_proportions, error_proba, covariates=None):
+
+    if covariates is None:
+        covariates = []
+        for i in range(len(label_proportions)):
+            covariates.append(''.join([random.choice(string.ascii_letters.lower()) for n in range(6)]))
+
+    out = []
+    for n in range(N):
+        label = np.random.choice(range(len(label_proportions)), p=label_proportions)
+        if np.random.rand() > error_proba:
+            covariate = covariates[label]
+        else:
+            # choose a different covariate at random.
+            covariate = covariates[np.random.choice([i for i in range(len(label_proportions)) if i != label])]
+        out.append((covariate, 'label_'+str(label)))
+
+    return pd.DataFrame(out, columns=['covariate', 'label'])
+
+
+def add_class_weight_to_df(df: pd.DataFrame,
+                           weights: dict,
+                           label_column: str) -> None:
+    """
+    Add aditional column to data frame inplace, with entries provided as dict values in weights
+    and rows selected on dict keys in weights in correspondence to label_column
+
+    :param df: input data
+    :param weights: dictionary with label names and corresponding weights
+    :param label_column:
+    """
+
+    df['class_weight'] = 0.0
+    for label, weight in weights.items():
+        df.loc[df[label_column] == label, 'class_weight'] = weight

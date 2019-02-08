@@ -27,8 +27,9 @@ import mxnet as mx
 import pandas as pd
 import glob
 import shutil
+import numpy as np
 from pandas.api.types import is_numeric_dtype
-from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
+from sklearn.metrics import confusion_matrix
 
 from ._hpo import _HPO
 from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts
@@ -305,7 +306,8 @@ class SimpleImputer:
             weight_decay: float = 0.,
             batch_size: int = 16,
             final_fc_hidden_units: List[int] = None,
-            calibrate: bool = True) -> Any:
+            calibrate: bool = True,
+            class_weights: pd.DataFrame = None) -> Any:
         """
 
         Trains and stores imputer model
@@ -586,4 +588,73 @@ class SimpleImputer:
             shutil.copy(file_name,  self.output_path)
 
         self.imputer = Imputer.load(self.output_path)
+
+    def check_for_label_shift(self,
+                              target_data: pd.DataFrame) -> tuple:
+
+        """
+        Detect label shift in the validation data
+
+        :param test_data: data frame that contains labels
+        :param target_data: unlabelled data for which predictions need to generated
+
+        :return: tuple of label weight dict, estimated label marginals in the target data and
+            the eigenvalue of the confusion matrix, which measures the quality of our predictions.
+            (If ev=0, the confusion matrix is low rank and cannot distinguish between two classes)
+        """
+
+        # old code for when test data was passed as argument.
+        # labels = np.sort(test_data[self.output_column].unique())
+
+        # confusion_test = confusion_matrix(imputed_test[self.output_column],
+        #                                   imputed_test[self.output_column+'_imputed'],
+        #                                   labels=labels)
+        # load confusion matrix (terrible reformatting is necessary
+
+        # labels need to be sorted consistently for computation of confusion matrices etc.
+        labels = sorted(self.imputer.label_encoders[0].idx_to_token.values())
+
+        # generate predictions for test and target data
+        imputed_target = self.predict(target_data)
+        # imputed_test = self.predict(test_data)
+
+        # invert normalized empirical confusion matrix for test data
+        ids = dict((label, index) for (index, label) in enumerate(labels))
+        confusion_matrix_from_file = self.load_metrics()['confusion_matrix']
+        confusion_test = np.empty([len(confusion_matrix_from_file), len(confusion_matrix_from_file)])
+
+        for row in confusion_matrix_from_file:
+            for entry in row:
+                if type(entry) is str:
+                    row_idx = ids[entry]
+                else:
+                    for col in entry:
+                        col_idx = ids[col[0]]
+                        confusion_test[row_idx, col_idx] = col[1]
+
+        confusion_test = confusion_test/confusion_test.sum()
+        confusion_inv_test = np.linalg.inv(confusion_test)
+
+        # compute estimates of label marginals for test and target data
+        # marginals_test = imputed_test[self.output_column+'_imputed'].value_counts(normalize=True, sort=False)[labels]
+        marginals_test = pd.Series(confusion_test.sum(axis=0), index=labels)
+        marginals_target = imputed_target[self.output_column+'_imputed'].value_counts(
+            normalize=True, sort=False)[labels]
+
+        # estimate the ratio of marginals and store as dictionary.
+        label_weights = confusion_inv_test.dot(marginals_target)
+        label_weights_dict = dict((label, max(weight, 0)) for label, weight in zip(labels, label_weights))
+
+        # estimate marginals of true labels
+        true_marginals_target = np.diag(marginals_test).dot(label_weights)
+
+        # eigenvalue of confusion matrix measures validity of this approach
+        ev = min(np.linalg.eig(confusion_test)[0])
+
+        logger.warn('\n\tThe estimated true label marginals are ' + str(list(zip(labels, true_marginals_target))) +
+                    '\n\tMarginals in the trainign data are ' + str(list(zip(labels, marginals_test))) +
+                    '\n\tReweighting factors are empirical risk minimization' + str(label_weights_dict) +
+                    '\n\tThe smallest eigenvalue of the confusion matrix is ' + str(ev))
+
+        return label_weights_dict, true_marginals_target, ev
 
