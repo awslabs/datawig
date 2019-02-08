@@ -214,8 +214,7 @@ class Imputer:
             weight_decay: float = 0.,
             batch_size: int = 16,
             final_fc_hidden_units: List[int] = None,
-            calibrate: bool = True,
-            class_weights: pd.DataFrame = None):
+            calibrate: bool = True):
         """
         Trains and stores imputer model
 
@@ -245,7 +244,6 @@ class Imputer:
 
         self.batch_size = batch_size
         self.final_fc_hidden_units = final_fc_hidden_units
-        self.class_weights = class_weights
 
         self.ctx = ctx
         logger.info('Using [{}] as the context for training'.format(ctx))
@@ -587,8 +585,7 @@ class Imputer:
             data_frame=train_df,
             data_columns=self.data_encoders,
             label_columns=self.label_encoders,
-            batch_size=self.batch_size,
-            class_weights=self.class_weights
+            batch_size=self.batch_size
         )
 
         logger.info("Building Test Iterator with {} elements".format(len(test_df)))
@@ -669,6 +666,7 @@ class Imputer:
         :return: dict of {'column_name': array}, array is a numpy array of shape samples-by-labels
         """
         if not self.module.for_training:
+            # mxnet_iter.provide_data,
             # [d for d in mxnet_iter.provide_data if d.name in self.module.data_names]
             self.module.bind(data_shapes=mxnet_iter.provide_data,
                              label_shapes=mxnet_iter.provide_label)
@@ -1011,12 +1009,18 @@ class Imputer:
         ctx = imputer.ctx
 
         logger.info("Loading mxnet model from {}".format(imputer.module_path))
+
+        if isinstance(imputer.label_encoders[0], NumericalEncoder):
+            data_names = [s.field_name for s in imputer.data_featurizers]
+        else:
+            data_names = [s.field_name for s in imputer.data_featurizers] + ['class_weight']
+
         # deserialize mxnet module
         imputer.module = mx.module.Module.load(
             imputer.module_path,
             imputer.__get_best_epoch(),
             context=ctx,
-            data_names=[s.field_name for s in imputer.data_featurizers],
+            data_names=data_names,
             label_names=[s.output_column for s in imputer.label_encoders]
         )
         return imputer
@@ -1169,7 +1173,7 @@ class _MXNetModule:
                             data=latents,
                             num_hidden=layer)
 
-        class_weights = mx.sym.Variable('class_weights')
+        class_weight = mx.sym.Variable('class_weight')
         pred = mx.sym.softmax(fully_connected)
         label = mx.sym.Variable(label_field_name)
 
@@ -1192,7 +1196,7 @@ class _MXNetModule:
 
         # compute the cross entropy only when labels are positive
         cross_entropy = mx.sym.pick(mx.sym.log_softmax(fully_connected), label) * -1 * positive_mask
-        cross_entropy = cross_entropy * mx.sym.pick(class_weights, label)  # TODO: this is possibly wrong.
+        cross_entropy = cross_entropy * mx.sym.pick(class_weight, label)  # TODO: this is possibly wrong.
 
         # normalize the cross entropy by the number of positive label
         num_positive_indices = mx.sym.sum(positive_mask)
@@ -1226,6 +1230,8 @@ class _MXNetModule:
 
         # squared loss
         loss = mx.sym.sum((pred - target) ** 2.0)
+
+        # make sure class weights are in mod.data_names *sigh*
 
         return pred, loss
 
