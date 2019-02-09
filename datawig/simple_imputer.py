@@ -408,6 +408,11 @@ class SimpleImputer:
 
         return imputations
 
+    def pp(self, data_frame):
+        imputations = self.imputer.predict_proba(data_frame)
+
+        return imputations
+
     def explain(self, label: str, k: int = 10, label_column: str = None) -> dict:
         """
         Return dictionary with a list of tuples for each explainable input column.
