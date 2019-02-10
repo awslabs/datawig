@@ -15,6 +15,7 @@ from abc import abstractmethod
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 import numpy as np
+import joblib
 
 
 class SimpleImputerBackend:
@@ -81,8 +82,9 @@ class ScikitImputer(SimpleImputerBackend):
     def __init__(self, input_columns, output_column):
         super().__init__(input_columns, output_column)
         self.model = None
+        self.__class_prototypes = None
 
-    def fit(self, train_df, test_df):
+    def fit(self, train_df, test_df, calibrate: bool = True):
         from sklearn.feature_extraction.text import TfidfVectorizer
         from sklearn.pipeline import Pipeline
         from sklearn.linear_model import SGDClassifier, SGDRegressor
@@ -92,21 +94,54 @@ class ScikitImputer(SimpleImputerBackend):
 
         data_types = self.data_types_for(train_df)
 
-        # todo: estimate data types, StandardScaler for numeric
         # hashing?
-        transformers = ColumnTransformer([(col, TfidfVectorizer(), col) for col in self.input_columns])
+        data_type_encoders = {
+            'string': TfidfVectorizer(),
+            'numeric': StandardScaler()
+        }
+
+        transformers = ColumnTransformer([(col, data_type_encoders[data_types[col]], col) for col in self.input_columns])
 
         estimator = SGDClassifier('log') if data_types['output_type'] == 'string' else SGDRegressor('squared_loss')
-        # estimator = CalibratedClassifierCV(estimator)
+        if calibrate:
+            estimator = CalibratedClassifierCV(estimator, cv=5)
+
         clf = Pipeline([('transformers', transformers), ('estimator', estimator)])
+
         self.model = clf
 
         self.model.fit(train_df[self.input_columns], train_df[self.output_column])
+
+        ### class prototypes
+        # train probas
+        Y = StandardScaler().fit_transform(self.model.predict_proba(train_df))
+        # features
+        Xs = [StandardScaler(with_mean=False).fit_transform(encoder.transform(train_df[col])) for col, encoder in self.model.named_steps['transformers'].named_transformers_.items()]
+        As = [X.T.dot(Y) for X in Xs]
+        self.__class_prototypes = As
 
         return self.model
 
     def predict(self, df: pd.DataFrame) -> np.array:
         return self.model.predict(df)
+
+    def save(self, output_path: str):
+        joblib.dump(self, output_path)
+
+    @staticmethod
+    def load(path: str):
+        return joblib.load(path)
+
+    def explain(self, label: str) -> dict:
+        pattern_index = (self.model.classes_ == label).argmax()
+        As = [A[:, pattern_index] for A in self.__class_prototypes]
+        A = As[0]
+        A = A[A > 0]
+
+        # todo: remember transformer and As index mapping
+        tokens = self.model.named_steps['transformers'].named_transformers_['title'].inverse_transform(As[0])
+        tokens = tokens[0][A.argsort()[::-1][:3]]
+        pass
 
     def predict_proba(self, df: pd.DataFrame):
         return self.model.predict_proba(df)
