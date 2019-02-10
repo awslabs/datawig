@@ -94,7 +94,6 @@ class ScikitImputer(SimpleImputerBackend):
 
         data_types = self.data_types_for(train_df)
 
-        # hashing?
         data_type_encoders = {
             'string': TfidfVectorizer(),
             'numeric': StandardScaler()
@@ -112,7 +111,7 @@ class ScikitImputer(SimpleImputerBackend):
 
         self.model.fit(train_df[self.input_columns], train_df[self.output_column])
 
-        ### class prototypes
+        # --- class prototypes
         # train probas
         Y = StandardScaler().fit_transform(self.model.predict_proba(train_df))
         # features
@@ -124,13 +123,6 @@ class ScikitImputer(SimpleImputerBackend):
 
     def predict(self, df: pd.DataFrame) -> np.array:
         return self.model.predict(df)
-
-    def save(self, output_path: str):
-        joblib.dump(self, output_path)
-
-    @staticmethod
-    def load(path: str):
-        return joblib.load(path)
 
     def explain(self, label: str, k: int = 10) -> dict:
         pattern_index = (self.model.classes_ == label).argmax()
@@ -144,6 +136,31 @@ class ScikitImputer(SimpleImputerBackend):
             col_explanations[col] = tokens
 
         return col_explanations
+
+    def explain_instance(self, instance: pd.Series, k: int = 10) -> dict():
+        instance = pd.DataFrame([instance])
+        label = self.model.predict(instance)
+
+        pattern_index = (self.model.classes_ == label).argmax()
+
+        As = [A[:, pattern_index] for A in self.__class_prototypes]
+
+        col_explanations = {}
+        for idx, (col, encoder) in enumerate(self.model.named_steps['transformers'].named_transformers_.items()):
+            x = encoder.transform(instance[col])
+            instance_patterns = np.multiply(x, As[idx])[0]
+            i = encoder.inverse_transform(As[idx])[0]
+            tokens = i[instance_patterns.toarray()[0].argsort()[::-1][:k]].tolist()
+            col_explanations[col] = tokens
+
+        return col_explanations
+
+    def save(self, output_path: str):
+        joblib.dump(self, output_path)
+
+    @staticmethod
+    def load(path: str):
+        return joblib.load(path)
 
     def predict_proba(self, df: pd.DataFrame):
         return self.model.predict_proba(df)
