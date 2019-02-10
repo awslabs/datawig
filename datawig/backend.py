@@ -102,7 +102,7 @@ class ScikitImputer(SimpleImputerBackend):
 
         transformers = ColumnTransformer([(col, data_type_encoders[data_types[col]], col) for col in self.input_columns])
 
-        estimator = SGDClassifier('log') if data_types['output_type'] == 'string' else SGDRegressor('squared_loss')
+        estimator = SGDClassifier('log', max_iter=100) if data_types['output_type'] == 'string' else SGDRegressor('squared_loss')
         if calibrate:
             estimator = CalibratedClassifierCV(estimator, cv=5)
 
@@ -132,16 +132,18 @@ class ScikitImputer(SimpleImputerBackend):
     def load(path: str):
         return joblib.load(path)
 
-    def explain(self, label: str) -> dict:
+    def explain(self, label: str, k: int = 10) -> dict:
         pattern_index = (self.model.classes_ == label).argmax()
-        As = [A[:, pattern_index] for A in self.__class_prototypes]
-        A = As[0]
-        A = A[A > 0]
 
-        # todo: remember transformer and As index mapping
-        tokens = self.model.named_steps['transformers'].named_transformers_['title'].inverse_transform(As[0])
-        tokens = tokens[0][A.argsort()[::-1][:3]]
-        pass
+        As = [A[:, pattern_index] for A in self.__class_prototypes]
+
+        col_explanations = {}
+        for idx, (col, encoder) in enumerate(self.model.named_steps['transformers'].named_transformers_.items()):
+            i = encoder.inverse_transform(As[idx])[0]
+            tokens = i[As[idx].argsort()[::-1][:k]].tolist()
+            col_explanations[col] = tokens
+
+        return col_explanations
 
     def predict_proba(self, df: pd.DataFrame):
         return self.model.predict_proba(df)
