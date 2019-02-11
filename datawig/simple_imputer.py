@@ -1,4 +1,4 @@
-# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"). You may not
 # use this file except in compliance with the License. A copy of the License
@@ -11,43 +11,33 @@
 # express or implied. See the License for the specific language governing
 # permissions and limitations under the License.
 
-"""
 
-DataWig SimpleImputer:
-Uses some simple default encoders and featurizers that usually yield decent imputation quality
-
-"""
-import pickle
-import os
-import json
+import glob
 import inspect
-from typing import List, Dict, Any, Callable
-import itertools
+import json
+import os
+import pickle
+import shutil
+from abc import abstractmethod
+from typing import List, Dict, Any
+
+import joblib
 import mxnet as mx
 import pandas as pd
-import glob
-import shutil
 from pandas.api.types import is_numeric_dtype
-from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.compose import ColumnTransformer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import SGDClassifier, SGDRegressor
+from sklearn.model_selection import GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, FunctionTransformer
 
 from ._hpo import _HPO
-from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts
+from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, TfIdfEncoder
 from .imputer import Imputer
-from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder, TfIdfEncoder
-from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer, EmbeddingFeaturizer
-
-from abc import abstractmethod
-import pandas as pd
-from pandas.api.types import is_numeric_dtype
-import numpy as np
-import joblib
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.pipeline import Pipeline
-from sklearn.linear_model import SGDClassifier, SGDRegressor
-from sklearn.compose import ColumnTransformer
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.preprocessing import StandardScaler, FunctionTransformer
-from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer
+from .utils import logger, get_context, random_split, rand_string, merge_dicts
 
 
 class _SimpleImputer:
