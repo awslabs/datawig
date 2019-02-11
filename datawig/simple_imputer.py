@@ -62,6 +62,26 @@ class _SimpleImputer:
         self.input_columns = input_columns
         self.output_column = output_column
 
+    @staticmethod
+    def _is_categorical(col: pd.Series,
+                        n_samples: int = 100,
+                        min_value_histogram: float = 0.1) -> bool:
+        """
+        A heuristic to check whether a column is categorical:
+        a column is considered categorical (as opposed to a plain text column) if the least frequent value
+        occurs with a frequency of at least ``min_value_histogram``.
+
+        :param col: pandas Series containing strings
+        :param n_samples: number of samples used for heuristic (default: 100)
+        :param min_value_histogram: minimum value in the normalized value histogram (default: 0.1)
+
+        :return: True if the column is categorical according to the heuristic
+
+        """
+
+        return col.sample(n=n_samples, replace=len(col) < n_samples).value_counts(
+            normalize=True).min() >= min_value_histogram
+
     def _data_types_for(self, data_frame: pd.DataFrame) -> dict:
         result = dict()
         for col in self.input_columns:
@@ -97,6 +117,10 @@ class _SimpleImputer:
 
     @abstractmethod
     def save(self, output_path: str) -> None:
+        pass
+
+    @staticmethod
+    def load(output_path: str):
         pass
 
 
@@ -301,27 +325,6 @@ class MXNetImputer(_SimpleImputer):
                                                            ", ".join(self.numeric_columns)))
         logger.info("Assuming {} string input columns: {}".format(len(self.string_columns),
                                                                   ", ".join(self.string_columns)))
-
-    @staticmethod
-    def _is_categorical(col: pd.Series,
-                        n_samples: int = 100,
-                        min_value_histogram: float = 0.1) -> bool:
-        """
-
-        A heuristic to check whether a column is categorical:
-        a column is considered categorical (as opposed to a plain text column) if the least frequent value
-        occurs with a frequency of at least ``min_value_histogram``.
-
-        :param col: pandas Series containing strings
-        :param n_samples: number of samples used for heuristic (default: 100)
-        :min_value_histogram: minimum value in the normalized value histogram (default: 0.1)
-
-        :return: True if the column is categorical according to the heuristic
-
-        """
-
-        return col.sample(n=n_samples, replace=len(col) < n_samples).value_counts(
-            normalize=True).min() >= min_value_histogram
 
     def fit_hpo(self,
                 train_df: pd.DataFrame,
@@ -570,11 +573,6 @@ class MXNetImputer(_SimpleImputer):
 
         return imputations
 
-    # def pp(self, data_frame):
-    #     imputations = self.imputer.predict_proba(data_frame)
-    #
-    #     return imputations
-
     def explain(self, label: str, k: int = 10, label_column: str = None) -> dict:
         """
         Return dictionary with a list of tuples for each explainable input column.
@@ -645,7 +643,7 @@ class MXNetImputer(_SimpleImputer):
 
         col_set = set(numeric_columns + string_columns)
 
-        categorical_columns = [col for col in string_columns if MXNetImputer._is_categorical(data_frame[col])]
+        categorical_columns = [col for col in string_columns if _SimpleImputer._is_categorical(data_frame[col])]
         logger.info("Assuming categorical columns: {}".format(", ".join(categorical_columns)))
 
         for output_col in set(numeric_columns) | set(categorical_columns):
@@ -655,8 +653,7 @@ class MXNetImputer(_SimpleImputer):
             # train on all observed values
             idx_missing = data_frame[output_col].isnull()
 
-            imputer = MXNetImputer(input_columns=input_cols,
-                                    output_column=output_col) \
+            imputer = MXNetImputer(input_columns=input_cols, output_column=output_col) \
                 .fit(data_frame.loc[~idx_missing, :],
                      patience=5 if output_col in categorical_columns else 20)
 
