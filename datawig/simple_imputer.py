@@ -51,7 +51,10 @@ from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 
 
 class _SimpleImputer:
-    def __init__(self, input_columns, output_column):
+    def __init__(self, input_columns: List[str], output_column: str):
+        if len(input_columns) == 0:
+            raise RuntimeError("Need at least one input column")
+
         for col in input_columns:
             if not isinstance(col, str):
                 raise ValueError("SimpleImputer.input_columns must be str type, was {}".format(type(col)))
@@ -125,7 +128,7 @@ class _SimpleImputer:
 
 
 class ScikitImputer(_SimpleImputer):
-    def __init__(self, input_columns, output_column):
+    def __init__(self, input_columns: List[str], output_column: str):
         super().__init__(input_columns, output_column)
         self.model = None
         self.__class_prototypes = None
@@ -133,16 +136,7 @@ class ScikitImputer(_SimpleImputer):
     # def __is_classification_model(self):
     #     pass
 
-    def __compute_class_prototypes(self, train_df: pd.DataFrame) -> None:
-        # train probas
-        Y = StandardScaler().fit_transform(self.model.predict_proba(train_df))
-        # features
-        Xs = [StandardScaler(with_mean=False).fit_transform(encoder.transform(train_df[col])) for col, encoder in
-              self.model.named_steps['transformers'].named_transformers_.items()]
-        As = [X.T.dot(Y) for X in Xs]
-        self.__class_prototypes = As
-
-    def fit(self, train_df: pd.DataFrame, test_df: pd.DataFrame = None, calibrate: bool = True):
+    def __create_model(self, train_df: pd.DataFrame, calibrate: bool):
         data_types = self._data_types_for(train_df)
 
         def _numeric_transformer(X):
@@ -157,9 +151,11 @@ class ScikitImputer(_SimpleImputer):
             )
         }
 
-        transformers = ColumnTransformer([(col, data_type_encoders[data_types[col]], col) for col in self.input_columns])
+        transformers = ColumnTransformer(
+            [(col, data_type_encoders[data_types[col]], col) for col in self.input_columns])
 
-        estimator = SGDClassifier('log', tol=1e-3) if data_types['output_type'] == 'string'else SGDRegressor('squared_loss')
+        estimator = SGDClassifier('log', tol=1e-3) if data_types['output_type'] == 'string'else SGDRegressor(
+            'squared_loss')
         if calibrate and data_types['output_type'] == 'string':
             estimator = CalibratedClassifierCV(estimator, cv=5)
 
@@ -167,9 +163,21 @@ class ScikitImputer(_SimpleImputer):
 
         self.model = clf
 
+    def __compute_class_prototypes(self, train_df: pd.DataFrame) -> None:
+        # train probas
+        Y = StandardScaler().fit_transform(self.model.predict_proba(train_df))
+        # features
+        Xs = [StandardScaler(with_mean=False).fit_transform(encoder.transform(train_df[col])) for col, encoder in
+              self.model.named_steps['transformers'].named_transformers_.items()]
+        As = [X.T.dot(Y) for X in Xs]
+        self.__class_prototypes = As
+
+    def fit(self, train_df: pd.DataFrame, test_df: pd.DataFrame = None, calibrate: bool = True):
+        self.__create_model(train_df, calibrate)
+
         self.model.fit(train_df[self.input_columns], train_df[self.output_column])
 
-        if data_types['output_type'] == 'string':
+        if self._data_types_for(train_df)['output_type'] == 'string':
             self.__compute_class_prototypes(train_df)
 
         return self
@@ -184,10 +192,26 @@ class ScikitImputer(_SimpleImputer):
         return result
 
     def fit_hpo(self, df: pd.DataFrame, grid: dict):
-        self.model = GridSearchCV(self.model, grid, cv=3, n_jobs=-1, verbose=1).fit(
+        self.__create_model(df, calibrate=True)
+
+        sklearn_grid = {}
+        for col in grid:
+            for parameter in grid[col]:
+                if col == 'estimator':
+                    # wrapped because calibrate=True
+                    sklearn_grid['estimator__base_estimator__'+parameter] = grid[col][parameter]
+                else:
+                    sklearn_grid['transformers__' + col + '__' + parameter] = grid[col][parameter]
+
+        grid_searched = GridSearchCV(self.model, sklearn_grid, cv=3, n_jobs=-1, verbose=1).fit(
             df[self.input_columns], df[self.output_column]
         )
-        print(self.model.best_params_)
+        self.model = grid_searched.best_estimator_
+        print('Best model parameters are', grid_searched.best_params_)
+
+        if self._data_types_for(df)['output_type'] == 'string':
+            self.__compute_class_prototypes(df)
+
         return self
 
     def explain(self, label: str, k: int = 10) -> dict:
@@ -203,24 +227,26 @@ class ScikitImputer(_SimpleImputer):
 
         return col_explanations
 
-    # TODO: bug?
+    # TODO: bug
     def explain_instance(self, instance: pd.Series, k: int = 10) -> dict():
-        instance = pd.DataFrame([instance])
-        label = self.model.predict(instance)
-
-        pattern_index = (self.model.classes_ == label).argmax()
-
-        As = [A[:, pattern_index] for A in self.__class_prototypes]
-
-        col_explanations = {}
-        for idx, (col, encoder) in enumerate(self.model.named_steps['transformers'].named_transformers_.items()):
-            x = encoder.transform(instance[col])
-            instance_patterns = np.multiply(x, As[idx])[0]
-            i = encoder.inverse_transform(As[idx])[0]
-            tokens = i[instance_patterns.toarray()[0].argsort()[::-1][:k]].tolist()
-            col_explanations[col] = tokens
-
-        return col_explanations
+        # instance = pd.DataFrame([instance])
+        # label = self.model.predict(instance)
+        #
+        # pattern_index = (self.model.classes_ == label).argmax()
+        #
+        # As = [A[:, pattern_index] for A in self.__class_prototypes]
+        #
+        # col_explanations = {}
+        # for idx, (col, encoder) in enumerate(self.model.named_steps['transformers'].named_transformers_.items()):
+        #     x = encoder.transform(instance[col])
+        #     instance_patterns = np.multiply(x, As[idx])[0]
+        #     i = encoder.inverse_transform(instance_patterns)[0]
+        #     # i[np.array(instance_patterns[instance_patterns != 0]).argsort()[0][::-1][:k]]
+        #     tokens = i[instance_patterns.toarray()[0].argsort()[::-1][:k]].tolist()
+        #     col_explanations[col] = tokens
+        #
+        # return col_explanations
+        raise NotImplementedError
 
     def save(self, output_path: str):
         joblib.dump(self, output_path)

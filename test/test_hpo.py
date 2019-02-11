@@ -12,7 +12,7 @@
 # permissions and limitations under the License.
 
 from datawig._hpo import _HPO
-from datawig.simple_imputer import SimpleImputer
+from datawig.simple_imputer import MXNetImputer as SimpleImputer
 
 
 def test_single_hpo(test_dir, data_frame):
