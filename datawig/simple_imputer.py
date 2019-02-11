@@ -645,7 +645,7 @@ class MXNetImputer(_SimpleImputer):
 
         col_set = set(numeric_columns + string_columns)
 
-        categorical_columns = [col for col in string_columns if SimpleImputer._is_categorical(data_frame[col])]
+        categorical_columns = [col for col in string_columns if MXNetImputer._is_categorical(data_frame[col])]
         logger.info("Assuming categorical columns: {}".format(", ".join(categorical_columns)))
 
         for output_col in set(numeric_columns) | set(categorical_columns):
@@ -655,7 +655,7 @@ class MXNetImputer(_SimpleImputer):
             # train on all observed values
             idx_missing = data_frame[output_col].isnull()
 
-            imputer = SimpleImputer(input_columns=input_cols,
+            imputer = MXNetImputer(input_columns=input_cols,
                                     output_column=output_col) \
                 .fit(data_frame.loc[~idx_missing, :],
                      patience=5 if output_col in categorical_columns else 20)
