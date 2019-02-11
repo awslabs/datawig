@@ -16,6 +16,13 @@ import pandas as pd
 from pandas.api.types import is_numeric_dtype
 import numpy as np
 import joblib
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import SGDClassifier, SGDRegressor
+from sklearn.compose import ColumnTransformer
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.preprocessing import StandardScaler, FunctionTransformer
+from sklearn.model_selection import GridSearchCV
 
 
 class SimpleImputerBackend:
@@ -85,24 +92,24 @@ class ScikitImputer(SimpleImputerBackend):
         self.__class_prototypes = None
 
     def fit(self, train_df, test_df, calibrate: bool = True):
-        from sklearn.feature_extraction.text import TfidfVectorizer
-        from sklearn.pipeline import Pipeline
-        from sklearn.linear_model import SGDClassifier, SGDRegressor
-        from sklearn.compose import ColumnTransformer
-        from sklearn.calibration import CalibratedClassifierCV
-        from sklearn.preprocessing import StandardScaler
-
         data_types = self.data_types_for(train_df)
+
+        def _numeric_transformer(X):
+            return pd.DataFrame([X]).T
 
         data_type_encoders = {
             'string': TfidfVectorizer(),
-            'numeric': StandardScaler()
+            'numeric': Pipeline(
+                # StandardScaler needs a 2d np.array
+                [('wrapper', FunctionTransformer(_numeric_transformer, validate=False, accept_sparse=True)),
+                 ('scaler', StandardScaler())]
+            )
         }
 
         transformers = ColumnTransformer([(col, data_type_encoders[data_types[col]], col) for col in self.input_columns])
 
-        estimator = SGDClassifier('log', max_iter=100) if data_types['output_type'] == 'string' else SGDRegressor('squared_loss')
-        if calibrate:
+        estimator = SGDClassifier('log', tol=1e-3) if data_types['output_type'] == 'string' else SGDRegressor('squared_loss')
+        if calibrate and data_types['output_type'] == 'string':
             estimator = CalibratedClassifierCV(estimator, cv=5)
 
         clf = Pipeline([('transformers', transformers), ('estimator', estimator)])
@@ -111,18 +118,26 @@ class ScikitImputer(SimpleImputerBackend):
 
         self.model.fit(train_df[self.input_columns], train_df[self.output_column])
 
-        # --- class prototypes
-        # train probas
-        Y = StandardScaler().fit_transform(self.model.predict_proba(train_df))
-        # features
-        Xs = [StandardScaler(with_mean=False).fit_transform(encoder.transform(train_df[col])) for col, encoder in self.model.named_steps['transformers'].named_transformers_.items()]
-        As = [X.T.dot(Y) for X in Xs]
-        self.__class_prototypes = As
+        if data_types['output_type'] == 'string':
+            # --- class prototypes
+            # train probas
+            Y = StandardScaler().fit_transform(self.model.predict_proba(train_df))
+            # features
+            Xs = [StandardScaler(with_mean=False).fit_transform(encoder.transform(train_df[col])) for col, encoder in self.model.named_steps['transformers'].named_transformers_.items()]
+            As = [X.T.dot(Y) for X in Xs]
+            self.__class_prototypes = As
 
-        return self.model
+        return self
 
     def predict(self, df: pd.DataFrame) -> np.array:
         return self.model.predict(df)
+
+    def fit_hpo(self, df: pd.DataFrame, grid: dict):
+        self.model = GridSearchCV(self.model, grid, cv=3, n_jobs=-1, verbose=1).fit(
+            df[self.input_columns], df[self.output_column]
+        )
+        print(self.model.best_params_)
+        return self
 
     def explain(self, label: str, k: int = 10) -> dict:
         pattern_index = (self.model.classes_ == label).argmax()
