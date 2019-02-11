@@ -55,6 +55,34 @@ class _SimpleImputer:
         self.input_columns = input_columns
         self.output_column = output_column
 
+    @abstractmethod
+    def fit(self, train_df: pd.DataFrame, test_df: pd.DataFrame, calibrate: bool):
+        pass
+
+    @abstractmethod
+    def explain(self, label: str, k: int) -> dict:
+        pass
+
+    @abstractmethod
+    def explain_instance(self, instance: pd.Series, k: int) -> dict:
+        pass
+
+    @abstractmethod
+    def predict(self, df: pd.DataFrame) -> pd.DataFrame:
+        pass
+
+    @abstractmethod
+    def fit_hpo(self, train_df: pd.DataFrame, param_grid: dict):
+        pass
+
+    @abstractmethod
+    def save(self, output_path: str) -> None:
+        pass
+
+    @staticmethod
+    def load(output_path: str):
+        pass
+
     @staticmethod
     def _is_categorical(col: pd.Series,
                         n_samples: int = 100,
@@ -88,33 +116,6 @@ class _SimpleImputer:
 
         return result
 
-    @abstractmethod
-    def fit(self, train_df: pd.DataFrame, test_df: pd.DataFrame, calibrate: bool):
-        pass
-
-    @abstractmethod
-    def explain(self, label: str, k: int) -> dict:
-        pass
-
-    @abstractmethod
-    def explain_instance(self, instance: pd.Series, k: int) -> dict:
-        pass
-
-    @abstractmethod
-    def predict(self, df: pd.DataFrame) -> pd.DataFrame:
-        pass
-
-    @abstractmethod
-    def fit_hpo(self, train_df: pd.DataFrame, param_grid: dict):
-        pass
-
-    @abstractmethod
-    def save(self, output_path: str) -> None:
-        pass
-
-    @staticmethod
-    def load(output_path: str):
-        pass
 
 
 class ScikitImputer(_SimpleImputer):
@@ -246,6 +247,7 @@ class ScikitImputer(_SimpleImputer):
         return joblib.load(path)
 
 
+# TODO: adapt API of exposed methods
 class MXNetImputer(_SimpleImputer):
     """
 

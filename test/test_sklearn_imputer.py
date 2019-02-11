@@ -17,12 +17,8 @@ import pandas as pd
 import pytest
 
 
-def test_init():
-    SimpleImputer([], 'out')
-
-
 def test_fit_predict():
-    df = pd.read_csv(os.path.join('..', 'examples', 'mae_train_dataset.csv'))
+    df = pd.read_csv(os.path.join('examples', 'mae_train_dataset.csv'))
     imputer = SimpleImputer(['text', 'title'], 'finish').fit(df)
     predictions = imputer.predict(df)
 
@@ -30,7 +26,7 @@ def test_fit_predict():
 
 
 def test_fit_hpo():
-    df = pd.read_csv(os.path.join('..', 'examples', 'mae_train_dataset.csv'))
+    df = pd.read_csv(os.path.join('examples', 'mae_train_dataset.csv'))
     imputer = SimpleImputer(['text', 'title'], 'finish')
 
     grid = {
@@ -47,7 +43,7 @@ def test_fit_hpo():
 
 
 def test_explain():
-    df = pd.read_csv(os.path.join('..', 'examples', 'mae_train_dataset.csv'))
+    df = pd.read_csv(os.path.join('examples', 'mae_train_dataset.csv'))
     imputer = SimpleImputer(['text', 'title'], 'finish')
 
     imputer.fit_hpo(df, {})
@@ -60,7 +56,7 @@ def test_explain():
 
 
 def test_explain_instance():
-    # df = pd.read_csv(os.path.join('..', 'examples', 'mae_train_dataset.csv'))
+    # df = pd.read_csv(os.path.join('examples', 'mae_train_dataset.csv'))
     # imputer = SimpleImputer(['text', 'title'], 'finish')
     #
     # imputer.fit_hpo(df, {})
@@ -75,7 +71,7 @@ def test_explain_instance():
 
 # def test_save_load(test_dir):
 #     output_dir = os.path.join(test_dir)
-#     df = pd.read_csv(os.path.join('..', 'examples', 'mae_train_dataset.csv'))
+#     df = pd.read_csv(os.path.join('examples', 'mae_train_dataset.csv'))
 #     imputer = SimpleImputer(['text', 'title'], 'finish').fit(df)
 #     imputer.save(output_dir)
 #     loaded_imputer = SimpleImputer.load(output_dir)
