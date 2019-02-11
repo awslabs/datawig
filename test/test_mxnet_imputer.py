@@ -27,7 +27,7 @@ from sklearn.metrics import f1_score, mean_squared_error
 
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
-from datawig.simple_imputer import SimpleImputer
+from datawig.simple_imputer import MXNetImputer as SimpleImputer
 from datawig.utils import logger, rand_string, random_split, generate_df_numeric, generate_df_string
 from datawig import column_encoders
 
@@ -860,3 +860,47 @@ def test_fit_resumes(test_dir, data_frame):
     second_fit_imputer = imputer.imputer
 
     assert first_fit_imputer == second_fit_imputer
+
+
+def test_col_trans(data_frame):
+    feature_col, label_col = "feature", "label"
+
+    df = data_frame(feature_col=feature_col,
+                    label_col=label_col)
+
+    from sklearn.compose import ColumnTransformer
+    from sklearn.feature_extraction.text import TfidfVectorizer
+
+    t = ColumnTransformer(
+        transformers=[
+            ('test', TfidfVectorizer(max_features=10), 'feature'),
+            ('test2', TfidfVectorizer(max_features=20), 'feature')
+        ]
+    )
+
+    from sklearn.pipeline import Pipeline
+    from sklearn.linear_model import SGDClassifier
+    from sklearn.model_selection import GridSearchCV
+
+    clf = Pipeline(
+        [
+            ('tfidf', t),
+            ('lr', SGDClassifier('log'))
+        ]
+    )
+
+    clf = GridSearchCV(
+        clf,
+        {
+            'tfidf__test__max_features': [1, 2],
+            'tfidf__test2__max_features': [1, 2]
+        },
+        verbose=2
+    )
+
+    clf.fit(df[['feature']], df[label_col])
+
+    yh = clf.predict(df[[feature_col]])
+    s = clf.best_estimator_.steps[1][1].coef_.shape
+    a = 1
+

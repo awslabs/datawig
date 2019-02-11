@@ -2,7 +2,6 @@
 from .column_encoders import CategoricalEncoder, BowEncoder, NumericalEncoder, SequentialEncoder
 from .mxnet_input_symbols import BowFeaturizer, LSTMFeaturizer, NumericalFeaturizer, EmbeddingFeaturizer
 
-# from .simple_imputer import SimpleImputer
 from .load_backend import SimpleImputer
 
 from .imputer import Imputer

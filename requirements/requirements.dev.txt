@@ -4,3 +4,4 @@ pylint~=2.1
 mypy~=0.620
 sphinx~=1.7
 pytest~=4.1
+joblib~=0.13.1

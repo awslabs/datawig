@@ -11,15 +11,15 @@
 # express or implied. See the License for the specific language governing
 # permissions and limitations under the License.
 
-BACKEND_ = 'mxnet'
+from datawig.simple_imputer import ScikitImputer as SimpleImputer
+import os
+import pandas as pd
 
-try:
-    from sklearn.compose import ColumnTransformer
-    BACKEND_ = 'sklearn'
-except ImportError:
-    pass
 
-if BACKEND_ == 'sklearn':
-    from .simple_imputer import ScikitImputer as SimpleImputer
-elif 'mxnet':
-    from .simple_imputer import MXNetImputer as SimpleImputer
+def test_init(test_dir):
+    # output_dir = os.path.join(test_dir)
+    df = pd.read_csv(os.path.join('..', 'examples', 'mae_train_dataset.csv'))
+    imputer = SimpleImputer(['text', 'title'], 'finish').fit(df)
+    imputer.save(test_dir)
+    imputer2 = SimpleImputer.load(test_dir)
+    assert (imputer.predict(df).values == imputer2.predict(df).values).mean() == 1.0
