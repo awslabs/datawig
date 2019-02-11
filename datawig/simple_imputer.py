@@ -52,6 +52,13 @@ from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 
 class _SimpleImputer:
     def __init__(self, input_columns, output_column):
+        for col in input_columns:
+            if not isinstance(col, str):
+                raise ValueError("SimpleImputer.input_columns must be str type, was {}".format(type(col)))
+
+        if not isinstance(output_column, str):
+            raise ValueError("SimpleImputer.output_column must be str type, was {}".format(type(output_column)))
+
         self.input_columns = input_columns
         self.output_column = output_column
 
@@ -172,6 +179,7 @@ class ScikitImputer(_SimpleImputer):
 
         return col_explanations
 
+    # TODO: bug?
     def explain_instance(self, instance: pd.Series, k: int = 10) -> dict():
         instance = pd.DataFrame([instance])
         label = self.model.predict(instance)
@@ -263,15 +271,6 @@ class MXNetImputer(_SimpleImputer):
 
         super().__init__(input_columns, output_column)
 
-        for col in input_columns:
-            if not isinstance(col, str):
-                raise ValueError("SimpleImputer.input_columns must be str type, was {}".format(type(col)))
-
-        if not isinstance(output_column, str):
-            raise ValueError("SimpleImputer.output_column must be str type, was {}".format(type(output_column)))
-
-        self.input_columns = input_columns
-        self.output_column = output_column
         self.num_hash_buckets = num_hash_buckets
         self.num_labels = num_labels
         self.tokens = tokens
@@ -704,14 +703,14 @@ class MXNetImputer(_SimpleImputer):
             open(os.path.join(output_path, "simple_imputer.pickle"), "rb"))
 
         # get constructor args
-        constructor_args = inspect.getfullargspec(SimpleImputer.__init__)[0]
+        constructor_args = inspect.getfullargspec(MXNetImputer.__init__)[0]
         constructor_args = [arg for arg in constructor_args if arg != 'self']
 
         # get those params that are needed for __init__
         constructor_params = {k: v for k, v in simple_imputer_params.items() if
                               k in constructor_args}
         # instantiate SimpleImputer
-        simple_imputer = SimpleImputer(**constructor_params)
+        simple_imputer = MXNetImputer(**constructor_params)
         # set all other fields
         for key, value in simple_imputer_params.items():
             if key not in constructor_args:
