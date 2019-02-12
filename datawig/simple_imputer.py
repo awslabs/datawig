@@ -42,6 +42,12 @@ from .utils import logger, get_context, random_split, rand_string, merge_dicts
 
 class _SimpleImputer:
     def __init__(self, input_columns: List[str], output_column: str):
+        """
+        Creates an instance of SimpleImputer that predicts output_column from input_columns.
+
+        :param input_columns: Names of feature columns
+        :param output_column: Name of column to predict
+        """
         if len(input_columns) == 0:
             raise RuntimeError("Need at least one input column")
 
@@ -57,30 +63,88 @@ class _SimpleImputer:
 
     @abstractmethod
     def fit(self, train_df: pd.DataFrame, test_df: pd.DataFrame, calibrate: bool):
-        pass
+        """
+        Trains the model on train_df and uses test_df as validation data.
+        The model can optionally be calibrated.
 
-    @abstractmethod
-    def explain(self, label: str, k: int) -> dict:
-        pass
-
-    @abstractmethod
-    def explain_instance(self, instance: pd.Series, k: int) -> dict:
+        :param train_df: Training DataFrame
+        :param test_df: Validation DataFrame
+        :param calibrate: Whether the model should be calibrated
+        :return: self
+        """
         pass
 
     @abstractmethod
     def predict(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Predicts self.output_column from the input DataFrame.
+
+        :param df: Input DataFrame
+        :return: DataFrame containing the predictions
+        """
+        pass
+
+    @abstractmethod
+    def explain(self, label: str, k: int) -> dict:
+        """
+        Explains the given label with k input feature tokens.
+
+        :param label: Specifies which class to explain
+        :param k: How many explanations should be returned
+        :return: Dictionary with an entry for each input column containing a k-element
+                 list of inputs that contribute to a prediction of the given label
+        """
+        pass
+
+    @abstractmethod
+    def explain_instance(self, instance: pd.Series, k: int) -> dict:
+        """
+        Explains the prediction on the given instance with k input feature tokens.
+
+        :param instance: The instance that should be explained
+        :param k: How many explanations should be returned
+        :return: Dictionary with an entry for each input column containing a k-element
+                 list of inputs that contribute to a prediction of the given label
+        """
         pass
 
     @abstractmethod
     def fit_hpo(self, train_df: pd.DataFrame, param_grid: dict):
+        """
+        Runs hyper parameter optimization on the given data and parameter grid.
+
+        :param train_df: DataFrame that is used for running HPO
+        :param param_grid: Parameter dictionary containing one entry per input column
+        :return: self
+
+        Example that searches the optimal model among different input encodings and regularzations:
+        grid = {
+            'text': {'max_features': [2**12, 2**15], 'analyzer': ['char', 'word']},
+            'title': {'analyzer': ['char', 'word']},
+            'estimator': {'alpha': [1e-1, 1e-2]}
+        }
+        SimpleImputer(['text', 'title'], output_column='finish').fit_hpo(df, grid)
+        """
         pass
 
     @abstractmethod
     def save(self, output_path: str) -> None:
+        """
+        Save this instance to output_path.
+
+        :param output_path: Where to save this instance to
+        :return: None
+        """
         pass
 
     @staticmethod
     def load(output_path: str):
+        """
+        Loads and returns an instance of SimpleImputer.
+
+        :param output_path: Where to load the SimpleImputer instance from
+        :return: An instance of SimpleImputer
+        """
         pass
 
     @staticmethod
@@ -95,9 +159,7 @@ class _SimpleImputer:
         :param col: pandas Series containing strings
         :param n_samples: number of samples used for heuristic (default: 100)
         :param min_value_histogram: minimum value in the normalized value histogram (default: 0.1)
-
         :return: True if the column is categorical according to the heuristic
-
         """
 
         return col.sample(n=n_samples, replace=len(col) < n_samples).value_counts(
