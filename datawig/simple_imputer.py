@@ -179,7 +179,6 @@ class _SimpleImputer:
         return result
 
 
-
 class ScikitImputer(_SimpleImputer):
     def __init__(self, input_columns: List[str], output_column: str):
         super().__init__(input_columns, output_column)
@@ -190,10 +189,14 @@ class ScikitImputer(_SimpleImputer):
     #     pass
 
     def __create_model(self, train_df: pd.DataFrame, calibrate: bool):
-        data_types = self._data_types_for(train_df)
+        logger.info('Creating model to fit')
 
         def _numeric_transformer(X):
             return pd.DataFrame([X]).T
+
+        data_types = self._data_types_for(train_df)
+
+        logger.info('Inferred data types for train_df {}'.format(data_types))
 
         data_type_encoders = {
             'string': TfidfVectorizer(),
@@ -207,7 +210,7 @@ class ScikitImputer(_SimpleImputer):
         transformers = ColumnTransformer(
             [(col, data_type_encoders[data_types[col]], col) for col in self.input_columns])
 
-        estimator = SGDClassifier('log', tol=1e-3) if data_types['output_type'] == 'string'else SGDRegressor(
+        estimator = SGDClassifier('log', tol=1e-3, verbose=1) if data_types['output_type'] == 'string'else SGDRegressor(
             'squared_loss')
         if calibrate and data_types['output_type'] == 'string':
             estimator = CalibratedClassifierCV(estimator, cv=5)
@@ -228,6 +231,7 @@ class ScikitImputer(_SimpleImputer):
     def fit(self, train_df: pd.DataFrame, test_df: pd.DataFrame = None, calibrate: bool = True):
         self.__create_model(train_df, calibrate)
 
+        logger.info('Fitting model')
         self.model.fit(train_df[self.input_columns], train_df[self.output_column])
 
         if self._data_types_for(train_df)['output_type'] == 'string':
