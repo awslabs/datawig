@@ -869,11 +869,11 @@ def test_hpo_explainable(test_dir, data_frame):
     df = data_frame(feature_col=feature_col,
                     label_col=label_col)
 
-    for explainable, type in [(False, HashingVectorizer), (True, TfidfVectorizer)]:
+    for explainable, vectorizer in [(False, HashingVectorizer), (True, TfidfVectorizer)]:
         imputer = SimpleImputer(
             input_columns=[feature_col],
             output_column=label_col,
             output_path=test_dir,
             is_explainable=explainable
         ).fit_hpo(df)
-        assert isinstance(imputer.imputer.data_encoders[0].vectorizer, type)
+        assert isinstance(imputer.imputer.data_encoders[0].vectorizer, vectorizer)
