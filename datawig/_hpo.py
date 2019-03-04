@@ -27,7 +27,7 @@ from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import mean_squared_error, f1_score, recall_score
 
 from datawig.utils import random_cartesian_product
-from .column_encoders import CategoricalEncoder, NumericalEncoder, TfIdfEncoder
+from .column_encoders import CategoricalEncoder, NumericalEncoder, TfIdfEncoder, BowEncoder
 from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, EmbeddingFeaturizer
 from .utils import logger, get_context, random_split, flatten_dict
 
@@ -198,13 +198,19 @@ class _HPO:
             if col_parms['type'] == 'string':
                 # iterate over multiple embeddings (chars + strings for the same column)
                 for token in col_parms['tokens']:
-                    # TODO: defaults to tfidf here, should take into account simple_imputer.is_explainable
-                    # call kw. args. with: **{key: item for key, item in col_parms.items() if not key == 'type'})]
-                    data_encoders += [TfIdfEncoder(input_columns=[input_column],
-                                                   output_column=input_column + '_' + token,
-                                                   tokens=token,
-                                                   ngram_range=col_parms['ngram_range:'+token],
-                                                   max_tokens=col_parms['max_tokens'])]
+                    if simple_imputer.is_explainable:
+                        # call kw. args. with: **{key: item for key, item in col_parms.items() if not key == 'type'})]
+                        data_encoders += [TfIdfEncoder(input_columns=[input_column],
+                                                       output_column=input_column + '_' + token,
+                                                       tokens=token,
+                                                       ngram_range=col_parms['ngram_range:'+token],
+                                                       max_tokens=col_parms['max_tokens'])]
+                    else:
+                        data_encoders += [BowEncoder(input_columns=[input_column],
+                                                     output_column=input_column + '_' + token,
+                                                     max_tokens=col_parms['max_tokens'],
+                                                     ngram_range=col_parms['ngram_range:'+token],
+                                                     tokens=token)]
                     data_featurizers += [BowFeaturizer(field_name=input_column + '_' + token,
                                                        max_tokens=col_parms['max_tokens'])]
 

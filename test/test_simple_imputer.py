@@ -860,3 +860,20 @@ def test_fit_resumes(test_dir, data_frame):
     second_fit_imputer = imputer.imputer
 
     assert first_fit_imputer == second_fit_imputer
+
+
+def test_hpo_explainable(test_dir, data_frame):
+    from sklearn.feature_extraction.text import HashingVectorizer, TfidfVectorizer
+    feature_col, label_col = "feature", "label"
+
+    df = data_frame(feature_col=feature_col,
+                    label_col=label_col)
+
+    for explainable, type in [(False, HashingVectorizer), (True, TfidfVectorizer)]:
+        imputer = SimpleImputer(
+            input_columns=[feature_col],
+            output_column=label_col,
+            output_path=test_dir,
+            is_explainable=explainable
+        ).fit_hpo(df)
+        assert isinstance(imputer.imputer.data_encoders[0].vectorizer, type)
