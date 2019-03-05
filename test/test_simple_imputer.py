@@ -665,7 +665,8 @@ def test_hpo_single_column_encoder_parameter(test_dir, data_frame):
     imputer = SimpleImputer(
         input_columns=[col for col in df.columns if col != label_col],
         output_column=label_col,
-        output_path=test_dir
+        output_path=test_dir,
+        is_explainable=True
     )
 
     hps = dict()
@@ -689,7 +690,8 @@ def test_hpo_multiple_columns_only_one_used(test_dir, data_frame):
     imputer = SimpleImputer(
         input_columns=[feature_col],
         output_column=label_col,
-        output_path=test_dir
+        output_path=test_dir,
+        is_explainable=True
     )
 
     hps = dict()
@@ -821,7 +823,8 @@ def test_hpo_numeric_best_pick(test_dir, data_frame):
     imputer = SimpleImputer(
         input_columns=[feature_col],
         output_column=label_col,
-        output_path=test_dir
+        output_path=test_dir,
+        is_explainable=True
     )
 
     hps = {feature_col: {'max_tokens': [1, 2, 3]}}
@@ -860,3 +863,20 @@ def test_fit_resumes(test_dir, data_frame):
     second_fit_imputer = imputer.imputer
 
     assert first_fit_imputer == second_fit_imputer
+
+
+def test_hpo_explainable(test_dir, data_frame):
+    from sklearn.feature_extraction.text import HashingVectorizer, TfidfVectorizer
+    feature_col, label_col = "feature", "label"
+
+    df = data_frame(feature_col=feature_col,
+                    label_col=label_col)
+
+    for explainable, vectorizer in [(False, HashingVectorizer), (True, TfidfVectorizer)]:
+        imputer = SimpleImputer(
+            input_columns=[feature_col],
+            output_column=label_col,
+            output_path=test_dir,
+            is_explainable=explainable
+        ).fit_hpo(df)
+        assert isinstance(imputer.imputer.data_encoders[0].vectorizer, vectorizer)

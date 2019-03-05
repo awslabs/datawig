@@ -290,6 +290,8 @@ class SimpleImputer:
         self.hpo.tune(train_df, test_df, hps, num_evals, max_running_hours, user_defined_scores, hpo_run_name, self)
         self.save()
 
+        return self
+
     def fit(self,
             train_df: pd.DataFrame,
             test_df: pd.DataFrame = None,

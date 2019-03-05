@@ -27,7 +27,7 @@ from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import mean_squared_error, f1_score, recall_score
 
 from datawig.utils import random_cartesian_product
-from .column_encoders import CategoricalEncoder, NumericalEncoder, TfIdfEncoder
+from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, TfIdfEncoder
 from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, EmbeddingFeaturizer
 from .utils import logger, get_context, random_split, flatten_dict
 
@@ -73,16 +73,16 @@ class _HPO:
         default_hps = dict()
         # Define default hyperparameter choices for each column type (string, categorical, numeric)
         default_hps['global'] = {}
-        default_hps['global']['learning_rate'] = [3e-4]
-        default_hps['global']['weight_decay'] = [1e-7]
+        default_hps['global']['learning_rate'] = [4e-3]
+        default_hps['global']['weight_decay'] = [0]
         default_hps['global']['num_epochs'] = [25]
-        default_hps['global']['patience'] = [5]
+        default_hps['global']['patience'] = [3]
         default_hps['global']['batch_size'] = [16]
         default_hps['global']['final_fc_hidden_units'] = [[]]
         default_hps['string'] = {}
         default_hps['string']['ngram_range'] = {}
         default_hps['string']['max_tokens'] = [2 ** 15]
-        default_hps['string']['tokens'] = [['words']]
+        default_hps['string']['tokens'] = [['chars']]
         default_hps['string']['ngram_range']['words'] = [(1, 3)]
         default_hps['string']['ngram_range']['chars'] = [(1, 5)]
 
@@ -198,12 +198,13 @@ class _HPO:
             if col_parms['type'] == 'string':
                 # iterate over multiple embeddings (chars + strings for the same column)
                 for token in col_parms['tokens']:
+                    encoder = TfIdfEncoder if simple_imputer.is_explainable else BowEncoder
                     # call kw. args. with: **{key: item for key, item in col_parms.items() if not key == 'type'})]
-                    data_encoders += [TfIdfEncoder(input_columns=[input_column],
-                                                   output_column=input_column + '_' + token,
-                                                   tokens=token,
-                                                   ngram_range=col_parms['ngram_range:'+token],
-                                                   max_tokens=col_parms['max_tokens'])]
+                    data_encoders += [encoder(input_columns=[input_column],
+                                              output_column=input_column + '_' + token,
+                                              tokens=token,
+                                              ngram_range=col_parms['ngram_range:'+token],
+                                              max_tokens=col_parms['max_tokens'])]
                     data_featurizers += [BowFeaturizer(field_name=input_column + '_' + token,
                                                        max_tokens=col_parms['max_tokens'])]
 
