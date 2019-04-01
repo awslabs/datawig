@@ -76,7 +76,7 @@ class _HPO:
         default_hps['global']['learning_rate'] = [4e-3]
         default_hps['global']['weight_decay'] = [0]
         default_hps['global']['num_epochs'] = [25]
-        default_hps['global']['patience'] = [3]
+        default_hps['global']['patience'] = [5]
         default_hps['global']['batch_size'] = [16]
         default_hps['global']['final_fc_hidden_units'] = [[]]
         default_hps['string'] = {}
