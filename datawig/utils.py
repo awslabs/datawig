@@ -399,7 +399,15 @@ def sample_cartesian(sets: List,
 
 ### Functionality for label shift detection. Experimental. ###
 
-def synthetic_label_shift_simple(N, label_proportions, error_proba, covariates=None):
+def synthetic_label_shift_simple(N, label_proportions, error_proba, covariates=None) -> pd.DataFrame:
+    """
+    Generate data with synthetic label shift and a single string feature column
+
+    :param N: Number of observations
+    :param label_proportions: Dirichlet vector with label proportions
+    :param error_proba: Probability of sampling from a different covariate distribution
+    :param covariates: list of covariate names, random strings by default
+    """
 
     if covariates is None:
         covariates = []
@@ -423,12 +431,12 @@ def add_class_weight_to_df(df: pd.DataFrame,
                            weights: dict,
                            label_column: str) -> None:
     """
-    Add aditional column to data frame inplace, with entries provided as dict values in weights
-    and rows selected on dict keys in weights in correspondence to label_column
+    Convenience functions. Adds aditional column to data frame inplace, with entries provided as dict values in weights
+    and rows selected on dict keys in weights in correspondence to label_column.
 
     :param df: input data
     :param weights: dictionary with label names and corresponding weights
-    :param label_column:
+    :param label_column: name of label column
     """
 
     df['class_weight'] = 0.0

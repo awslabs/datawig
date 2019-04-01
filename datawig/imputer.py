@@ -666,8 +666,6 @@ class Imputer:
         :return: dict of {'column_name': array}, array is a numpy array of shape samples-by-labels
         """
         if not self.module.for_training:
-            # mxnet_iter.provide_data,
-            # [d for d in mxnet_iter.provide_data if d.name in self.module.data_names]
             self.module.bind(data_shapes=mxnet_iter.provide_data,
                              label_shapes=mxnet_iter.provide_label)
         # FIXME: truncation to [:mxnet_iter.start_padding_idx] because of having to set last_batch_handle to discard.
@@ -1010,6 +1008,7 @@ class Imputer:
 
         logger.info("Loading mxnet model from {}".format(imputer.module_path))
 
+        # for categorical outputs, class_weight is added
         if isinstance(imputer.label_encoders[0], NumericalEncoder):
             data_names = [s.field_name for s in imputer.data_featurizers]
         else:
@@ -1187,7 +1186,7 @@ class _MXNetModule:
         indices = mx.sym.broadcast_lesser(label, num_labels_vec)
         label = label * indices
 
-        # goes from (batch, 1) to (batch,) as it is required for softmax output
+        # goes from (batch, 1) to (batch,) as is required for softmax output
         label = mx.sym.split(label, axis=1, num_outputs=1, squeeze_axis=1)
 
         # mask entries when label is 0 (missing value)
@@ -1196,7 +1195,8 @@ class _MXNetModule:
 
         # compute the cross entropy only when labels are positive
         cross_entropy = mx.sym.pick(mx.sym.log_softmax(fully_connected), label) * -1 * positive_mask
-        cross_entropy = cross_entropy * mx.sym.pick(class_weight, label)  # TODO: this is possibly wrong.
+        # multiply loss by class weighting
+        cross_entropy = cross_entropy * mx.sym.pick(class_weight, label)
 
         # normalize the cross entropy by the number of positive label
         num_positive_indices = mx.sym.sum(positive_mask)
@@ -1230,8 +1230,6 @@ class _MXNetModule:
 
         # squared loss
         loss = mx.sym.sum((pred - target) ** 2.0)
-
-        # make sure class weights are in mod.data_names *sigh*
 
         return pred, loss
 

@@ -304,8 +304,7 @@ class SimpleImputer:
             weight_decay: float = 0.,
             batch_size: int = 16,
             final_fc_hidden_units: List[int] = None,
-            calibrate: bool = True,
-            class_weights: pd.DataFrame = None) -> Any:
+            calibrate: bool = True) -> Any:
         """
 
         Trains and stores imputer model
@@ -324,6 +323,7 @@ class SimpleImputer:
         :param weight_decay: regularizer (default 0)
         :param batch_size (default 16)
         :param final_fc_hidden_units: list dimensions for FC layers after the final concatenation
+        :param calibrate: Control automatic model calibration
 
         """
         self.check_data_types(train_df)
@@ -355,8 +355,6 @@ class SimpleImputer:
             data_columns += [
                 NumericalFeaturizer(field_name=numerical_feature_column, numeric_latent_dim=self.numeric_latent_dim,
                                     numeric_hidden_layers=self.numeric_hidden_layers)]
-
-        label_column = []
 
         if is_numeric_dtype(train_df[self.output_column]):
             label_column = [NumericalEncoder(self.output_column, normalize=True)]
@@ -597,20 +595,12 @@ class SimpleImputer:
         Detect label shift in the validation data
 
         :param test_data: data frame that contains labels
-        :param target_data: unlabelled data for which predictions need to generated
+        :param target_data: unlabelled data for which predictions are to be generated
 
         :return: tuple of label weight dict, estimated label marginals in the target data and
-            the eigenvalue of the confusion matrix, which measures the quality of our predictions.
+            the eigenvalue of the confusion matrix (measures the quality of predicted marginals).
             (If ev=0, the confusion matrix is low rank and cannot distinguish between two classes)
         """
-
-        # old code for when test data was passed as argument.
-        # labels = np.sort(test_data[self.output_column].unique())
-
-        # confusion_test = confusion_matrix(imputed_test[self.output_column],
-        #                                   imputed_test[self.output_column+'_imputed'],
-        #                                   labels=labels)
-        # load confusion matrix (terrible reformatting is necessary
 
         # labels need to be sorted consistently for computation of confusion matrices etc.
         labels = sorted(self.imputer.label_encoders[0].idx_to_token.values())
