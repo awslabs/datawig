@@ -73,8 +73,8 @@ class _HPO:
         default_hps = dict()
         # Define default hyperparameter choices for each column type (string, categorical, numeric)
         default_hps['global'] = {}
-        default_hps['global']['learning_rate'] = [3e-4]
-        default_hps['global']['weight_decay'] = [1e-7]
+        default_hps['global']['learning_rate'] = [4e-3]
+        default_hps['global']['weight_decay'] = [0]
         default_hps['global']['num_epochs'] = [25]
         default_hps['global']['patience'] = [3]
         default_hps['global']['batch_size'] = [16]
@@ -82,7 +82,7 @@ class _HPO:
         default_hps['string'] = {}
         default_hps['string']['ngram_range'] = {}
         default_hps['string']['max_tokens'] = [2 ** 15]
-        default_hps['string']['tokens'] = [['words']]
+        default_hps['string']['tokens'] = [['chars']]
         default_hps['string']['ngram_range']['words'] = [(1, 3)]
         default_hps['string']['ngram_range']['chars'] = [(1, 5)]
 
