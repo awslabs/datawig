@@ -470,7 +470,7 @@ class SimpleImputer:
         """
 
         # TODO: should we expose temporary dir for model serialization to avoid crashes due to not-writable dirs?
-
+        
         if inplace is False:
             data_frame = data_frame.copy()
 
@@ -491,12 +491,15 @@ class SimpleImputer:
             idx_missing = data_frame[output_col].isnull()
 
             imputer = SimpleImputer(input_columns=input_cols,
-                                    output_column=output_col) \
-                .fit(data_frame.loc[~idx_missing, :],
-                     patience=5 if output_col in categorical_columns else 20)
+                                    output_column=output_col,
+                                    output_path=output_col) \
+                .fit_hpo(data_frame.loc[~idx_missing, :],
+                     patience=5 if output_col in categorical_columns else 20,
+                     numeric_latent_dim_candidates=[10,50,100])
 
             tmp = imputer.predict(data_frame, precision_threshold=precision_threshold)
             data_frame.loc[idx_missing, output_col] = tmp[output_col + "_imputed"]
+            shutil.rmtree(output_col)
 
         return data_frame
 
