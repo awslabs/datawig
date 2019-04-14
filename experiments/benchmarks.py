@@ -77,7 +77,9 @@ def impute_mf(X, mask, hyperparams={'rank':[5,10,50],'l2_penalty':[1e-3, 1e-5]})
 
 
 def impute_datawig(X, mask):
-    df = pd.DataFrame(X)
+    X_incomplete = X.copy()
+    X_incomplete[mask] = np.nan
+    df = pd.DataFrame(X_incomplete)
     df.columns = [str(c) for c in df.columns]
     df = SimpleImputer.complete(df)
     mse = evaluate_mse(df.values, X, mask)
@@ -98,22 +100,20 @@ def generate_missing_mask(X, percent_missing=10, missing_at_random=True):
         mask = np.random.rand(*X.shape) < percent_missing / 100.
     else:
         mask = np.zeros(X.shape)
-        # select a random number of columns affected by the missingness
-        n_cols_affected = np.random.randint(2,X.shape[1])
-        # select a random set of columns
-        cols_permuted = np.random.permutation(range(X.shape[1]))
-        cols_affected = cols_permuted[:n_cols_affected]
-        cols_unaffected = cols_permuted[n_cols_affected:]
+        n_values_to_discard = int((percent_missing / 100) * X.shape[0])
         # for each affected column
-        for col_affected in cols_affected:
+        for col_affected in range(X.shape[1]):
             # select a random other column for missingness to depend on
-            depends_on_col = np.random.choice(cols_unaffected)
+            depends_on_col = np.random.choice([c for c in range(X.shape[1]) if c != col_affected])
             # pick a random percentile
-            n_values_to_discard = X.shape[0] // n_cols_affected
-            discard_lower_start = np.random.randint(0, X.shape[0]-n_values_to_discard-1)
+            if n_values_to_discard < X.shape[0]:
+                discard_lower_start = np.random.randint(0, X.shape[0]-n_values_to_discard)
+            else:
+                discard_lower_start = 0
             discard_idx = range(discard_lower_start, discard_lower_start + n_values_to_discard)
             values_to_discard = X[:,depends_on_col].argsort()[discard_idx]
             mask[values_to_discard, col_affected] = 1
+            print(len(values_to_discard))
     return mask > 0
        
 
@@ -164,3 +164,6 @@ resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
 
 # results = experiment(percent_missing_list=[10, 30, 50])
 # json.dump(results, open(os.path.join(dir_path, 'benchmark_results.json'), 'w'))
+# df = pd.DataFrame(results)
+# df['mse_percent'] = df.mse / df.groupby(['data','missing_at_random','percent_missing'])['mse'].transform(max)
+# df.groupby(['missing_at_random','percent_missing','imputer']).agg({'mse_percent':'median'}) 
