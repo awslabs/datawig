@@ -1,6 +1,7 @@
 import os
 import shutil
 import json
+import itertools
 import numpy as np
 import pandas as pd
 from datawig import SimpleImputer
@@ -23,45 +24,64 @@ from fancyimpute import (
 np.random.seed(0)
 dir_path = '.'
 
+def dict_product(hp_dict):
+    '''
+    Returns cartesian product of hyperparameters
+    '''
+    return [dict(zip(hp_dict.keys(),vals)) for vals in \
+            itertools.product(*hp_dict.values())]
 
-def impute_mean(X):
-    return SimpleFill("mean").fit_transform(X)
+def evaluate_mse(X_imputed, X, mask):
+    return ((X_imputed[mask] - X[mask]) ** 2).mean()
+
+def fancyimpute_hpo(fancyimputer, param_candidates, X, mask, percent_validation=10):
+    # first generate all parameter candidates for grid search
+    all_param_candidates = dict_product(param_candidates)
+    # get linear indices of all training data points
+    train_idx = (mask.reshape(np.prod(X.shape)) == False).nonzero()[0]
+    # get the validation mask
+    n_validation = int(len(train_idx) * percent_validation/100)
+    validation_idx = np.random.choice(train_idx,n_validation)
+    validation_mask = np.zeros(np.prod(X.shape))
+    validation_mask[validation_idx] = 1
+    validation_mask = validation_mask.reshape(X.shape) > 0
+    # save the original data
+    X_incomplete = X.copy()
+    # set validation and test data to nan
+    X_incomplete[mask | validation_mask] = np.nan
+    mse_hpo = []
+    for params in all_param_candidates:
+        X_imputed = fancyimputer(**params).fit_transform(X_incomplete)
+        mse = evaluate_mse(X_imputed, X, validation_mask)
+        print(f"Trained {fancyimputer.__name__} with {params}, mse={mse}")
+        mse_hpo.append(mse)
+
+    best_params = all_param_candidates[np.array(mse_hpo).argmin()]
+    # now retrain with best params on all training data
+    X_incomplete = X.copy()
+    X_incomplete[mask] = np.nan
+    X_imputed = fancyimputer(**best_params).fit_transform(X_incomplete)
+    mse_best = evaluate_mse(X_imputed, X, mask)
+    print(f"HPO: {fancyimputer.__name__}, best {best_params}, mse={mse_best}")
+    return mse_best
+
+def impute_mean(X, mask):
+    return fancyimpute_hpo(SimpleFill,{'fill_method':["mean"]}, X, mask)
+
+def impute_knn(X, mask, hyperparams={'k':[2,4,6]}):
+    return fancyimpute_hpo(KNN,hyperparams, X, mask)
 
 
-def impute_knn(X):
-    # Use 3 nearest rows which have a feature to fill in each row's missing features
-    return KNN(k=3).fit_transform(X)
+def impute_mf(X, mask, hyperparams={'rank':[5,10,50],'l2_penalty':[1e-3, 1e-5]}):
+    return fancyimpute_hpo(MatrixFactorization, hyperparams, X, mask)
 
 
-def impute_mf(X):
-    return MatrixFactorization().fit_transform(X)
-
-
-def impute_datawig(X):
+def impute_datawig(X, mask):
     df = pd.DataFrame(X)
     df.columns = [str(c) for c in df.columns]
-    # from datawig.utils import logger
-    # logger.setLevel("ERROR")
-    
-    # df_imputed = {}
-    # for output_col in df.columns:
-    #     input_cols = sorted(list(set(df.columns) - set([output_col])))
-    #     idx_missing = df[output_col].isnull()
-    #     output_path = os.path.join(dir_path, output_col)
-    #     imputer = SimpleImputer(input_columns=input_cols,
-    #                             output_column=output_col,
-    #                             output_path=output_path).fit(df.loc[~idx_missing, :], num_epochs=50, patience=5)
-    #     df_imputed[output_col] = imputer.predict(df.loc[idx_missing, :])
-    #     shutil.rmtree(output_path)
-
-    # for output_col in df.columns:
-    #     idx_missing = df[output_col].isnull()
-    #     df.loc[idx_missing, output_col] = \
-    #         df_imputed[output_col].loc[idx_missing, output_col + "_imputed"]
     df = SimpleImputer.complete(df)
-#     ((X_imputed[mask] - X[mask]) ** 2).mean()
-    return df.values
-
+    mse = evaluate_mse(df.values, X, mask)
+    return mse
 
 def get_data(data_fn):
     if data_fn.__name__ is 'make_low_rank_matrix':
@@ -72,16 +92,6 @@ def get_data(data_fn):
     elif data_fn.__name__ in ['load_digits', 'load_wine', 'load_diabetes']:
         X, _ = data_fn(return_X_y=True)
     return X
-
-
-def run_imputation(X, mask, imputation_fn):
-    # X is a data matrix which we're going to randomly drop entries from
-    X_incomplete = X.copy()
-    # missing entries indicated with NaN
-    X_incomplete[mask] = np.nan
-    X_imputed = imputation_fn(X_incomplete)
-    mse = ((X_imputed[mask] - X[mask]) ** 2).mean()
-    return mse
 
 def generate_missing_mask(X, percent_missing=10, missing_at_random=True):
     if missing_at_random:
@@ -130,7 +140,7 @@ def experiment(percent_missing_list=[10]):
             for missingness_at_random in [True, False]:
                 missing_mask = generate_missing_mask(X, percent_missing, missingness_at_random)
                 for imputer_fn in imputers:
-                    mse = run_imputation(X, missing_mask, imputer_fn)
+                    mse = imputer_fn(X, missing_mask)
                     result = {
                         'data': data_fn.__name__,
                         'imputer': imputer_fn.__name__,
@@ -142,9 +152,15 @@ def experiment(percent_missing_list=[10]):
                     results.append(result)
     return results
 
+import logging
+logger = logging.getLogger("mechanize")
+# only log really bad events
+logger.setLevel(logging.ERROR)
 
+# this appears to be neccessary for not running into too many open files errors
 import resource
 soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-# resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
+resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
+
 # results = experiment(percent_missing_list=[10, 30, 50])
 # json.dump(results, open(os.path.join(dir_path, 'benchmark_results.json'), 'w'))
