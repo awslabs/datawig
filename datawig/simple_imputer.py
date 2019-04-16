@@ -493,9 +493,8 @@ class SimpleImputer:
             imputer = SimpleImputer(input_columns=input_cols,
                                     output_column=output_col,
                                     output_path=output_col) \
-                .fit_hpo(data_frame.loc[~idx_missing, :],
+                .fit(data_frame.loc[~idx_missing, :],
                      patience=5 if output_col in categorical_columns else 20,
-                     numeric_latent_dim_candidates=[10,50],
                      num_epochs=100)
 
             tmp = imputer.predict(data_frame, precision_threshold=precision_threshold)
