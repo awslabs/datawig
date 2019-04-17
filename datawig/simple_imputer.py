@@ -656,8 +656,8 @@ class SimpleImputer:
         ev = min(np.linalg.eig(confusion_test)[0])
 
         logger.warn('\n\tThe estimated label marginals are ' + str(list(zip(labels, true_marginals_target))) +
-                    '\n\tMarginals in the trainign data are ' + str(list(zip(labels, marginals_test))) +
-                    '\n\tReweighting factors for empirical risk minimization' + str(label_weights_dict) +
+                    '\n\tMarginals in the training data are ' + str(list(zip(labels, marginals_test))) +
+                    '\n\tReweighing factors for empirical risk minimization' + str(label_weights_dict) +
                     '\n\tThe smallest eigenvalue of the confusion matrix is ' + str(ev) + ' (needs to be > 0).')
 
         if np.any(marginals_test < 0):
