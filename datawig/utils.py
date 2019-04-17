@@ -367,14 +367,15 @@ def sample_cartesian(sets: List,
                      idx: int,
                      n: int = None) -> List:
     """
-    Draw a single sample from the cartesian product of all iterables in sets.
+    Draw samples from the cartesian product of all iterables in sets.
     Each row in the cartesian product has a unique index. This function returns
     the row with index idx without materialising any of the other rows.
 
     For a cartesian products of lists with length l1, l2, ... lm, taking the cartesian
     product can be thought of as traversing through all lists picking one element of each
     and repeating this until all possible combinations are exhausted. The number of combinations
-    is N=l1*l2*...*lm. By taking the first element from every list that leads to a new combination,
+    is N=l1*l2*...*lm. This can make materialization of the list impracticle.
+    By taking the first element from every list that leads to a new combination,
     we can define a unique enumeration of all combinations.
 
     :param sets: List of iteratbles
@@ -430,7 +431,8 @@ def synthetic_label_shift_simple(N, label_proportions, error_proba, covariates=N
 
 def add_class_weight_to_df(df: pd.DataFrame,
                            weights: dict,
-                           label_column: str) -> None:
+                           label_column: str,
+                           in_place: bool = True) -> None:
     """
     Convenience functions. Adds aditional column to data frame inplace, with entries provided as dict values in weights
     and rows selected on dict keys in weights in correspondence to label_column.
@@ -440,6 +442,13 @@ def add_class_weight_to_df(df: pd.DataFrame,
     :param label_column: name of label column
     """
 
-    df['class_weight'] = 0.0
+    if in_place is False:
+        df_new = df.copy()
+    else:
+        df_new = df
+
+    df_new['__empirical_risk_instance_weight__'] = 0.0
     for label, weight in weights.items():
-        df.loc[df[label_column] == label, 'class_weight'] = weight
+        df_new.loc[df_new[label_column] == label, '__empirical_risk_instance_weight__'] = weight
+
+    return df_new

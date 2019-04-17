@@ -1008,11 +1008,11 @@ class Imputer:
 
         logger.info("Loading mxnet model from {}".format(imputer.module_path))
 
-        # for categorical outputs, class_weight is added
+        # for categorical outputs, instance weight is added
         if isinstance(imputer.label_encoders[0], NumericalEncoder):
             data_names = [s.field_name for s in imputer.data_featurizers]
         else:
-            data_names = [s.field_name for s in imputer.data_featurizers] + ['class_weight']
+            data_names = [s.field_name for s in imputer.data_featurizers] + ['__empirical_risk_instance_weight__']
 
         # deserialize mxnet module
         imputer.module = mx.module.Module.load(
@@ -1172,7 +1172,7 @@ class _MXNetModule:
                             data=latents,
                             num_hidden=layer)
 
-        class_weight = mx.sym.Variable('class_weight')
+        instance_weight = mx.sym.Variable('__empirical_risk_instance_weight__')
         pred = mx.sym.softmax(fully_connected)
         label = mx.sym.Variable(label_field_name)
 
@@ -1196,7 +1196,7 @@ class _MXNetModule:
         # compute the cross entropy only when labels are positive
         cross_entropy = mx.sym.pick(mx.sym.log_softmax(fully_connected), label) * -1 * positive_mask
         # multiply loss by class weighting
-        cross_entropy = cross_entropy * mx.sym.pick(class_weight, label)
+        cross_entropy = cross_entropy * mx.sym.pick(instance_weight, label)
 
         # normalize the cross entropy by the number of positive label
         num_positive_indices = mx.sym.sum(positive_mask)

@@ -597,7 +597,7 @@ def test_mxnet_module_wrapper(data_frame):
     mod = _MXNetModule(mx.current_context(), label_encoders, data_featurizers, final_fc_hidden_units=[])(iter_train)
 
     assert mod._label_names == [label_col]
-    assert sorted(mod.data_names) == sorted([feature_col] + ['class_weight'])
+    assert sorted(mod.data_names) == sorted([feature_col] + ['__empirical_risk_instance_weight__'])
     # weights and biases
     assert len(mod._arg_params) == 2
 

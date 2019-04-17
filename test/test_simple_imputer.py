@@ -71,8 +71,7 @@ def test_simple_imputer_label_shift(test_dir):
     pred = imputer.predict(val)
 
     # compute estimate of ratio of marginals and add corresponding label to the training data
-    weights, val_marginals, ev = imputer.check_for_label_shift(val)
-    add_class_weight_to_df(tr, weights, 'label')
+    weights = imputer.check_for_label_shift(val)
 
     # retrain classifier with balancing
     imputer_balanced = SimpleImputer(
@@ -81,7 +80,7 @@ def test_simple_imputer_label_shift(test_dir):
         output_path=os.path.join(test_dir, "tmp", "label_weighting_experiments"))
 
     # Fit an imputer model on the train data (coo_imputed_proba, coo_imputed)
-    imputer_balanced.fit(tr, te, num_epochs=15, learning_rate=3e-4, weight_decay=0)
+    imputer_balanced.fit(tr, te, num_epochs=15, learning_rate=3e-4, weight_decay=0, class_weights=weights)
 
     pred_balanced = imputer_balanced.predict(val)
 
@@ -118,9 +117,12 @@ def test_label_shift_weight_computation():
     target_data = synthetic_label_shift_simple(1000, target_proportion,
                                                error_proba=.1, covariates=['foo', 'bar'])
 
-    _, true_marginals_target, ev = imputer.check_for_label_shift(target_data)
+    weights = imputer.check_for_label_shift(target_data)
 
-    assert np.all(true_marginals_target - target_proportion < .15)
+    # compare the product of weights and training marginals
+    # (i.e. estimated target marginals) with the true target marginals.
+    assert np.all([x[0]*x[1] - x[2] < .1
+                   for x in list(zip(list(weights.values()), train_proportion, target_proportion))])
 
 
 def test_simple_imputer_real_data_default_args(test_dir, data_frame):

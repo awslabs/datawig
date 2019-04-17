@@ -136,11 +136,12 @@ class ImputerIter(mx.io.DataIter):
         # numerical label encoder can't handle class weights
         if not isinstance(self.label_columns[0], NumericalEncoder):
 
-            # add class_weight variable, set to all ones if no such column is in the data.
-            if 'class_weight' in data_frame.columns:
-                data['class_weight'] = mx.nd.array(np.expand_dims(data_frame.class_weight, 1))
+            # add instance weights, set to all ones if no such column is in the data.
+            if '__empirical_risk_instance_weight__' in data_frame.columns:
+                data['__empirical_risk_instance_weight__'] = mx.nd.array(np.expand_dims(
+                    data_frame.__empirical_risk_instance_weight__, 1))
             else:
-                data['class_weight'] = mx.nd.array(np.ones([n_samples, 1]))
+                data['__empirical_risk_instance_weight__'] = mx.nd.array(np.ones([n_samples, 1]))
 
         # mxnet requires to use last_batch_handle='discard' for sparse data
         # if there are not enough data points for a batch, we cannot construct an iterator

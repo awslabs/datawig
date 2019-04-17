@@ -32,7 +32,7 @@ from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import confusion_matrix
 
 from ._hpo import _HPO
-from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts
+from .utils import logger, get_context, random_split, rand_string, merge_dicts, add_class_weight_to_df
 from .imputer import Imputer
 from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder, TfIdfEncoder
 from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer, EmbeddingFeaturizer
@@ -304,7 +304,9 @@ class SimpleImputer:
             weight_decay: float = 0.,
             batch_size: int = 16,
             final_fc_hidden_units: List[int] = None,
-            calibrate: bool = True) -> Any:
+            calibrate: bool = True,
+            class_weights: dict = None,
+            instance_weights: list = None) -> Any:
         """
 
         Trains and stores imputer model
@@ -324,8 +326,21 @@ class SimpleImputer:
         :param batch_size (default 16)
         :param final_fc_hidden_units: list dimensions for FC layers after the final concatenation
         :param calibrate: Control automatic model calibration
-
+        :param class_weights: Dictionary with labels as keys and weights as values.
+                              Weighs each instance's contribution to the likelihood based on the corresponding class.
+        :param instance_weights: List of weights for each instance in train_df.
         """
+
+        # add weights to training data if provided
+        if class_weights is not None:
+            assert instance_weights is None
+            train_df = add_class_weight_to_df(train_df, class_weights, self.output_column, in_place=False)
+
+        elif instance_weights is not None:
+            assert class_weights is None
+            train_df = train_df.copy()
+            train_df['__empirical_risk_instance_weight__'] = instance_weights
+
         self.check_data_types(train_df)
 
         data_encoders = []
@@ -597,9 +612,7 @@ class SimpleImputer:
         :param test_data: data frame that contains labels
         :param target_data: unlabelled data for which predictions are to be generated
 
-        :return: tuple of label weight dict, estimated label marginals in the target data and
-            the eigenvalue of the confusion matrix (measures the quality of predicted marginals).
-            (If ev=0, the confusion matrix is low rank and cannot distinguish between two classes)
+        :return: tuple of label weight dict
         """
 
         # labels need to be sorted consistently for computation of confusion matrices etc.
@@ -642,10 +655,13 @@ class SimpleImputer:
         # eigenvalue of confusion matrix measures validity of this approach
         ev = min(np.linalg.eig(confusion_test)[0])
 
-        logger.warn('\n\tThe estimated true label marginals are ' + str(list(zip(labels, true_marginals_target))) +
+        logger.warn('\n\tThe estimated label marginals are ' + str(list(zip(labels, true_marginals_target))) +
                     '\n\tMarginals in the trainign data are ' + str(list(zip(labels, marginals_test))) +
-                    '\n\tReweighting factors are empirical risk minimization' + str(label_weights_dict) +
+                    '\n\tReweighting factors for empirical risk minimization' + str(label_weights_dict) +
                     '\n\tThe smallest eigenvalue of the confusion matrix is ' + str(ev) + ' (needs to be > 0).')
 
-        return label_weights_dict, true_marginals_target, ev
+        if np.any(marginals_test < 0):
+            logger.warn('\n\tEstimated label marginals are invalid. Proceed with caution.')
+
+        return label_weights_dict
 
