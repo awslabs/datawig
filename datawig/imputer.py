@@ -246,7 +246,7 @@ class Imputer:
         self.final_fc_hidden_units = final_fc_hidden_units
 
         self.ctx = ctx
-        logger.info('Using [{}] as the context for training'.format(ctx))
+        logger.debug('Using [{}] as the context for training'.format(ctx))
 
         if (train_df is None) or (not isinstance(train_df, pd.core.frame.DataFrame)):
             raise ValueError("Need a non-empty DataFrame for fitting Imputer model")
@@ -512,7 +512,7 @@ class Imputer:
             except StopIteration:
                 # catch the StopIteration exception thrown when early stopping condition is reached
                 # this is ugly but the only way to use module api and have early stopping
-                logger.info("Stopping training, patience reached")
+                logger.debug("Stopping training, patience reached")
                 pass
 
         self.training_time = time.time() - start
@@ -556,7 +556,7 @@ class Imputer:
         for encoder in self.label_encoders:
             if not encoder.is_fitted():
                 encoder_type = type(encoder)
-                logger.info("Fitting label encoder {} on {} rows \
+                logger.debug("Fitting label encoder {} on {} rows \
                             of training data".format(encoder_type, len(train_df)))
                 encoder.fit(train_df)
 
