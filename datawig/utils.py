@@ -40,8 +40,15 @@ log_formatter = logging.Formatter("%(asctime)s [%(levelname)s]  %(message)s")
 logger = logging.getLogger()
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(log_formatter)
+consoleHandler.setLevel("INFO")
 logger.addHandler(consoleHandler)
-logger.setLevel("INFO")
+logger.setLevel("DEBUG")
+
+
+def set_stream_log_level(level: str):
+    for handler in logger.handlers:
+        if type(handler) is logging.StreamHandler:
+            handler.setLevel(level)
 
 
 def flatten_dict(d: Dict,
