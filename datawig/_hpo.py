@@ -230,10 +230,10 @@ class _HPO:
         # Define output column. Associated parameters are not tuned.
         if is_numeric_dtype(train_df[simple_imputer.output_column]):
             label_column = [NumericalEncoder(simple_imputer.output_column)]
-            logger.info("Assuming numeric output column: {}".format(simple_imputer.output_column))
+            logger.debug("Assuming numeric output column: {}".format(simple_imputer.output_column))
         else:
             label_column = [CategoricalEncoder(simple_imputer.output_column)]
-            logger.info("Assuming categorical output column: {}".format(simple_imputer.output_column))
+            logger.debug("Assuming categorical output column: {}".format(simple_imputer.output_column))
 
         global_parms = {key.split(':')[1]: val for key, val in hp.iteritems() if key.startswith('global:')}
 
@@ -346,7 +346,7 @@ class _HPO:
         # process_hp_configurations(hps) and return random configurations
         hps_flat = self.__preprocess_hps(train_df, simple_imputer, num_evals)
 
-        logger.info("Training starts for " + str(hps_flat.shape[0]) + "hyperparameter configurations.")
+        logger.debug("Training starts for " + str(hps_flat.shape[0]) + "hyperparameter configurations.")
 
         # iterate over hp configurations and fit models. This loop could be parallelized
         start_time = time.time()
@@ -354,10 +354,10 @@ class _HPO:
 
         for hp_idx, (_, hp) in enumerate(hps_flat.iterrows()):
             if elapsed_time > max_running_hours:
-                logger.info('Finishing hpo because max running time was reached.')
+                logger.debug('Finishing hpo because max running time was reached.')
                 break
 
-            logger.info("Fitting hpo iteration " + str(hp_idx) + " with parameters\n\t" +
+            logger.debug("Fitting hpo iteration " + str(hp_idx) + " with parameters\n\t" +
                         '\n\t'.join([str(i) + ': ' + str(j) for i, j in hp.items()]))
             name = hpo_run_name + str(hp_idx)
 
@@ -377,9 +377,9 @@ class _HPO:
                 os.makedirs(simple_imputer.output_path)
             self.results.to_csv(os.path.join(simple_imputer.output_path, "hpo_results.csv"))
 
-            logger.info('Finished hpo iteration ' + str(hp_idx))
+            logger.debug('Finished hpo iteration ' + str(hp_idx))
             elapsed_time = (time.time() - start_time)/3600
 
-        logger.info('Assigning model with highest weighted precision to SimpleImputer object and copying artifacts.')
+        logger.debug('Assigning model with highest weighted precision to SimpleImputer object and copying artifacts.')
         simple_imputer.hpo = self
         simple_imputer.load_hpo_model()  # assign best model to simple_imputer.imputer and write artifacts.

@@ -17,24 +17,23 @@ DataWig SimpleImputer:
 Uses some simple default encoders and featurizers that usually yield decent imputation quality
 
 """
-import pickle
-import os
-import json
+import glob
 import inspect
-from typing import List, Dict, Any, Callable
-import itertools
+import json
+import os
+import pickle
+import shutil
+from typing import List, Dict, Any
+
 import mxnet as mx
 import pandas as pd
-import glob
-import shutil
 from pandas.api.types import is_numeric_dtype
-from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
 
 from ._hpo import _HPO
-from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts
+from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, TfIdfEncoder
 from .imputer import Imputer
-from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder, TfIdfEncoder
-from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer, EmbeddingFeaturizer
+from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer
+from .utils import logger, get_context, random_split, rand_string, merge_dicts
 
 
 class SimpleImputer:
@@ -134,10 +133,10 @@ class SimpleImputer:
         self.string_columns = list(set(self.input_columns) - set(self.numeric_columns))
         self.output_type = 'numeric' if is_numeric_dtype(data_frame[self.output_column]) else 'string'
 
-        logger.info(
+        logger.debug(
             "Assuming {} numeric input columns: {}".format(len(self.numeric_columns),
                                                            ", ".join(self.numeric_columns)))
-        logger.info("Assuming {} string input columns: {}".format(len(self.string_columns),
+        logger.debug("Assuming {} string input columns: {}".format(len(self.string_columns),
                                                                   ", ".join(self.string_columns)))
 
     @staticmethod
@@ -358,10 +357,10 @@ class SimpleImputer:
 
         if is_numeric_dtype(train_df[self.output_column]):
             label_column = [NumericalEncoder(self.output_column, normalize=True)]
-            logger.info("Assuming numeric output column: {}".format(self.output_column))
+            logger.debug("Assuming numeric output column: {}".format(self.output_column))
         else:
             label_column = [CategoricalEncoder(self.output_column, max_tokens=self.num_labels)]
-            logger.info("Assuming categorical output column: {}".format(self.output_column))
+            logger.debug("Assuming categorical output column: {}".format(self.output_column))
 
         # to make consecutive calls to .fit() continue where the previous call finished
         if self.imputer is None:
@@ -476,12 +475,12 @@ class SimpleImputer:
 
         numeric_columns = [c for c in data_frame.columns if is_numeric_dtype(data_frame[c])]
         string_columns = list(set(data_frame.columns) - set(numeric_columns))
-        logger.info("Assuming numerical columns: {}".format(", ".join(numeric_columns)))
+        logger.debug("Assuming numerical columns: {}".format(", ".join(numeric_columns)))
 
         col_set = set(numeric_columns + string_columns)
 
         categorical_columns = [col for col in string_columns if SimpleImputer._is_categorical(data_frame[col])]
-        logger.info("Assuming categorical columns: {}".format(", ".join(categorical_columns)))
+        logger.debug("Assuming categorical columns: {}".format(", ".join(categorical_columns)))
 
         for output_col in set(numeric_columns) | set(categorical_columns):
             # train on all input columns but the to-be-imputed one
@@ -532,7 +531,7 @@ class SimpleImputer:
 
         """
 
-        logger.info("Output path for loading Imputer {}".format(output_path))
+        logger.debug("Output path for loading Imputer {}".format(output_path))
         # load pickled model
         simple_imputer_params = pickle.load(
             open(os.path.join(output_path, "simple_imputer.pickle"), "rb"))
@@ -573,10 +572,10 @@ class SimpleImputer:
         if hpo_name is None:
             if self.output_type == 'numeric':
                 hpo_name = self.hpo.results['mse'].astype(float).idxmin()
-                logger.info("Selecting imputer with minimal mean squared error.")
+                logger.debug("Selecting imputer with minimal mean squared error.")
             else:
                 hpo_name = self.hpo.results['precision_weighted'].astype(float).idxmax()
-                logger.info("Selecting imputer with maximal weighted precision.")
+                logger.debug("Selecting imputer with maximal weighted precision.")
 
         # copy artifacts from hp run to self.output_path
         imputer_dir = self.output_path + str(hpo_name)
