@@ -42,7 +42,7 @@ consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(log_formatter)
 consoleHandler.setLevel("INFO")
 logger.addHandler(consoleHandler)
-logger.setLevel("DEBUG")
+logger.setLevel("INFO")
 
 
 def set_stream_log_level(level: str):
