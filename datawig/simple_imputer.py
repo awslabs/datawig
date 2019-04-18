@@ -627,6 +627,7 @@ class SimpleImputer:
         confusion_matrix_from_file = self.load_metrics()['confusion_matrix']
         confusion_test = np.empty([len(confusion_matrix_from_file), len(confusion_matrix_from_file)])
 
+        # make matrix from nested dictionary that stores the confusion matrix
         for row in confusion_matrix_from_file:
             for entry in row:
                 if type(entry) is str:
@@ -636,29 +637,24 @@ class SimpleImputer:
                         col_idx = ids[col[0]]
                         confusion_test[row_idx, col_idx] = col[1]
 
+        # normalize
         confusion_test = confusion_test/confusion_test.sum()
-        confusion_inv_test = np.linalg.inv(confusion_test)
 
         # compute estimates of label marginals for test and target data
-        # marginals_test = imputed_test[self.output_column+'_imputed'].value_counts(normalize=True, sort=False)[labels]
         marginals_test = pd.Series(confusion_test.sum(axis=0), index=labels)
         marginals_target = imputed_target[self.output_column+'_imputed'].value_counts(
             normalize=True, sort=False)[labels]
 
         # estimate the ratio of marginals and store as dictionary.
-        label_weights = confusion_inv_test.dot(marginals_target)
+        label_weights = np.linalg.solve(confusion_test, marginals_target)
         label_weights_dict = dict((label, max(weight, 0)) for label, weight in zip(labels, label_weights))
 
         # estimate marginals of true labels
         true_marginals_target = np.diag(marginals_test).dot(label_weights)
 
-        # eigenvalue of confusion matrix measures validity of this approach
-        ev = min(np.linalg.eig(confusion_test)[0])
-
         logger.warn('\n\tThe estimated label marginals are ' + str(list(zip(labels, true_marginals_target))) +
                     '\n\tMarginals in the training data are ' + str(list(zip(labels, marginals_test))) +
-                    '\n\tReweighing factors for empirical risk minimization' + str(label_weights_dict) +
-                    '\n\tThe smallest eigenvalue of the confusion matrix is ' + str(ev) + ' (needs to be > 0).')
+                    '\n\tReweighing factors for empirical risk minimization' + str(label_weights_dict))
 
         if np.any(marginals_test < 0):
             logger.warn('\n\tEstimated label marginals are invalid. Proceed with caution.')
