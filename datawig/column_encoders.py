@@ -246,7 +246,7 @@ class CategoricalEncoder(ColumnEncoder):
 
         for label in value_histogram.index[:self.max_tokens]:
             if value_histogram[label] < 100:
-                logger.warning("CategoricalEncoder for column {} \
+                logger.info("CategoricalEncoder for column {} \
                                found only {} occurrences of value {}".format(self.input_columns[0], value_histogram[label], label))
 
         return self
