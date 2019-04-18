@@ -26,14 +26,10 @@ To speed up run-time, all examples will use a smaller version of this finish dat
 
 .. code-block:: bash
 
-    wget https://www.dropbox.com/s/nw6jf4inin83tb9/finish_val_data_sample.csv
+    wget https://github.com/awslabs/datawig/raw/master/examples/mae_train_dataset.csv
 
 
-To get the complete finish dataset with all data, run the following (we highly recommend running with a gpu to speed up computation):
-
-.. code-block:: bash
-
-    wget https://www.dropbox.com/s/1scdnb60kvilkuf/finish_val_data_all.csv
+To get the complete finish dataset with all data, please check instructions `here`_.
 
 
 If you'd like to use this data in your own experiments, please remember to cite the original MAE paper:
@@ -344,3 +340,4 @@ In this case, the model will use a fully connected layer size of 50 or 100, with
 .. _`SimpleImputer intro`: https://github.com/awslabs/datawig/blob/master/examples/simpleimputer_intro.py
 .. _SimpleImputer: https://github.com/awslabs/datawig/blob/97e259d6fde9e38f66c59e82a068172c54060c04/datawig/simple_imputer.py#L144-L162
 .. _`parameter tutorial`: https://github.com/awslabs/datawig/blob/master/examples/params_tutorial.py
+.. _`here`: https://github.com/awslabs/datawig/tree/master/examples
