@@ -81,7 +81,7 @@ class ColumnEncoder():
             output_column = "-".join(input_columns)
             logstr = "No output column name provided for ColumnEncoder " \
                      "using {}".format(output_column)
-            logger.info(logstr)
+            logger.debug(logstr)
 
         self.input_columns = input_columns
         self.output_column = output_column
@@ -214,7 +214,7 @@ class CategoricalEncoder(ColumnEncoder):
         func = partial(self.transform_func_categorical, token_to_idx=self.token_to_idx,
                        missing_token_idx=0)
 
-        logger.info("CategoricalEncoder encoding {} rows with \
+        logger.debug("CategoricalEncoder encoding {} rows with \
                     {} tokens from column {} to \
                     column {}".format(len(data_frame), len(self.token_to_idx), self.input_columns[0], self.output_column))
 
@@ -241,12 +241,12 @@ class CategoricalEncoder(ColumnEncoder):
         self.token_to_idx = {token: idx + 1 for idx, token in
                              enumerate(value_histogram.index[:self.max_tokens])}
         self.idx_to_token = {idx: token for token, idx in self.token_to_idx.items()}
-        logger.info("{} most often encountered discrete values: \
+        logger.debug("{} most often encountered discrete values: \
                      {}".format(self.max_tokens,value_histogram.index.values[:self.max_tokens]))
 
         for label in value_histogram.index[:self.max_tokens]:
             if value_histogram[label] < 100:
-                logger.warning("CategoricalEncoder for column {} \
+                logger.info("CategoricalEncoder for column {} \
                                found only {} occurrences of value {}".format(self.input_columns[0], value_histogram[label], label))
 
         return self
@@ -352,7 +352,7 @@ class SequentialEncoder(ColumnEncoder):
         if not isinstance(data_frame, pd.core.frame.DataFrame):
             raise ValueError("Only pandas data frames are supported")
 
-        logger.info("Fitting SequentialEncoder on %s rows", str(len(data_frame)))
+        logger.debug("Fitting SequentialEncoder on %s rows", str(len(data_frame)))
 
         # get the relevant column and concatenate all strings
         flattened = pd.Series(
@@ -363,7 +363,7 @@ class SequentialEncoder(ColumnEncoder):
 
         logstr = "Characters encoded for {}: {}".format(self.input_columns[0],
                                                         "".join(sorted(char_hist.index.values)))
-        logger.info(logstr)
+        logger.debug(logstr)
 
         self.max_tokens = int(min(len(char_hist), self.max_tokens))
         self.token_to_idx = {token: idx + 1 for token, idx in
@@ -392,7 +392,7 @@ class SequentialEncoder(ColumnEncoder):
                  "from column {} to column {}".format(len(data_frame), len(self.token_to_idx),
                                                       self.output_dim, self.input_columns[0],
                                                       self.output_column)
-        logger.info(logstr)
+        logger.debug(logstr)
 
         func = partial(self.transform_func_seq_single, token_to_idx=self.token_to_idx,
                        seq_len=self.output_dim,
@@ -455,7 +455,7 @@ class TfIdfEncoder(ColumnEncoder):
             self.vectorizer = TfidfVectorizer(max_features=self.output_dim, ngram_range=ngram_range,
                                               analyzer="char")
         else:
-            logger.info(
+            logger.debug(
                 "BowEncoder attribute tokens has to be 'words' or 'chars', defaulting to 'chars'")
             self.vectorizer = TfidfVectorizer(max_features=self.output_dim,
                                               ngram_range=ngram_range, analyzer="char")
@@ -482,7 +482,7 @@ class TfIdfEncoder(ColumnEncoder):
             logstr = "Applying TfIdf BoW Encoding to columns {} {} prefix into column {}".format(
                 self.input_columns, "with" if self.prefixed_concatenation else "without",
                 self.output_column)
-            logger.info(logstr)
+            logger.debug(logstr)
 
         return tmp_col
 
@@ -560,7 +560,7 @@ class BowEncoder(ColumnEncoder):
             self.vectorizer = HashingVectorizer(n_features=self.output_dim, ngram_range=ngram_range,
                                                 analyzer="char")
         else:
-            logger.info(
+            logger.debug(
                 "BowEncoder attribute tokens has to be 'words' or 'chars', defaulting to 'chars'")
             self.vectorizer = HashingVectorizer(n_features=self.output_dim, ngram_range=ngram_range,
                                                 analyzer="char")
@@ -576,7 +576,7 @@ class BowEncoder(ColumnEncoder):
         :return:
 
         """
-        logger.info("BowEncoder is stateless and doesn't need to be fit")
+        logger.debug("BowEncoder is stateless and doesn't need to be fit")
         return self
 
     def is_fitted(self) -> bool:
@@ -615,7 +615,7 @@ class BowEncoder(ColumnEncoder):
             logstr = "Applying Hashing BoW Encoding to columns {} {} prefix into column {}".format(
                 self.input_columns, "with" if self.prefixed_concatenation else "without",
                 self.output_column)
-            logger.info(logstr)
+            logger.debug(logstr)
 
         return self.vectorizer.transform(tmp_col).astype(np.float32)
 
@@ -708,12 +708,12 @@ class NumericalEncoder(ColumnEncoder):
         mean = pd.Series(dict(zip(self.input_columns,self.scaler.mean_)))
         data_frame[self.input_columns] = data_frame[self.input_columns].fillna(mean)
 
-        logger.info("Concatenating numeric columns %s into %s",
+        logger.debug("Concatenating numeric columns %s into %s",
                     self.input_columns,
                     self.output_column)
 
         if self.normalize:
-            logger.info("Normalizing with StandardScaler")
+            logger.debug("Normalizing with StandardScaler")
             encoded = self.scaler.transform(data_frame[self.input_columns].values).astype(
                 np.float32)
         else:

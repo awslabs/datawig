@@ -165,9 +165,8 @@ class Imputer:
 
         """
 
-        logger.setLevel(level)
-
-        if os.access(os.path.dirname(filename), os.W_OK):
+        no_filehandler_present = not any([h.baseFilename.endswith('imputer.log') for h in logger.handlers if type(h) is FileHandler])
+        if os.access(os.path.dirname(filename), os.W_OK) and no_filehandler_present:
             file_handler = FileHandler(filename, mode='a')
             file_handler.setLevel(level)
             file_handler.setFormatter(log_formatter)
@@ -246,7 +245,7 @@ class Imputer:
         self.final_fc_hidden_units = final_fc_hidden_units
 
         self.ctx = ctx
-        logger.info('Using [{}] as the context for training'.format(ctx))
+        logger.debug('Using [{}] as the context for training'.format(ctx))
 
         if (train_df is None) or (not isinstance(train_df, pd.core.frame.DataFrame)):
             raise ValueError("Need a non-empty DataFrame for fitting Imputer model")
@@ -512,7 +511,7 @@ class Imputer:
             except StopIteration:
                 # catch the StopIteration exception thrown when early stopping condition is reached
                 # this is ugly but the only way to use module api and have early stopping
-                logger.info("Stopping training, patience reached")
+                logger.debug("Stopping training, patience reached")
                 pass
 
         self.training_time = time.time() - start
@@ -556,7 +555,7 @@ class Imputer:
         for encoder in self.label_encoders:
             if not encoder.is_fitted():
                 encoder_type = type(encoder)
-                logger.info("Fitting label encoder {} on {} rows \
+                logger.debug("Fitting label encoder {} on {} rows \
                             of training data".format(encoder_type, len(train_df)))
                 encoder.fit(train_df)
 
@@ -569,18 +568,18 @@ class Imputer:
 
         test_df = self.__drop_missing_labels(test_df, how='all')
 
-        logger.info("Train: {}, Test: {}".format(len(train_df), len(test_df)))
+        logger.debug("Train: {}, Test: {}".format(len(train_df), len(test_df)))
 
         for encoder in self.data_encoders:
             if not encoder.is_fitted():
                 encoder_type = type(encoder)
-                logger.info(
+                logger.debug(
                     "Fitting data encoder {} on columns {} and {} rows of training data with parameters {}".format(
                         encoder_type, ", ".join(encoder.input_columns), len(train_df), encoder.__dict__))
 
                 encoder.fit(train_df)
 
-        logger.info("Building Train Iterator with {} elements".format(len(train_df)))
+        logger.debug("Building Train Iterator with {} elements".format(len(train_df)))
         iter_train = ImputerIterDf(
             data_frame=train_df,
             data_columns=self.data_encoders,
@@ -588,7 +587,7 @@ class Imputer:
             batch_size=self.batch_size
         )
 
-        logger.info("Building Test Iterator with {} elements".format(len(test_df)))
+        logger.debug("Building Test Iterator with {} elements".format(len(test_df)))
         iter_test = ImputerIterDf(
             data_frame=test_df,
             data_columns=iter_train.data_columns,
@@ -653,7 +652,7 @@ class Imputer:
             if isinstance(col_enc, CategoricalEncoder):
                 predictions[att] = self.__filter_predictions(predictions[att], precision_threshold)
             else:
-                logger.info("Precision filtering only for CategoricalEncoder returning \
+                logger.debug("Precision filtering only for CategoricalEncoder returning \
                             {} unfiltered".format(att))
                 predictions[att] = predictions[att]
 
@@ -706,7 +705,7 @@ class Imputer:
                                           top_k_pred_idx]
                     top_k_predictions[att].append(label_proba_tuples)
             else:
-                logger.info(
+                logger.debug(
                     "Top-k only for CategoricalEncoder, dropping {}, {}".format(att, type(col_enc)))
                 top_k_predictions[att] = probas
 
@@ -929,7 +928,7 @@ class Imputer:
                 # for NumericalEncoders, exclude rows that are nan
                 col_missing_idx = data_frame[col_enc.input_columns[0]].isna()
 
-            logger.info("Detected {} rows with missing labels \
+            logger.debug("Detected {} rows with missing labels \
                         for column {}".format(col_missing_idx.sum(), col_enc.input_columns[0]))
 
             if missing_idx == -1:
@@ -939,7 +938,7 @@ class Imputer:
             elif how == 'any':
                 missing_idx = missing_idx | col_missing_idx
 
-        logger.info("Dropping {}/{} rows".format(missing_idx.sum(), n_samples))
+        logger.debug("Dropping {}/{} rows".format(missing_idx.sum(), n_samples))
 
         return data_frame.loc[~missing_idx, :]
 
@@ -950,11 +949,11 @@ class Imputer:
 
         """
         best_model = glob.glob(self.module_path + "*{}.params".format(self.__get_best_epoch()))
-        logger.info("Keeping {}".format(best_model[0]))
+        logger.debug("Keeping {}".format(best_model[0]))
         worse_models = set(glob.glob(self.module_path + "*.params")) - set(best_model)
         # remove worse models
         for worse_epoch in worse_models:
-            logger.info("Deleting {}".format(worse_epoch))
+            logger.debug("Deleting {}".format(worse_epoch))
             os.remove(worse_epoch)
 
     def __get_best_epoch(self):
@@ -987,7 +986,7 @@ class Imputer:
 
         """
 
-        logger.info("Output path for loading Imputer {}".format(output_path))
+        logger.debug("Output path for loading Imputer {}".format(output_path))
         params = pickle.load(open(os.path.join(output_path, "imputer.pickle"), "rb"))
         imputer_signature = inspect.getfullargspec(Imputer.__init__)[0]
         # get constructor args
@@ -1006,7 +1005,7 @@ class Imputer:
         imputer.output_path = output_path
         ctx = imputer.ctx
 
-        logger.info("Loading mxnet model from {}".format(imputer.module_path))
+        logger.debug("Loading mxnet model from {}".format(imputer.module_path))
         # deserialize mxnet module
         imputer.module = mx.module.Module.load(
             imputer.module_path,
@@ -1062,12 +1061,12 @@ class Imputer:
         ece_pre = calibration.compute_ece(scores, labels)
         self.calibration_info['ece_pre'] = ece_pre
         self.calibration_info['reliability_pre'] = calibration.reliability(scores, labels)
-        logger.info('Expected calibration error: {:.1f}%'.format(100*ece_pre))
+        logger.debug('Expected calibration error: {:.1f}%'.format(100*ece_pre))
 
         temperature = calibration.fit_temperature(scores, labels)
         ece_post = calibration.compute_ece(scores, labels, temperature)
         self.calibration_info['ece_post'] = ece_post
-        logger.info('Expected calibration error after calibration: {:.1f}%'.format(100*ece_post))
+        logger.debug('Expected calibration error after calibration: {:.1f}%'.format(100*ece_post))
 
         # check whether calibration improves at all and apply
         if ece_pre - ece_post > 0:
@@ -1108,7 +1107,7 @@ class _MXNetModule:
 
         predictions, loss = self.__make_loss()
 
-        logger.info("Building output symbols")
+        logger.debug("Building output symbols")
         output_symbols = []
         for col_enc, output in zip(self.label_encoders, predictions):
             output_symbols.append(
@@ -1168,7 +1167,7 @@ class _MXNetModule:
         # assign to 0.0 the label values larger than number of classes so that they
         # do not contribute to the loss
 
-        logger.info("Building output of label {} with {} classes \
+        logger.debug("Building output of label {} with {} classes \
                      (including missing class)".format(label, num_labels))
 
         num_labels_vec = label * 0.0 + num_labels
@@ -1221,7 +1220,7 @@ class _MXNetModule:
 
     def __make_loss(self, eps: float = 1e-5) -> Tuple[Any, Any]:
 
-        logger.info("Concatenating all {} latent symbols".format(len(self.data_featurizers)))
+        logger.debug("Concatenating all {} latent symbols".format(len(self.data_featurizers)))
 
         unique_input_field_names = set([feat.field_name for feat in self.data_featurizers])
         if len(unique_input_field_names) < len(self.data_featurizers):
@@ -1236,7 +1235,7 @@ class _MXNetModule:
         outputs = []
         for output_col in self.label_encoders:
             if isinstance(output_col, CategoricalEncoder):
-                logger.info("Constructing categorical loss for column {} and {} labels".format(
+                logger.debug("Constructing categorical loss for column {} and {} labels".format(
                     output_col.output_column, output_col.max_tokens))
                 outputs.append(
                     self.__make_categorical_loss(
@@ -1247,7 +1246,7 @@ class _MXNetModule:
                     )
                 )
             elif isinstance(output_col, NumericalEncoder):
-                logger.info(
+                logger.debug(
                     "Constructing numerical loss for column {}".format(output_col.output_column))
                 outputs.append(self.__make_numerical_loss(latents, output_col.output_column))
 
