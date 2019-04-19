@@ -5,6 +5,11 @@ import itertools
 import numpy as np
 import pandas as pd
 from datawig import SimpleImputer
+from sklearn.impute import IterativeImputer
+from sklearn.model_selection import GridSearchCV
+from sklearn.ensemble import RandomForestRegressor
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from sklearn.datasets import (
     make_low_rank_matrix,
@@ -71,10 +76,21 @@ def impute_mean(X, mask):
 def impute_knn(X, mask, hyperparams={'k':[2,4,6]}):
     return fancyimpute_hpo(KNN,hyperparams, X, mask)
 
-
 def impute_mf(X, mask, hyperparams={'rank':[5,10,50],'l2_penalty':[1e-3, 1e-5]}):
     return fancyimpute_hpo(MatrixFactorization, hyperparams, X, mask)
 
+def impute_sklearn(X, mask):
+    X_incomplete = X.copy()
+    X_incomplete[mask] = np.nan
+    reg = RandomForestRegressor(random_state=0)
+    parameters = {  
+        'n_estimators': [2, 10, 100],
+        'max_features;': [int(np.sqrt(X.shape[-1])), X.shape[-1]]
+                }
+    clf = GridSearchCV(reg, parameters, cv=5)
+    X_pred = IterativeImputer(random_state=0, predictor=reg).fit_transform(X_incomplete)
+    mse = evaluate_mse(X_pred, X, mask)
+    return mse
 
 def impute_datawig(X, mask):
     X_incomplete = X.copy()
@@ -113,7 +129,6 @@ def generate_missing_mask(X, percent_missing=10, missing_at_random=True):
             discard_idx = range(discard_lower_start, discard_lower_start + n_values_to_discard)
             values_to_discard = X[:,depends_on_col].argsort()[discard_idx]
             mask[values_to_discard, col_affected] = 1
-            print(len(values_to_discard))
     return mask > 0
        
 
@@ -129,6 +144,7 @@ def experiment(percent_missing_list=[10]):
         impute_mean,
         impute_knn,
         impute_mf,
+        impute_sklearn,
         impute_datawig
     ]
 
@@ -152,10 +168,10 @@ def experiment(percent_missing_list=[10]):
                     results.append(result)
     return results
 
-import logging
-logger = logging.getLogger("mechanize")
+# import logging
+# logger = logging.getLogger("mechanize")
 # only log really bad events
-logger.setLevel(logging.ERROR)
+# logger.setLevel(logging.ERROR)
 
 # this appears to be neccessary for not running into too many open files errors
 import resource
@@ -167,3 +183,13 @@ resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
 # df = pd.DataFrame(results)
 # df['mse_percent'] = df.mse / df.groupby(['data','missing_at_random','percent_missing'])['mse'].transform(max)
 # df.groupby(['missing_at_random','percent_missing','imputer']).agg({'mse_percent':'median'}) 
+
+# plt.figure(figsize=(10,8))
+# plt.subplot(2,1,1)
+# sns.boxplot(hue='imputer',y='mse_percent',x='percent_missing', data=df[df['missing_at_random']==True])
+# plt.title(\"Missing at random\")
+# plt.subplot(2,1,2)
+# sns.boxplot(hue='imputer',y='mse_percent',x='percent_missing', data=df[df['missing_at_random']==False])
+# plt.title(\"Missing not at random\")
+# plt.tight_layout()
+# plt.savefig('benchmarks_datawig.pdf')
