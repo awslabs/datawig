@@ -8,6 +8,7 @@ from datawig import SimpleImputer
 from sklearn.impute import IterativeImputer
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -79,7 +80,7 @@ def impute_knn(X, mask, hyperparams={'k':[2,4,6]}):
 def impute_mf(X, mask, hyperparams={'rank':[5,10,50],'l2_penalty':[1e-3, 1e-5]}):
     return fancyimpute_hpo(MatrixFactorization, hyperparams, X, mask)
 
-def impute_sklearn(X, mask):
+def impute_sklearn_rf(X, mask):
     X_incomplete = X.copy()
     X_incomplete[mask] = np.nan
     reg = RandomForestRegressor(random_state=0)
@@ -92,12 +93,20 @@ def impute_sklearn(X, mask):
     mse = evaluate_mse(X_pred, X, mask)
     return mse
 
+def impute_sklearn_linreg(X, mask):
+    X_incomplete = X.copy()
+    X_incomplete[mask] = np.nan
+    reg = LinearRegression()
+    X_pred = IterativeImputer(random_state=0, predictor=reg).fit_transform(X_incomplete)
+    mse = evaluate_mse(X_pred, X, mask)
+    return mse
+
 def impute_datawig(X, mask):
     X_incomplete = X.copy()
     X_incomplete[mask] = np.nan
     df = pd.DataFrame(X_incomplete)
     df.columns = [str(c) for c in df.columns]
-    df = SimpleImputer.complete(df)
+    df = SimpleImputer.complete(df, hpo=True)
     mse = evaluate_mse(df.values, X, mask)
     return mse
 
@@ -144,7 +153,8 @@ def experiment(percent_missing_list=[10]):
         impute_mean,
         impute_knn,
         impute_mf,
-        impute_sklearn,
+        impute_sklearn_rf,
+        impute_sklearn_linreg,
         impute_datawig
     ]
 

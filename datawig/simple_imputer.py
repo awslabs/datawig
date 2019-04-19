@@ -446,7 +446,8 @@ class SimpleImputer:
     @staticmethod
     def complete(data_frame: pd.DataFrame,
                  precision_threshold: float = 0.0,
-                 inplace: bool = False):
+                 inplace: bool = False,
+                 hpo: bool = False):
         """
         Given a dataframe with missing values, this function detects all imputable columns, trains an imputation model
         on all other columns and imputes values for each missing value.
@@ -491,10 +492,18 @@ class SimpleImputer:
 
             imputer = SimpleImputer(input_columns=input_cols,
                                     output_column=output_col,
-                                    output_path=output_col) \
-                .fit(data_frame.loc[~idx_missing, :],
+                                    output_path=output_col)
+            if hpo:
+                imputer.fit_hpo(data_frame.loc[~idx_missing, :],
+                     patience=5 if output_col in categorical_columns else 20,
+                     num_epochs=100,
+                     numeric_latent_dim_candidates=[10, 50, 100],
+                     max_running_hours = 5/60)
+            else:
+                imputer.fit(data_frame.loc[~idx_missing, :],
                      patience=5 if output_col in categorical_columns else 20,
                      num_epochs=100)
+
 
             tmp = imputer.predict(data_frame, precision_threshold=precision_threshold)
             data_frame.loc[idx_missing, output_col] = tmp[output_col + "_imputed"]
