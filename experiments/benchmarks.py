@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import json
 import itertools
@@ -9,8 +10,8 @@ from sklearn.impute import IterativeImputer
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
-import matplotlib.pyplot as plt
-import seaborn as sns
+
+sys.path.insert(0,'/Users/felix/code/datawig_fork')
 
 from sklearn.datasets import (
     make_low_rank_matrix,
@@ -106,7 +107,7 @@ def impute_datawig(X, mask):
     X_incomplete[mask] = np.nan
     df = pd.DataFrame(X_incomplete)
     df.columns = [str(c) for c in df.columns]
-    df = SimpleImputer.complete(df, hpo=True)
+    df = SimpleImputer.complete(df, hpo=True, verbose=0)
     mse = evaluate_mse(df.values, X, mask)
     return mse
 
@@ -141,7 +142,7 @@ def generate_missing_mask(X, percent_missing=10, missing_at_random=True):
     return mask > 0
        
 
-def experiment(percent_missing_list=[10]):
+def experiment(percent_missing_list=[10], nreps=1):
     DATA_LOADERS = [
         make_low_rank_matrix,
         load_diabetes,
@@ -164,42 +165,56 @@ def experiment(percent_missing_list=[10]):
         for data_fn in DATA_LOADERS:
             X = get_data(data_fn)
             for missingness_at_random in [True, False]:
-                missing_mask = generate_missing_mask(X, percent_missing, missingness_at_random)
-                for imputer_fn in imputers:
-                    mse = imputer_fn(X, missing_mask)
-                    result = {
-                        'data': data_fn.__name__,
-                        'imputer': imputer_fn.__name__,
-                        'percent_missing': percent_missing,
-                        'missing_at_random': missingness_at_random,
-                        'mse': mse
-                    }
-                    print(result)
-                    results.append(result)
+                for _ in range(nreps):
+                    missing_mask = generate_missing_mask(X, percent_missing, missingness_at_random)
+                    for imputer_fn in imputers:
+                        mse = imputer_fn(X, missing_mask)
+                        result = {
+                            'data': data_fn.__name__,
+                            'imputer': imputer_fn.__name__,
+                            'percent_missing': percent_missing,
+                            'missing_at_random': missingness_at_random,
+                            'mse': mse
+                        }
+                        print(result)
+                        results.append(result)
     return results
 
-# import logging
-# logger = logging.getLogger("mechanize")
-# only log really bad events
-# logger.setLevel(logging.ERROR)
+def run():
+    
+    # this appears to be neccessary for not running into too many open files errors
+    import resource
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
 
-# this appears to be neccessary for not running into too many open files errors
-import resource
-soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
+    results = experiment(percent_missing_list=[5, 10, 30, 50, 70], nreps = 5)
+    
+    json.dump(results, open(os.path.join(dir_path, 'benchmark_results.json'), 'w'))
 
-# results = experiment(percent_missing_list=[10, 30, 50])
-# json.dump(results, open(os.path.join(dir_path, 'benchmark_results.json'), 'w'))
-# df = pd.DataFrame(results)
-# df['mse_percent'] = df.mse / df.groupby(['data','missing_at_random','percent_missing'])['mse'].transform(max)
-# df.groupby(['missing_at_random','percent_missing','imputer']).agg({'mse_percent':'median'}) 
+def plot_results(results):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
 
-# plt.figure(figsize=(10,8))
-# plt.subplot(2,1,1)
-# sns.boxplot(hue='imputer',y='mse_percent',x='percent_missing', data=df[df['missing_at_random']==True])
-# plt.title(\"Missing at random\")
-# plt.subplot(2,1,2)
-# sns.boxplot(hue='imputer',y='mse_percent',x='percent_missing', data=df[df['missing_at_random']==False])
-# plt.title(\"Missing not at random\")
-# plt.tight_layout()
-# plt.savefig('benchmarks_datawig.pdf')
+    df = pd.DataFrame(results)
+    df['mse_percent'] = df.mse / df.groupby(['data','missing_at_random','percent_missing'])['mse'].transform(max)
+    df.groupby(['missing_at_random','percent_missing','imputer']).agg({'mse_percent':'median'}) 
+
+    plt.figure(figsize=(10,8))
+    plt.subplot(2,1,1)
+    sns.boxplot(hue='imputer',y='mse_percent',x='percent_missing', data=df[df['missing_at_random']==True], notch=True)
+    plt.title("Missing at random")
+    plt.xlabel("% Samples Missing")
+    plt.ylabel("Relative MSE in %")
+    plt.legend()
+    plt.subplot(2,1,2)
+    sns.boxplot(hue='imputer',y='mse_percent',x='percent_missing', data=df[df['missing_at_random']==False], notch=True)
+    plt.title("Missing not at random")
+    plt.xlabel("% Samples Missing")
+    plt.legend("")
+    plt.ylabel("Relative MSE in %")
+
+    plt.tight_layout()
+    plt.savefig('benchmarks_datawig.pdf')
+
+if __name__=='main':
+    run()

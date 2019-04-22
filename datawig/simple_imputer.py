@@ -30,10 +30,23 @@ import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
 from ._hpo import _HPO
-from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, TfIdfEncoder
+from .column_encoders import (
+            BowEncoder, 
+            CategoricalEncoder, 
+            NumericalEncoder, 
+            TfIdfEncoder
+        )
+
 from .imputer import Imputer
 from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer
-from .utils import logger, get_context, random_split, rand_string, merge_dicts
+from .utils import (
+            logger, 
+            get_context, 
+            random_split, 
+            rand_string, 
+            merge_dicts,
+            set_stream_log_level
+        )
 
 
 class SimpleImputer:
@@ -447,10 +460,15 @@ class SimpleImputer:
     def complete(data_frame: pd.DataFrame,
                  precision_threshold: float = 0.0,
                  inplace: bool = False,
-                 hpo: bool = False):
+                 hpo: bool = False,
+                 verbose: int = 0,
+                 num_epochs: int = 100,
+                 iterations: int = 10):
         """
         Given a dataframe with missing values, this function detects all imputable columns, trains an imputation model
         on all other columns and imputes values for each missing value.
+
+        Several imputation iterators can be run. 
 
         Imputable columns are either numeric columns or non-numeric categorical columns; for determining whether a
             column is categorical (as opposed to a plain text column) we use the following heuristic:
@@ -464,15 +482,24 @@ class SimpleImputer:
 
         :param data_frame: original dataframe
         :param precision_threshold: precision threshold for categorical imputations (default: 0.0)
-        :param inplace: whether or not to perform imputations inplace
+        :param inplace: whether or not to perform imputations inplace (default: False)
+        :param hpo: whether or not to perform hyperparameter optimization (default: False)
+        :param verbose: verbosity level, values > 0 log to stdout (default: 0)
+        :param num_epochs: number of epochs for each imputation model training (default: 100)
+        :param iterations: number of iterations for iterative imputation (default: 10)
         :return: dataframe with imputations
 
         """
 
         # TODO: should we expose temporary dir for model serialization to avoid crashes due to not-writable dirs?
         
+        missing_mask = data_frame.copy().isnull()
+
         if inplace is False:
             data_frame = data_frame.copy()
+
+        if verbose == 0:
+            set_stream_log_level("ERROR")    
 
         numeric_columns = [c for c in data_frame.columns if is_numeric_dtype(data_frame[c])]
         string_columns = list(set(data_frame.columns) - set(numeric_columns))
@@ -482,32 +509,33 @@ class SimpleImputer:
 
         categorical_columns = [col for col in string_columns if SimpleImputer._is_categorical(data_frame[col])]
         logger.debug("Assuming categorical columns: {}".format(", ".join(categorical_columns)))
+        
+        for _ in iterations:
+            for output_col in set(numeric_columns) | set(categorical_columns):
+                # train on all input columns but the to-be-imputed one
+                input_cols = list(col_set - set([output_col]))
 
-        for output_col in set(numeric_columns) | set(categorical_columns):
-            # train on all input columns but the to-be-imputed one
-            input_cols = list(col_set - set([output_col]))
+                # train on all observed values
+                idx_missing = missing_mask[output_col]
 
-            # train on all observed values
-            idx_missing = data_frame[output_col].isnull()
-
-            imputer = SimpleImputer(input_columns=input_cols,
-                                    output_column=output_col,
-                                    output_path=output_col)
-            if hpo:
-                imputer.fit_hpo(data_frame.loc[~idx_missing, :],
-                     patience=5 if output_col in categorical_columns else 20,
-                     num_epochs=100,
-                     numeric_latent_dim_candidates=[10, 50, 100],
-                     max_running_hours = 5/60)
-            else:
-                imputer.fit(data_frame.loc[~idx_missing, :],
-                     patience=5 if output_col in categorical_columns else 20,
-                     num_epochs=100)
+                imputer = SimpleImputer(input_columns=input_cols,
+                                        output_column=output_col,
+                                        output_path=output_col)
+                if hpo:
+                    imputer.fit_hpo(data_frame.loc[~idx_missing, :],
+                         patience=5 if output_col in categorical_columns else 20,
+                         num_epochs=100,
+                         final_fc_hidden_units=[[10], [50], [100]])
+                else:
+                    imputer.fit(data_frame.loc[~idx_missing, :],
+                         patience=5 if output_col in categorical_columns else 20,
+                         num_epochs=num_epochs,
+                         calibrate = False)
 
 
-            tmp = imputer.predict(data_frame, precision_threshold=precision_threshold)
-            data_frame.loc[idx_missing, output_col] = tmp[output_col + "_imputed"]
-            shutil.rmtree(output_col)
+                tmp = imputer.predict(data_frame, precision_threshold=precision_threshold)
+                data_frame.loc[idx_missing, output_col] = tmp[output_col + "_imputed"]
+                shutil.rmtree(output_col)
 
         return data_frame
 
