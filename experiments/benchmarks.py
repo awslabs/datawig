@@ -111,6 +111,16 @@ def impute_datawig(X, mask):
     mse = evaluate_mse(df.values, X, mask)
     return mse
 
+
+def impute_datawig_iterative(X, mask):
+    X_incomplete = X.copy()
+    X_incomplete[mask] = np.nan
+    df = pd.DataFrame(X_incomplete)
+    df.columns = [str(c) for c in df.columns]
+    df = SimpleImputer.complete(df, hpo=True, verbose=0, iterations=5)
+    mse = evaluate_mse(df.values, X, mask)
+    return mse
+
 def get_data(data_fn):
     if data_fn.__name__ is 'make_low_rank_matrix':
         X = data_fn(n_samples=1000, n_features=10, effective_rank = 5, random_state=0)
@@ -151,12 +161,13 @@ def experiment(percent_missing_list=[10], nreps=1):
     ]
 
     imputers = [
-        impute_mean,
-        impute_knn,
-        impute_mf,
-        impute_sklearn_rf,
-        impute_sklearn_linreg,
-        impute_datawig
+        # impute_mean,
+        # impute_knn,
+        # impute_mf,
+        # impute_sklearn_rf,
+        # impute_sklearn_linreg,
+        # impute_datawig
+        impute_datawig_iterative
     ]
 
     results = []

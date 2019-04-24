@@ -463,7 +463,7 @@ class SimpleImputer:
                  hpo: bool = False,
                  verbose: int = 0,
                  num_epochs: int = 100,
-                 iterations: int = 10):
+                 iterations: int = 1):
         """
         Given a dataframe with missing values, this function detects all imputable columns, trains an imputation model
         on all other columns and imputes values for each missing value.
@@ -486,7 +486,7 @@ class SimpleImputer:
         :param hpo: whether or not to perform hyperparameter optimization (default: False)
         :param verbose: verbosity level, values > 0 log to stdout (default: 0)
         :param num_epochs: number of epochs for each imputation model training (default: 100)
-        :param iterations: number of iterations for iterative imputation (default: 10)
+        :param iterations: number of iterations for iterative imputation (default: 1)
         :return: dataframe with imputations
 
         """
@@ -510,7 +510,7 @@ class SimpleImputer:
         categorical_columns = [col for col in string_columns if SimpleImputer._is_categorical(data_frame[col])]
         logger.debug("Assuming categorical columns: {}".format(", ".join(categorical_columns)))
         
-        for _ in iterations:
+        for _ in range(iterations):
             for output_col in set(numeric_columns) | set(categorical_columns):
                 # train on all input columns but the to-be-imputed one
                 input_cols = list(col_set - set([output_col]))
