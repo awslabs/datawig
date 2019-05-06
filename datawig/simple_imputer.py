@@ -30,7 +30,7 @@ import numpy as np
 from pandas.api.types import is_numeric_dtype
 
 from ._hpo import _HPO
-from .utils import logger, get_context, random_split, rand_string, merge_dicts
+from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts, set_stream_log_level
 from .imputer import Imputer
 from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, TfIdfEncoder
 from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer
@@ -454,56 +454,76 @@ class SimpleImputer:
     @staticmethod
     def complete(data_frame: pd.DataFrame,
                  precision_threshold: float = 0.0,
-                 inplace: bool = False):
+                 inplace: bool = False,
+                 hpo: bool = False,
+                 verbose: int = 0,
+                 num_epochs: int = 100,
+                 iterations: int = 1):
         """
         Given a dataframe with missing values, this function detects all imputable columns, trains an imputation model
         on all other columns and imputes values for each missing value.
-
+        Several imputation iterators can be run.
         Imputable columns are either numeric columns or non-numeric categorical columns; for determining whether a
             column is categorical (as opposed to a plain text column) we use the following heuristic:
             a non-numeric categorical column should have least 10 times as many rows as there were unique values
-
         If an imputation model did not reach the precision specified in the precision_threshold parameter for a given
             imputation value, that value will not be imputed; thus depending on the precision_threshold, the returned
             dataframe can still contain some missing values.
-
         For numeric columns, we do not filter for accuracy.
-
         :param data_frame: original dataframe
         :param precision_threshold: precision threshold for categorical imputations (default: 0.0)
-        :param inplace: whether or not to perform imputations inplace
+        :param inplace: whether or not to perform imputations inplace (default: False)
+        :param hpo: whether or not to perform hyperparameter optimization (default: False)
+        :param verbose: verbosity level, values > 0 log to stdout (default: 0)
+        :param num_epochs: number of epochs for each imputation model training (default: 100)
+        :param iterations: number of iterations for iterative imputation (default: 1)
         :return: dataframe with imputations
-
         """
 
         # TODO: should we expose temporary dir for model serialization to avoid crashes due to not-writable dirs?
 
+        missing_mask = data_frame.copy().isnull()
+
         if inplace is False:
             data_frame = data_frame.copy()
 
+        if verbose == 0:
+            set_stream_log_level("ERROR")
+
         numeric_columns = [c for c in data_frame.columns if is_numeric_dtype(data_frame[c])]
         string_columns = list(set(data_frame.columns) - set(numeric_columns))
-        logger.info("Assuming numerical columns: {}".format(", ".join(numeric_columns)))
+        logger.debug("Assuming numerical columns: {}".format(", ".join(numeric_columns)))
 
         col_set = set(numeric_columns + string_columns)
 
         categorical_columns = [col for col in string_columns if SimpleImputer._is_categorical(data_frame[col])]
-        logger.info("Assuming categorical columns: {}".format(", ".join(categorical_columns)))
+        logger.debug("Assuming categorical columns: {}".format(", ".join(categorical_columns)))
 
-        for output_col in set(numeric_columns) | set(categorical_columns):
-            # train on all input columns but the to-be-imputed one
-            input_cols = list(col_set - {output_col})
+        for _ in range(iterations):
+            for output_col in set(numeric_columns) | set(categorical_columns):
+                # train on all input columns but the to-be-imputed one
+                input_cols = list(col_set - set([output_col]))
 
-            # train on all observed values
-            idx_missing = data_frame[output_col].isnull()
+                # train on all observed values
+                idx_missing = missing_mask[output_col]
 
-            imputer = SimpleImputer(input_columns=input_cols,
-                                    output_column=output_col) \
-                .fit(data_frame.loc[~idx_missing, :],
-                     patience=5 if output_col in categorical_columns else 20)
+                imputer = SimpleImputer(input_columns=input_cols,
+                                        output_column=output_col,
+                                        output_path=output_col)
+                if hpo:
+                    imputer.fit_hpo(data_frame.loc[~idx_missing, :],
+                                    patience=5 if output_col in categorical_columns else 20,
+                                    num_epochs=100,
+                                    final_fc_hidden_units=[[10], [50], [100]])
+                else:
+                    imputer.fit(data_frame.loc[~idx_missing, :],
+                                patience=5 if output_col in categorical_columns else 20,
+                                num_epochs=num_epochs,
+                                calibrate=False)
 
-            tmp = imputer.predict(data_frame, precision_threshold=precision_threshold)
-            data_frame.loc[idx_missing, output_col] = tmp[output_col + "_imputed"]
+                tmp = imputer.predict(data_frame, precision_threshold=precision_threshold)
+                data_frame.loc[idx_missing, output_col] = tmp[output_col + "_imputed"]
+                shutil.rmtree(output_col)
 
         return data_frame
 
@@ -595,7 +615,7 @@ class SimpleImputer:
 
         self.imputer = Imputer.load(self.output_path)
 
-    def deserialize_confusion_matrix(self) -> np.ndarray:
+    def __deserialize_confusion_matrix(self) -> np.ndarray:
         """
         Return normalized confusion matrix for trained simple_imputer
         """
@@ -635,7 +655,7 @@ class SimpleImputer:
         labels = sorted(self.imputer.label_encoders[0].idx_to_token.values())
 
         imputed_target = self.predict(target_data)  # generate predictions for test and target data
-        confusion_test = self.deserialize_confusion_matrix()
+        confusion_test = self.__deserialize_confusion_matrix()
 
         # compute estimates of label marginals for test and target data
         marginals_test = pd.Series(confusion_test.sum(axis=0), index=labels)
