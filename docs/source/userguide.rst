@@ -18,22 +18,18 @@ For additional examples and use cases, refer to the `unit test cases`_.
 
 Data
 ****
-Unless otherwise specified, these examples will make use of the `Multimodal Attribute Extraction (MAE) dataset`_. This dataset contains over 2.2 million products with corresponding attributes, but to make data loading and processing more manageable, we provide a reformatted subset of the validation data (for the *finish* attribute) as a .csv file.
+Unless otherwise specified, these examples will make use of the `Multimodal Attribute Extraction (MAE) dataset`_. This dataset contains over 2.2 million products with corresponding attributes, but to make data loading and processing more manageable, we provide a reformatted subset of the validation data (for the *finish* and *color* attributes) as a .csv file.
 
-This data contains columns for *title*, *text*, and *finish*. The title and text columns contain string data that will be used to impute the finish attribute. Note, the dataset is extremely noisy, but still provides a good example for real-world use cases of DataWig.
+This data contains columns for *title*, *text*, *finish*, and *color*. The title and text columns contain string data that will be used to impute the finish attribute. Note, the dataset is extremely noisy, but still provides a good example for real-world use cases of DataWig.
 
-To speed up run-time, all examples will use a smaller version of this finish dataset that contains only 500 samples. Run the following in this directory to download this dataset:
-
-.. code-block:: bash
-
-    wget https://www.dropbox.com/s/nw6jf4inin83tb9/finish_val_data_sample.csv
-
-
-To get the complete finish dataset with all data, run the following (we highly recommend running with a gpu to speed up computation):
+To speed up run-time, all examples will use a smaller version of this finish dataset that contains ~5000 samples. Run the following in this directory to download this dataset:
 
 .. code-block:: bash
 
-    wget https://www.dropbox.com/s/1scdnb60kvilkuf/finish_val_data_all.csv
+    wget https://github.com/awslabs/datawig/raw/master/examples/mae_train_dataset.csv
+
+
+To get the complete finish dataset with all data, please check instructions `here`_.
 
 
 If you'd like to use this data in your own experiments, please remember to cite the original MAE paper:
@@ -344,3 +340,4 @@ In this case, the model will use a fully connected layer size of 50 or 100, with
 .. _`SimpleImputer intro`: https://github.com/awslabs/datawig/blob/master/examples/simpleimputer_intro.py
 .. _SimpleImputer: https://github.com/awslabs/datawig/blob/97e259d6fde9e38f66c59e82a068172c54060c04/datawig/simple_imputer.py#L144-L162
 .. _`parameter tutorial`: https://github.com/awslabs/datawig/blob/master/examples/params_tutorial.py
+.. _`here`: https://github.com/awslabs/datawig/tree/master/examples
