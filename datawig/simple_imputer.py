@@ -22,19 +22,19 @@ import os
 import json
 import inspect
 from typing import List, Dict, Any, Callable
-import itertools
 import mxnet as mx
 import pandas as pd
 import glob
 import shutil
+import numpy as np
 from pandas.api.types import is_numeric_dtype
-from sklearn.metrics import mean_squared_error, f1_score, precision_score, accuracy_score, recall_score
 
 from ._hpo import _HPO
-from .utils import logger, get_context, random_split, rand_string, flatten_dict, merge_dicts
+from .utils import logger, get_context, random_split, rand_string, merge_dicts
 from .imputer import Imputer
-from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, ColumnEncoder, TfIdfEncoder
-from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer, Featurizer, EmbeddingFeaturizer
+from .column_encoders import BowEncoder, CategoricalEncoder, NumericalEncoder, TfIdfEncoder
+from .mxnet_input_symbols import BowFeaturizer, NumericalFeaturizer
+from .iterators import INSTANCE_WEIGHT_COLUMN
 
 
 class SimpleImputer:
@@ -303,7 +303,9 @@ class SimpleImputer:
             weight_decay: float = 0.,
             batch_size: int = 16,
             final_fc_hidden_units: List[int] = None,
-            calibrate: bool = True) -> Any:
+            calibrate: bool = True,
+            class_weights: dict = None,
+            instance_weights: list = None) -> Any:
         """
 
         Trains and stores imputer model
@@ -322,8 +324,15 @@ class SimpleImputer:
         :param weight_decay: regularizer (default 0)
         :param batch_size (default 16)
         :param final_fc_hidden_units: list dimensions for FC layers after the final concatenation
-
+        :param calibrate: Control automatic model calibration
+        :param class_weights: Dictionary with labels as keys and weights as values.
+                              Weighs each instance's contribution to the likelihood based on the corresponding class.
+        :param instance_weights: List of weights for each instance in train_df.
         """
+
+        # add weights to training data if provided
+        train_df = self.__add_weights_to_df(train_df, class_weights, instance_weights, in_place=False)
+
         self.check_data_types(train_df)
 
         data_encoders = []
@@ -353,8 +362,6 @@ class SimpleImputer:
             data_columns += [
                 NumericalFeaturizer(field_name=numerical_feature_column, numeric_latent_dim=self.numeric_latent_dim,
                                     numeric_hidden_layers=self.numeric_hidden_layers)]
-
-        label_column = []
 
         if is_numeric_dtype(train_df[self.output_column]):
             label_column = [NumericalEncoder(self.output_column, normalize=True)]
@@ -485,7 +492,7 @@ class SimpleImputer:
 
         for output_col in set(numeric_columns) | set(categorical_columns):
             # train on all input columns but the to-be-imputed one
-            input_cols = list(col_set - set([output_col]))
+            input_cols = list(col_set - {output_col})
 
             # train on all observed values
             idx_missing = data_frame[output_col].isnull()
@@ -587,4 +594,108 @@ class SimpleImputer:
             shutil.copy(file_name,  self.output_path)
 
         self.imputer = Imputer.load(self.output_path)
+
+    def deserialize_confusion_matrix(self) -> np.ndarray:
+        """
+        Return normalized confusion matrix for trained simple_imputer
+        """
+
+        # labels need to be sorted consistently for computation of confusion matrices etc.
+        labels = sorted(self.imputer.label_encoders[0].idx_to_token.values())
+
+        # invert normalized empirical confusion matrix for test data
+        ids = dict((label, index) for (index, label) in enumerate(labels))
+        confusion_matrix_from_file = self.load_metrics()['confusion_matrix']
+        confusion_test = np.empty([len(confusion_matrix_from_file), len(confusion_matrix_from_file)])
+
+        # make matrix from nested dictionary that stores the confusion matrix
+        for row in confusion_matrix_from_file:
+            for entry in row:
+                if type(entry) is str:
+                    row_idx = ids[entry]
+                else:
+                    for col in entry:
+                        col_idx = ids[col[0]]
+                        confusion_test[row_idx, col_idx] = col[1]
+
+        return confusion_test / confusion_test.sum()  # normalize
+
+    def check_for_label_shift(self, target_data: pd.DataFrame) -> dict:
+
+        """
+        Detect label shift in the validation data
+
+        :param test_data: data frame that contains labels
+        :param target_data: unlabelled data for which predictions are to be generated
+
+        :return: dictionary with labels as keys and weights as values.
+        """
+
+        # labels need to be sorted consistently for computation of confusion matrices etc.
+        labels = sorted(self.imputer.label_encoders[0].idx_to_token.values())
+
+        imputed_target = self.predict(target_data)  # generate predictions for test and target data
+        confusion_test = self.deserialize_confusion_matrix()
+
+        # compute estimates of label marginals for test and target data
+        marginals_test = pd.Series(confusion_test.sum(axis=0), index=labels)
+        marginals_target = imputed_target[self.output_column + '_imputed'].value_counts(
+            normalize=True, sort=False)[labels]
+
+        # estimate the ratio of marginals and store as dictionary.
+        label_weights = np.linalg.solve(confusion_test, marginals_target)
+        label_weights_dict = dict((label, max(weight, 0)) for label, weight in zip(labels, label_weights))
+
+        # estimate marginals of true labels
+        true_marginals_target = np.diag(marginals_test).dot(label_weights)
+
+        logger.warn('\n\tThe estimated label marginals are ' + str(list(zip(labels, true_marginals_target))) +
+                    '\n\tMarginals in the training data are ' + str(list(zip(labels, marginals_test))) +
+                    '\n\tReweighing factors for empirical risk minimization' + str(label_weights_dict))
+
+        if np.any(marginals_test < 0):
+            logger.warn('\n\tEstimated label marginals are invalid. Proceed with caution.')
+
+        return label_weights_dict
+
+    def __add_weights_to_df(self,
+                            df: pd.DataFrame,
+                            class_weights: dict = None,
+                            instance_weights: list = None,
+                            in_place: bool = True) -> pd.DataFrame:
+        """
+        Add additional column to data frame inplace, with entries provided either
+        (1) as dict values in class_dictionary with rows selected on dict keys in weights dictionary
+            in correspondence to label_column.
+        (2) or as list with weights for each instance
+
+        :param df: input data
+        :param class_weights: dictionary with label names and corresponding weights
+        :param instance_weights: list of weights for each instance
+        :param label_column: name of label column
+        :param in_place: If true, append column to df, otherwise create copy.
+        """
+
+        # Nothing to do if no weights have been passed.
+        if class_weights is None and instance_weights is None:
+            return df
+
+        # Check that only one type of weights is provided
+        assert (class_weights is None or instance_weights is None), \
+            "Please provide class_weights XOR instance_weights."
+
+        if in_place is False:
+            df_new = df.copy()
+        else:
+            df_new = df
+
+        if class_weights is not None:
+            df_new[INSTANCE_WEIGHT_COLUMN] = 0.0
+            for label, weight in class_weights.items():
+                df_new.loc[df_new[self.output_column] == label, INSTANCE_WEIGHT_COLUMN] = weight
+
+        elif instance_weights is not None:
+            df_new[INSTANCE_WEIGHT_COLUMN] = instance_weights
+
+        return df_new
 
