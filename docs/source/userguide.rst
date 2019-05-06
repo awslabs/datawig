@@ -18,11 +18,11 @@ For additional examples and use cases, refer to the `unit test cases`_.
 
 Data
 ****
-Unless otherwise specified, these examples will make use of the `Multimodal Attribute Extraction (MAE) dataset`_. This dataset contains over 2.2 million products with corresponding attributes, but to make data loading and processing more manageable, we provide a reformatted subset of the validation data (for the *finish* attribute) as a .csv file.
+Unless otherwise specified, these examples will make use of the `Multimodal Attribute Extraction (MAE) dataset`_. This dataset contains over 2.2 million products with corresponding attributes, but to make data loading and processing more manageable, we provide a reformatted subset of the validation data (for the *finish* and *color* attributes) as a .csv file.
 
-This data contains columns for *title*, *text*, and *finish*. The title and text columns contain string data that will be used to impute the finish attribute. Note, the dataset is extremely noisy, but still provides a good example for real-world use cases of DataWig.
+This data contains columns for *title*, *text*, *finish*, and *color*. The title and text columns contain string data that will be used to impute the finish attribute. Note, the dataset is extremely noisy, but still provides a good example for real-world use cases of DataWig.
 
-To speed up run-time, all examples will use a smaller version of this finish dataset that contains only 500 samples. Run the following in this directory to download this dataset:
+To speed up run-time, all examples will use a smaller version of this finish dataset that contains ~5000 samples. Run the following in this directory to download this dataset:
 
 .. code-block:: bash
 
