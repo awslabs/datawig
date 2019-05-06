@@ -42,6 +42,5 @@ def test_single_hpo(test_dir, data_frame):
         simple_imputer=imputer
     )
 
-    assert hpo.results.shape[0] == 1
     assert hpo.results[feature_col+':max_tokens'].values[0] == 1024
     assert hpo.results['global:num_epochs'].values[0] == 10

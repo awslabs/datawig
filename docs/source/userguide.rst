@@ -160,6 +160,7 @@ The steps for training a model with HPO are identical to the default :code:`Simp
 
 Calling HPO like this will search through some basic and usually helpful hyperparameter choices.
 There are two ways for a more detailed search. Firstly, :code:`fit_hpo` offers additional arguments that can be inspected in the SimpleImputer_. For even more configurations and variation of hyperparameters for the various input column types, a dictionary with ranges can be passed to :code:`fit_hpo` as can be seen in the hpo-code_.
+Results for any HPO run can be accessed under :code:`imputer.hpo.results` and the model from any HPO run can then be loaded using :code:`imputer.load_hpo_model(idx)` passing the model index.
 
 
 Label Shift and Empirical Risk Minimization
