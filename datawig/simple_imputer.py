@@ -331,7 +331,7 @@ class SimpleImputer:
         """
 
         # add weights to training data if provided
-        train_df = self.add_weights_to_df(train_df, class_weights, instance_weights, in_place=False)
+        train_df = self.__add_weights_to_df(train_df, class_weights, instance_weights, in_place=False)
 
         self.check_data_types(train_df)
 
@@ -658,11 +658,11 @@ class SimpleImputer:
 
         return label_weights_dict
 
-    def add_weights_to_df(self,
-                          df: pd.DataFrame,
-                          class_weights: dict = None,
-                          instance_weights: list = None,
-                          in_place: bool = True) -> pd.DataFrame:
+    def __add_weights_to_df(self,
+                            df: pd.DataFrame,
+                            class_weights: dict = None,
+                            instance_weights: list = None,
+                            in_place: bool = True) -> pd.DataFrame:
         """
         Add additional column to data frame inplace, with entries provided either
         (1) as dict values in class_dictionary with rows selected on dict keys in weights dictionary
