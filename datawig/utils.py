@@ -45,6 +45,12 @@ logger.addHandler(consoleHandler)
 logger.setLevel("INFO")
 
 
+def set_stream_log_level(level: str):
+    for handler in logger.handlers:
+        if type(handler) is logging.StreamHandler:
+            handler.setLevel(level)
+
+
 def flatten_dict(d: Dict,
                  parent_key: str ='',
                  sep: str =':') -> Dict:
