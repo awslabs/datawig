@@ -29,10 +29,9 @@ from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
 from datawig.utils import (logger, rand_string, random_split, generate_df_numeric,
-                           generate_df_string, synthetic_label_shift_simple, add_class_weight_to_df)
-
+                           generate_df_string)
 from datawig import column_encoders
-
+from .conftest import synthetic_label_shift_simple
 
 warnings.filterwarnings("ignore")
 
@@ -121,8 +120,9 @@ def test_label_shift_weight_computation():
 
     # compare the product of weights and training marginals
     # (i.e. estimated target marginals) with the true target marginals.
-    assert np.all([x[0]*x[1] - x[2] < .1
-                   for x in list(zip(list(weights.values()), train_proportion, target_proportion))])
+    for x in list(zip(list(weights.values()), train_proportion, target_proportion)):
+        assert x[0]*x[1] - x[2] < .1
+
 
 
 def test_simple_imputer_real_data_default_args(test_dir, data_frame):

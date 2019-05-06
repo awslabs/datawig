@@ -37,7 +37,7 @@ from . import calibration
 from .column_encoders import (CategoricalEncoder, ColumnEncoder,
                               NumericalEncoder, TfIdfEncoder)
 from .evaluation import evaluate_and_persist_metrics
-from .iterators import ImputerIterDf
+from .iterators import ImputerIterDf, INSTANCE_WEIGHT_COLUMN
 from .mxnet_input_symbols import Featurizer
 from .utils import (AccuracyMetric, ColumnOverwriteException,
                     LogMetricCallBack, MeanSymbol, get_context, logger,
@@ -1012,7 +1012,7 @@ class Imputer:
         if isinstance(imputer.label_encoders[0], NumericalEncoder):
             data_names = [s.field_name for s in imputer.data_featurizers]
         else:
-            data_names = [s.field_name for s in imputer.data_featurizers] + ['__empirical_risk_instance_weight__']
+            data_names = [s.field_name for s in imputer.data_featurizers] + [INSTANCE_WEIGHT_COLUMN]
 
         # deserialize mxnet module
         imputer.module = mx.module.Module.load(
@@ -1172,7 +1172,7 @@ class _MXNetModule:
                             data=latents,
                             num_hidden=layer)
 
-        instance_weight = mx.sym.Variable('__empirical_risk_instance_weight__')
+        instance_weight = mx.sym.Variable(INSTANCE_WEIGHT_COLUMN)
         pred = mx.sym.softmax(fully_connected)
         label = mx.sym.Variable(label_field_name)
 

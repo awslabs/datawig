@@ -82,7 +82,7 @@ class _HPO:
         default_hps['string'] = {}
         default_hps['string']['ngram_range'] = {}
         default_hps['string']['max_tokens'] = [2 ** 15]
-        default_hps['string']['tokens'] = [['chars']]
+        default_hps['string']['tokens'] = [['words']]
         default_hps['string']['ngram_range']['words'] = [(1, 3)]
         default_hps['string']['ngram_range']['chars'] = [(1, 5)]
 
@@ -203,7 +203,7 @@ class _HPO:
                     data_encoders += [encoder(input_columns=[input_column],
                                               output_column=input_column + '_' + token,
                                               tokens=token,
-                                              ngram_range=col_parms['ngram_range:'+token],
+                                              ngram_range=col_parms['ngram_range:' + token],
                                               max_tokens=col_parms['max_tokens'])]
                     data_featurizers += [BowFeaturizer(field_name=input_column + '_' + token,
                                                        max_tokens=col_parms['max_tokens'])]
