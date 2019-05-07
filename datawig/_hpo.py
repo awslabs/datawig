@@ -75,14 +75,14 @@ class _HPO:
         default_hps['global'] = {}
         default_hps['global']['learning_rate'] = [4e-3]
         default_hps['global']['weight_decay'] = [0]
-        default_hps['global']['num_epochs'] = [25]
+        default_hps['global']['num_epochs'] = [100]
         default_hps['global']['patience'] = [5]
         default_hps['global']['batch_size'] = [16]
         default_hps['global']['final_fc_hidden_units'] = [[]]
         default_hps['string'] = {}
         default_hps['string']['ngram_range'] = {}
-        default_hps['string']['max_tokens'] = [2 ** 15]
-        default_hps['string']['tokens'] = [['words']]
+        default_hps['string']['max_tokens'] = []  # [2 ** exp for exp in [12, 15, 18]]
+        default_hps['string']['tokens'] = []  # [['chars'], ['words']]
         default_hps['string']['ngram_range']['words'] = [(1, 3)]
         default_hps['string']['ngram_range']['chars'] = [(1, 5)]
 
