@@ -30,10 +30,11 @@ import datawig
 from datawig.column_encoders import (BowEncoder, CategoricalEncoder,
                                      NumericalEncoder, SequentialEncoder,
                                      TfIdfEncoder)
-from datawig.imputer import Imputer
+from datawig.imputer import (Imputer, INSTANCE_WEIGHT_COLUMN)
 from datawig.mxnet_input_symbols import (BowFeaturizer, EmbeddingFeaturizer,
                                          LSTMFeaturizer, NumericalFeaturizer)
 from datawig.utils import random_split
+
 
 warnings.filterwarnings("ignore")
 
@@ -597,7 +598,7 @@ def test_mxnet_module_wrapper(data_frame):
     mod = _MXNetModule(mx.current_context(), label_encoders, data_featurizers, final_fc_hidden_units=[])(iter_train)
 
     assert mod._label_names == [label_col]
-    assert mod.data_names == [feature_col]
+    assert sorted(mod.data_names) == sorted([feature_col] + [INSTANCE_WEIGHT_COLUMN])
     # weights and biases
     assert len(mod._arg_params) == 2
 

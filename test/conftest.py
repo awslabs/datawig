@@ -86,3 +86,31 @@ def data_frame():
         return df
 
     return _inner_impl
+
+
+def synthetic_label_shift_simple(N, label_proportions, error_proba, covariates=None) -> pd.DataFrame:
+    """
+    Generate data with synthetic label shift and a single string feature column
+
+    :param N: Number of observations
+    :param label_proportions: Dirichlet vector with label proportions
+    :param error_proba: Probability of sampling from a different covariate distribution
+    :param covariates: list of covariate names, random strings by default
+    """
+
+    if covariates is None:
+        covariates = []
+        for i in range(len(label_proportions)):
+            covariates.append(rand_string(6))
+
+    out = []
+    for n in range(N):
+        label = np.random.choice(range(len(label_proportions)), p=label_proportions)
+        if np.random.rand() > error_proba:
+            covariate = covariates[label]
+        else:
+            # choose a different covariate at random.
+            covariate = covariates[np.random.choice([i for i in range(len(label_proportions)) if i != label])]
+        out.append((covariate, 'label_' + str(label)))
+
+    return pd.DataFrame(out, columns=['covariate', 'label'])

@@ -24,8 +24,9 @@ import math
 import random
 import sys
 import time
-from typing import List, Dict
+import string
 import collections
+from typing import Any, List, Tuple, Dict
 
 import mxnet as mx
 import numpy as np
@@ -373,14 +374,15 @@ def sample_cartesian(sets: List,
                      idx: int,
                      n: int = None) -> List:
     """
-    Draw a single sample from the cartesian product of all iterables in sets.
+    Draw samples from the cartesian product of all iterables in sets.
     Each row in the cartesian product has a unique index. This function returns
     the row with index idx without materialising any of the other rows.
 
     For a cartesian products of lists with length l1, l2, ... lm, taking the cartesian
     product can be thought of as traversing through all lists picking one element of each
     and repeating this until all possible combinations are exhausted. The number of combinations
-    is N=l1*l2*...*lm. By taking the first element from every list that leads to a new combination,
+    is N=l1*l2*...*lm. This can make materialization of the list impracticle.
+    By taking the first element from every list that leads to a new combination,
     we can define a unique enumeration of all combinations.
 
     :param sets: List of iteratbles

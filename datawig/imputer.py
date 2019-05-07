@@ -37,7 +37,7 @@ from . import calibration
 from .column_encoders import (CategoricalEncoder, ColumnEncoder,
                               NumericalEncoder, TfIdfEncoder)
 from .evaluation import evaluate_and_persist_metrics
-from .iterators import ImputerIterDf
+from .iterators import ImputerIterDf, INSTANCE_WEIGHT_COLUMN
 from .mxnet_input_symbols import Featurizer
 from .utils import (AccuracyMetric, ColumnOverwriteException,
                     LogMetricCallBack, MeanSymbol, get_context, logger,
@@ -1006,12 +1006,19 @@ class Imputer:
         ctx = imputer.ctx
 
         logger.debug("Loading mxnet model from {}".format(imputer.module_path))
+
+        # for categorical outputs, instance weight is added
+        if isinstance(imputer.label_encoders[0], NumericalEncoder):
+            data_names = [s.field_name for s in imputer.data_featurizers]
+        else:
+            data_names = [s.field_name for s in imputer.data_featurizers] + [INSTANCE_WEIGHT_COLUMN]
+
         # deserialize mxnet module
         imputer.module = mx.module.Module.load(
             imputer.module_path,
             imputer.__get_best_epoch(),
             context=ctx,
-            data_names=[s.field_name for s in imputer.data_featurizers],
+            data_names=data_names,
             label_names=[s.output_column for s in imputer.label_encoders]
         )
         return imputer
@@ -1097,7 +1104,8 @@ class _MXNetModule:
         self.label_encoders = label_encoders
         self.final_fc_hidden_units = final_fc_hidden_units
 
-    def __call__(self, iter_train: ImputerIterDf) -> mx.mod.Module:
+    def __call__(self,
+                 iter_train: ImputerIterDf) -> mx.mod.Module:
         """
         Given a training iterator, build MXNet module and return it
 
@@ -1116,10 +1124,12 @@ class _MXNetModule:
         mod = mx.mod.Module(
             mx.sym.Group([loss] + output_symbols),
             context=self.ctx,
-            data_names=[name for name, dim in iter_train.provide_data],
+            # [name for name, dim in iter_train.provide_data],
+            data_names=[name for name, dim in iter_train.provide_data if name in loss.list_arguments()],
             label_names=[name for name, dim in iter_train.provide_label]
         )
-        mod.bind(data_shapes=iter_train.provide_data, label_shapes=iter_train.provide_label)
+        mod.bind(data_shapes=[d for d in iter_train.provide_data if d.name in loss.list_arguments()],  # iter_train.provide_data,
+                 label_shapes=iter_train.provide_label)
 
         return mod
 
@@ -1161,6 +1171,7 @@ class _MXNetModule:
                             data=latents,
                             num_hidden=layer)
 
+        instance_weight = mx.sym.Variable(INSTANCE_WEIGHT_COLUMN)
         pred = mx.sym.softmax(fully_connected)
         label = mx.sym.Variable(label_field_name)
 
@@ -1174,7 +1185,7 @@ class _MXNetModule:
         indices = mx.sym.broadcast_lesser(label, num_labels_vec)
         label = label * indices
 
-        # goes from (batch, 1) to (batch,) as it is required for softmax output
+        # goes from (batch, 1) to (batch,) as is required for softmax output
         label = mx.sym.split(label, axis=1, num_outputs=1, squeeze_axis=1)
 
         # mask entries when label is 0 (missing value)
@@ -1183,6 +1194,8 @@ class _MXNetModule:
 
         # compute the cross entropy only when labels are positive
         cross_entropy = mx.sym.pick(mx.sym.log_softmax(fully_connected), label) * -1 * positive_mask
+        # multiply loss by class weighting
+        cross_entropy = cross_entropy * mx.sym.pick(instance_weight, label)
 
         # normalize the cross entropy by the number of positive label
         num_positive_indices = mx.sym.sum(positive_mask)
@@ -1196,7 +1209,8 @@ class _MXNetModule:
         return pred, cross_entropy
 
     @staticmethod
-    def __make_numerical_loss(latents: mx.symbol, label_field_name: str) -> Tuple[Any, Any]:
+    def __make_numerical_loss(latents: mx.symbol,
+                              label_field_name: str) -> Tuple[Any, Any]:
         """
         Generate output symbol for univariate numeric loss
 
