@@ -25,8 +25,8 @@ import random
 import sys
 import time
 import string
-from typing import Any, List, Tuple, Dict
 import collections
+from typing import Any, List, Tuple, Dict
 
 import mxnet as mx
 import numpy as np
@@ -41,6 +41,7 @@ log_formatter = logging.Formatter("%(asctime)s [%(levelname)s]  %(message)s")
 logger = logging.getLogger()
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(log_formatter)
+consoleHandler.setLevel("INFO")
 logger.addHandler(consoleHandler)
 logger.setLevel("INFO")
 

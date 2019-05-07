@@ -58,7 +58,7 @@ def evaluate_and_persist_metrics(true_labels_string,
                                   true != missing_symbol[att]]
             assert len(true_and_predicted) > 0, "No valid ground truth data for label {}".format(att)
             truth, predicted = zip(*true_and_predicted)
-            logger.info(
+            logger.debug(
                 "Keeping {}/{} not-missing values for evaluation of {}".format(len(truth), len(true_labels_string[att]),
                                                                                att))
             dfs.append(pd.DataFrame({'attribute': att, 'true_value': truth, 'predicted_value': predicted}))
@@ -67,14 +67,14 @@ def evaluate_and_persist_metrics(true_labels_string,
 
         metrics = evaluate_model_outputs(df)
 
-        logger.info("average classification metrics:")
+        logger.debug("average classification metrics:")
         for label, att_metrics in metrics.items():
-            logger.info(
+            logger.debug(
                 "label: {} - {}".format(label, list(filter(lambda x: x[0].startswith("avg"), att_metrics.items()))))
 
-        logger.info("weighted average classification metrics:")
+        logger.debug("weighted average classification metrics:")
         for label, att_metrics in metrics.items():
-            logger.info(
+            logger.debug(
                 "label: {} - {}".format(label,
                                         list(filter(lambda x: x[0].startswith("weighted"), att_metrics.items()))))
 
@@ -91,7 +91,7 @@ def evaluate_and_persist_metrics(true_labels_string,
                                                                            'recall': rec,
                                                                            'thresholds': thresholds}
                     threshold_idx = (prec > .95).nonzero()[0][0] - 1
-                    logger.info(
+                    logger.debug(
                         "Attribute {}, Label: {}\tReaching {} precision / {} recall at threshold {}".format(
                             att, true_label, prec[threshold_idx], rec[threshold_idx], thresholds[threshold_idx]))
     else:
@@ -112,7 +112,7 @@ def evaluate_and_persist_metrics(true_labels_string,
                         'recall': metrics[att]['precision_recall_curves'][label]['recall'].tolist(),
                         'thresholds': metrics[att]['precision_recall_curves'][label]['thresholds'].tolist()
                     }
-        logger.info("save metrics in {}".format(metrics_file))
+        logger.debug("save metrics in {}".format(metrics_file))
         with open(metrics_file, "w") as fp:
             json.dump(serialize_metrics, fp)
 

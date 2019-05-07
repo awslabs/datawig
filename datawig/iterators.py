@@ -107,7 +107,7 @@ class ImputerIter(mx.io.DataIter):
         for col_enc in self.data_columns:
             data_array_numpy = col_enc.transform(data_frame)
             data[col_enc.output_column] = mx.nd.array(data_array_numpy[:n_samples, :])
-            logger.info("Data Encoding - Encoded {} rows of column \
+            logger.debug("Data Encoding - Encoded {} rows of column \
                         {} with {} into \
                         {} of shape {} \
                         and then into shape {}".format(len(data_frame),
@@ -122,13 +122,13 @@ class ImputerIter(mx.io.DataIter):
             if col_enc.input_columns[0] in data_frame.columns:
                 labels_array_numpy = col_enc.transform(data_frame).astype(np.float64)
                 labels[col_enc.output_column] = mx.nd.array(labels_array_numpy[:n_samples, :])
-                logger.info("Label Encoding - Encoded {} rows of column \
+                logger.debug("Label Encoding - Encoded {} rows of column \
                             {} with {} into \
                             {} of shape {} and \
                             then into shape {}".format(len(data_frame), col_enc.input_columns[0], col_enc.__class__, type(labels_array_numpy), labels_array_numpy.shape, labels[col_enc.output_column].shape))
             else:
                 labels[col_enc.input_columns[0]] = mx.nd.zeros((n_samples, 1))
-                logger.info("Could not find column {} in DataFrame, \
+                logger.debug("Could not find column {} in DataFrame, \
                              setting {} labels to missing".format(col_enc.input_columns[0], n_samples))
 
         # transform label weights to mxnet nd array
