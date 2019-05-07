@@ -174,8 +174,8 @@ class SimpleImputer:
                 test_split: float = .2,
                 weight_decay: List[float] = None,
                 batch_size: int = 16,
-                num_hash_bucket_candidates: List[float] = None,
-                tokens_candidates: List[str] = None,
+                num_hash_bucket_candidates: List[float] = [2 ** exp for exp in [12, 15, 18]],
+                tokens_candidates: List[str] = ['words', 'chars'],
                 numeric_latent_dim_candidates: List[int] = None,
                 numeric_hidden_layers_candidates: List[int] = None,
                 final_fc_hidden_units: List[List[int]] = None,
@@ -233,7 +233,7 @@ class SimpleImputer:
         """
 
         # generate dictionary with default hyperparameter settings. Overwrite these defaults
-        # with configurations that were passed via the old API where applicable.
+        # with configurations that were passed via this functions API wherever applicable.
         default_hps = dict()
         default_hps['global'] = dict()
         if learning_rate_candidates:
@@ -297,8 +297,8 @@ class SimpleImputer:
             test_df: pd.DataFrame = None,
             ctx: mx.context = get_context(),
             learning_rate: float = 4e-3,
-            num_epochs: int = 10,
-            patience: int = 3,
+            num_epochs: int = 100,
+            patience: int = 5,
             test_split: float = .1,
             weight_decay: float = 0.,
             batch_size: int = 16,
