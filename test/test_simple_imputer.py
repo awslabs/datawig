@@ -426,8 +426,8 @@ def test_hpo_all_input_types(test_dir, data_frame):
     hps['string_feature']['max_tokens'] = [2 ** 15]
     hps['string_feature']['tokens'] = [['words', 'chars']]
     hps['string_feature']['ngram_range'] = {}
-    hps['string_feature']['ngram_range']['words'] = [(1, 4), (2, 5)]
-    hps['string_feature']['ngram_range']['chars'] = [(2, 4), (3, 5)]
+    hps['string_feature']['ngram_range']['words'] = [(1, 5)]
+    hps['string_feature']['ngram_range']['chars'] = [(2, 4), (1, 3)]
 
     hps['categorical_feature'] = {}
     hps['categorical_feature']['type'] = ['categorical']
@@ -457,15 +457,17 @@ def test_hpo_all_input_types(test_dir, data_frame):
     imputer.fit_hpo(df_train,
                     hps=hps,
                     user_defined_scores=uds,
-                    num_evals=5,
-                    hpo_run_name='test1_')
+                    num_evals=3,
+                    hpo_run_name='test1_',
+                    num_epochs=10)
 
     imputer.fit_hpo(df_train,
                     hps=hps,
                     user_defined_scores=uds,
-                    num_evals=5,
+                    num_evals=3,
                     hpo_run_name='test2_',
-                    max_running_hours=1/3600)
+                    max_running_hours=1/3600,
+                    num_epochs=10)
 
     results = imputer.hpo.results
 
@@ -476,7 +478,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
 def test_hpo_defaults(test_dir, data_frame):
     label_col = "label"
 
-    n_samples = 1000
+    n_samples = 500
     num_labels = 3
     seq_len = 10
 
@@ -502,9 +504,9 @@ def test_hpo_defaults(test_dir, data_frame):
         output_path=output_path
     )
 
-    imputer.fit_hpo(df_train, num_evals=2)
+    imputer.fit_hpo(df_train, num_evals=10, num_epochs=5)
 
-    assert imputer.hpo.results.precision_weighted.max() > .5
+    assert imputer.hpo.results.precision_weighted.max() > .9
 
 
 def test_hpo_num_evals_empty_hps(test_dir, data_frame):
@@ -523,7 +525,7 @@ def test_hpo_num_evals_empty_hps(test_dir, data_frame):
     num_evals = 2
     imputer.fit_hpo(df, num_evals=num_evals)
 
-    assert imputer.hpo.results.shape[0] == 1
+    assert imputer.hpo.results.shape[0] == 2
 
 
 def test_hpo_num_evals_given_hps(test_dir, data_frame):
@@ -533,21 +535,17 @@ def test_hpo_num_evals_given_hps(test_dir, data_frame):
     df = data_frame(feature_col=feature_col,
                     label_col=label_col)
 
-    num_evals = 2
     # assert that num_evals is an upper bound on the number of hpo runs
-    for n_max_tokens_to_try in range(1, 5):
+    for num_evals in range(1, 3):
         imputer = SimpleImputer(
             input_columns=[col for col in df.columns if col != label_col],
             output_column=label_col,
             output_path=test_dir
         )
 
-        hps = {
-            feature_col: {'max_tokens': n_max_tokens_to_try*[10]}
-        }
-        imputer.fit_hpo(df, hps=hps, num_evals=num_evals)
+        imputer.fit_hpo(df, num_evals=num_evals, num_epochs=5)
 
-        assert imputer.hpo.results.shape[0] == min(num_evals, n_max_tokens_to_try)
+        assert imputer.hpo.results.shape[0] == num_evals
 
 
 def test_hpo_many_columns(test_dir, data_frame):
@@ -574,7 +572,7 @@ def test_hpo_many_columns(test_dir, data_frame):
         output_path=test_dir
     )
 
-    imputer.fit_hpo(df, num_evals=2)
+    imputer.fit_hpo(df, num_evals=2, num_epochs=20)
 
     assert imputer.hpo.results.precision_weighted.max() > .75
 
@@ -730,8 +728,10 @@ def test_hpo_runs(test_dir, data_frame):
     hps['global'] = {}
     hps['global']['concat_columns'] = [False]
     hps['global']['num_epochs'] = [10]
+    hps['global']['num_epochs'] = [10]
+    hps['global']['num_epochs'] = [10]
 
-    imputer.fit_hpo(df, hps=hps)
+    imputer.fit_hpo(df, hps=hps, num_hash_bucket_candidates=[2**15], tokens_candidates=['words'])
 
     # only search over specified parameter ranges
     assert set(imputer.hpo.results[feature_col+':'+'max_tokens'].unique().tolist()) == set(max_tokens)
@@ -758,7 +758,7 @@ def test_hpo_single_column_encoder_parameter(test_dir, data_frame):
 
     imputer.fit_hpo(df, hps=hps)
 
-    assert imputer.hpo.results.shape[0] == 1
+    assert imputer.hpo.results.shape[0] == 2
     assert imputer.imputer.data_encoders[0].vectorizer.max_features == 1024
 
 
@@ -777,9 +777,10 @@ def test_hpo_multiple_columns_only_one_used(test_dir, data_frame):
     )
 
     hps = dict()
-    hps[feature_col] = {'max_tokens': [1024]}
     hps['global'] = {}
     hps['global']['num_epochs'] = [10]
+    hps[feature_col] = {'max_tokens': [1024]}
+    hps[feature_col]['tokens'] = [['chars']]
 
     imputer.fit_hpo(df, hps=hps)
 
@@ -843,7 +844,7 @@ def test_hpo_similar_input_col_mixed_types(test_dir, data_frame):
         output_path=test_dir
     )
 
-    imputer.fit_hpo(df)
+    imputer.fit_hpo(df, num_epochs=20)
 
 
 def test_hpo_kwargs_only_support(test_dir, data_frame):
@@ -910,6 +911,7 @@ def test_hpo_numeric_best_pick(test_dir, data_frame):
     )
 
     hps = {feature_col: {'max_tokens': [1, 2, 3]}}
+    hps[feature_col]['tokens'] = [['chars']]
 
     imputer.fit_hpo(df, hps=hps)
 
@@ -960,5 +962,5 @@ def test_hpo_explainable(test_dir, data_frame):
             output_column=label_col,
             output_path=test_dir,
             is_explainable=explainable
-        ).fit_hpo(df)
+        ).fit_hpo(df, num_epochs=10)
         assert isinstance(imputer.imputer.data_encoders[0].vectorizer, vectorizer)

@@ -81,8 +81,8 @@ class _HPO:
         default_hps['global']['final_fc_hidden_units'] = [[]]
         default_hps['string'] = {}
         default_hps['string']['ngram_range'] = {}
-        default_hps['string']['max_tokens'] = [2 ** exp for exp in [12, 15, 18]]
-        default_hps['string']['tokens'] = [['chars'], ['words']]
+        default_hps['string']['max_tokens'] = []  # [2 ** exp for exp in [12, 15, 18]]
+        default_hps['string']['tokens'] = []  # [['chars'], ['words']]
         default_hps['string']['ngram_range']['words'] = [(1, 3)]
         default_hps['string']['ngram_range']['chars'] = [(1, 5)]
 
