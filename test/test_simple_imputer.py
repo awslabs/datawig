@@ -159,7 +159,8 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
         output_column=label_col,
         output_path=output_path
     ).fit(
-        train_df=df_train
+        train_df=df_train,
+        num_epochs=10
     )
 
     logfile = os.path.join(imputer.output_path, 'imputer.log')
@@ -204,7 +205,7 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
 
     assert f1 > .9
 
-    retrained_simple_imputer = deserialized.fit(df_train, df_train)
+    retrained_simple_imputer = deserialized.fit(df_train, df_train, num_epochs=10)
 
     df_train_imputed = retrained_simple_imputer.predict(df_train.copy(), inplace=True)
     f1 = f1_score(df_train[label_col], df_train_imputed[label_col + '_imputed'], average="weighted")
@@ -257,6 +258,7 @@ def test_numeric_or_text_imputer(test_dir, data_frame):
     ).fit(
         train_df=df_train,
         learning_rate=1e-3,
+        num_epochs=10
     )
 
     imputer_numeric_linear.predict(df_test, inplace=True)
@@ -373,7 +375,7 @@ def test_imputer_hpo_text(test_dir, data_frame):
     hps['global']['weight_decay'] = [0]
     hps['global']['num_epochs'] = [30]
 
-    imputer_string.fit_hpo(df_train, hps=hps)
+    imputer_string.fit_hpo(df_train, hps=hps, num_epochs=10, num_evals=3)
 
     assert max(imputer_string.hpo.results['f1_micro']) > 0.7
 
@@ -523,7 +525,7 @@ def test_hpo_num_evals_empty_hps(test_dir, data_frame):
     )
 
     num_evals = 2
-    imputer.fit_hpo(df, num_evals=num_evals)
+    imputer.fit_hpo(df, num_evals=num_evals, num_epochs=10)
 
     assert imputer.hpo.results.shape[0] == 2
 
