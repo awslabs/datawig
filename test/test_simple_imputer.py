@@ -283,7 +283,8 @@ def test_numeric_or_text_imputer(test_dir, data_frame):
         output_column=label_col,
         output_path=output_path
     ).fit(
-        train_df=df_train
+        train_df=df_train,
+        num_epochs=10
     )
 
     imputer_string.predict(df_test, inplace=True)
@@ -388,7 +389,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
     """
     label_col = "label"
 
-    n_samples = 1000
+    n_samples = 500
     num_labels = 3
     seq_len = 12
 
@@ -574,7 +575,7 @@ def test_hpo_many_columns(test_dir, data_frame):
         output_path=test_dir
     )
 
-    imputer.fit_hpo(df, num_evals=2, num_epochs=20)
+    imputer.fit_hpo(df, num_evals=2, num_epochs=10)
 
     assert imputer.hpo.results.precision_weighted.max() > .75
 
@@ -846,7 +847,7 @@ def test_hpo_similar_input_col_mixed_types(test_dir, data_frame):
         output_path=test_dir
     )
 
-    imputer.fit_hpo(df, num_epochs=20)
+    imputer.fit_hpo(df, num_epochs=10)
 
 
 def test_hpo_kwargs_only_support(test_dir, data_frame):
@@ -964,5 +965,5 @@ def test_hpo_explainable(test_dir, data_frame):
             output_column=label_col,
             output_path=test_dir,
             is_explainable=explainable
-        ).fit_hpo(df, num_epochs=10)
+        ).fit_hpo(df, num_epochs=3)
         assert isinstance(imputer.imputer.data_encoders[0].vectorizer, vectorizer)
