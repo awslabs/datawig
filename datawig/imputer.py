@@ -165,8 +165,7 @@ class Imputer:
 
         """
 
-        no_filehandler_present = not any([h.baseFilename.endswith('imputer.log') for h in logger.handlers if type(h) is FileHandler])
-        if os.access(os.path.dirname(filename), os.W_OK) and no_filehandler_present:
+        if os.access(os.path.dirname(filename), os.W_OK):
             file_handler = FileHandler(filename, mode='a')
             file_handler.setLevel(level)
             file_handler.setFormatter(log_formatter)
