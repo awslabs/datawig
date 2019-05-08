@@ -597,7 +597,7 @@ class SimpleImputer:
         """
 
         if self.hpo.results is None:
-            logger.warn('No hpo run available. Run hpo by calling SimpleImputer.fit_hpo().')
+            logger.warning('No hpo run available. Run hpo by calling SimpleImputer.fit_hpo().')
             return
 
         if hpo_name is None:
@@ -672,12 +672,12 @@ class SimpleImputer:
         # estimate marginals of true labels
         true_marginals_target = np.diag(marginals_test).dot(label_weights)
 
-        logger.warn('\n\tThe estimated label marginals are ' + str(list(zip(labels, true_marginals_target))) +
+        logger.warning('\n\tThe estimated label marginals are ' + str(list(zip(labels, true_marginals_target))) +
                     '\n\tMarginals in the training data are ' + str(list(zip(labels, marginals_test))) +
                     '\n\tReweighing factors for empirical risk minimization' + str(label_weights_dict))
 
         if np.any(marginals_test < 0):
-            logger.warn('\n\tEstimated label marginals are invalid. Proceed with caution.')
+            logger.warning('\n\tEstimated label marginals are invalid. Proceed with caution.')
 
         return label_weights_dict
 
