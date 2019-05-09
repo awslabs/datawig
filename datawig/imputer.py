@@ -291,7 +291,7 @@ class Imputer:
         """
 
         if len(self.label_encoders) > 1:
-            logger.warn('Persisting class prototypes works only for a single output column. '
+            logger.warning('Persisting class prototypes works only for a single output column. '
                         'Choosing ' + str(self.label_encoders[0].output_column) + '.')
         label_name = self.label_encoders[0].output_column
 
@@ -306,7 +306,7 @@ class Imputer:
         explainable_data_encoders_idx = []
         for encoder_idx, encoder in enumerate(self.data_encoders):
             if not (isinstance(encoder, TfIdfEncoder) or isinstance(encoder, CategoricalEncoder)):
-                logger.warn("Data encoder type {} incompatible for explaining classes".format(type(encoder)))
+                logger.warning("Data encoder type {} incompatible for explaining classes".format(type(encoder)))
             else:
                 explainable_data_encoders.append(encoder)
                 explainable_data_encoders_idx.append(encoder_idx)
@@ -332,7 +332,7 @@ class Imputer:
                         [np.sum(p_normalized[np.where(feature_matrix_scaled[0, :] == category)[0], :], axis=0)
                          for category in encoder.idx_to_token.keys()])))
             else:
-                logger.warn("column encoder not supported for explain.")
+                logger.warning("column encoder not supported for explain.")
 
         self.__class_patterns = class_patterns
 

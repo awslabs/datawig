@@ -224,7 +224,7 @@ class _HPO:
                                                          numeric_latent_dim=col_parms['numeric_latent_dim'],
                                                          numeric_hidden_layers=col_parms['numeric_hidden_layers'])]
             else:
-                logger.warn('Found unknown column type. Canidates are string, categorical, numeric.')
+                logger.warning('Found unknown column type. Canidates are string, categorical, numeric.')
 
         # Define separate encoder and featurizer for each column
         # Define output column. Associated parameters are not tuned.
