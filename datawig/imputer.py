@@ -128,7 +128,6 @@ class Imputer:
                         ", ".join(encoder_outputs), featurizer_type))
             # TODO: check whether encoder type matches requirements of featurizer
 
-
         # collect names of data and label columns
         input_col_names = [c.field_name for c in self.data_featurizers]
         label_col_names = list(itertools.chain(*[c.input_columns for c in self.label_encoders]))
@@ -195,11 +194,12 @@ class Imputer:
             elif isinstance(col_enc, CategoricalEncoder):
                 values_not_in_test_set = set(col_enc.token_to_idx.keys()) - \
                                          set(data_frame[col_enc.input_columns[0]].unique())
-                logger.warning(
-                    "Test set does not contain any ocurrences of values [{}] in column [{}], "
-                    "consider using a more representative test set.".format(
-                        ", ".join(values_not_in_test_set),
-                        col_enc.input_columns[0]))
+                if len(values_not_in_test_set) > 0:
+                    logger.warning(
+                        "Test set does not contain any ocurrences of values [{}] in column [{}], "
+                        "consider using a more representative test set.".format(
+                            ", ".join(values_not_in_test_set),
+                            col_enc.input_columns[0]))
 
     def fit(self,
             train_df: pd.DataFrame,
@@ -291,7 +291,7 @@ class Imputer:
         """
 
         if len(self.label_encoders) > 1:
-            logger.warn('Persisting class prototypes works only for a single output column. '
+            logger.warning('Persisting class prototypes works only for a single output column. '
                         'Choosing ' + str(self.label_encoders[0].output_column) + '.')
         label_name = self.label_encoders[0].output_column
 
@@ -306,7 +306,7 @@ class Imputer:
         explainable_data_encoders_idx = []
         for encoder_idx, encoder in enumerate(self.data_encoders):
             if not (isinstance(encoder, TfIdfEncoder) or isinstance(encoder, CategoricalEncoder)):
-                logger.warn("Data encoder type {} incompatible for explaining classes".format(type(encoder)))
+                logger.warning("Data encoder type {} incompatible for explaining classes".format(type(encoder)))
             else:
                 explainable_data_encoders.append(encoder)
                 explainable_data_encoders_idx.append(encoder_idx)
@@ -332,7 +332,7 @@ class Imputer:
                         [np.sum(p_normalized[np.where(feature_matrix_scaled[0, :] == category)[0], :], axis=0)
                          for category in encoder.idx_to_token.keys()])))
             else:
-                logger.warn("column encoder not supported for explain.")
+                logger.warning("column encoder not supported for explain.")
 
         self.__class_patterns = class_patterns
 
@@ -1127,8 +1127,10 @@ class _MXNetModule:
             data_names=[name for name, dim in iter_train.provide_data if name in loss.list_arguments()],
             label_names=[name for name, dim in iter_train.provide_label]
         )
-        mod.bind(data_shapes=[d for d in iter_train.provide_data if d.name in loss.list_arguments()],  # iter_train.provide_data,
-                 label_shapes=iter_train.provide_label)
+
+        if mod.binded is False:
+            mod.bind(data_shapes=[d for d in iter_train.provide_data if d.name in loss.list_arguments()],  # iter_train.provide_data,
+                     label_shapes=iter_train.provide_label)
 
         return mod
 
