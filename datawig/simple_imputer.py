@@ -461,7 +461,8 @@ class SimpleImputer:
                  hpo: bool = False,
                  verbose: int = 0,
                  num_epochs: int = 100,
-                 iterations: int = 1):
+                 iterations: int = 1,
+                 output_path: str = ""):
         """
         Given a dataframe with missing values, this function detects all imputable columns, trains an imputation model
         on all other columns and imputes values for each missing value.
@@ -480,6 +481,7 @@ class SimpleImputer:
         :param verbose: verbosity level, values > 0 log to stdout (default: 0)
         :param num_epochs: number of epochs for each imputation model training (default: 100)
         :param iterations: number of iterations for iterative imputation (default: 1)
+        :param output_path: path to store model and metrics
         :return: dataframe with imputations
         """
 
@@ -512,7 +514,7 @@ class SimpleImputer:
 
                 imputer = SimpleImputer(input_columns=input_cols,
                                         output_column=output_col,
-                                        output_path=output_col)
+                                        output_path=os.path.join(output_path, output_col))
                 if hpo:
                     imputer.fit_hpo(data_frame.loc[~idx_missing, :],
                                     patience=5 if output_col in categorical_columns else 20,
