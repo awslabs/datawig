@@ -146,23 +146,24 @@ class SimpleImputer:
     @staticmethod
     def _is_categorical(col: pd.Series,
                         n_samples: int = 100,
-                        min_value_histogram: float = 0.1) -> bool:
+                        max_unique_fraction=0.05) -> bool:
         """
 
         A heuristic to check whether a column is categorical:
-        a column is considered categorical (as opposed to a plain text column) if the least frequent value
-        occurs with a frequency of at least ``min_value_histogram``.
+        a column is considered categorical (as opposed to a plain text column)
+        if the relative cardinality is max_unique_fraction or less.
 
         :param col: pandas Series containing strings
         :param n_samples: number of samples used for heuristic (default: 100)
-        :min_value_histogram: minimum value in the normalized value histogram (default: 0.1)
+        :param max_unique_fraction: maximum relative cardinality.
 
         :return: True if the column is categorical according to the heuristic
 
         """
 
-        return col.sample(n=n_samples, replace=len(col) < n_samples).value_counts(
-            normalize=True).min() >= min_value_histogram
+        sample = col.sample(n=n_samples, replace=len(col) < n_samples).unique()
+
+        return sample.shape[0] / n_samples < max_unique_fraction
 
     def fit_hpo(self,
                 train_df: pd.DataFrame,
