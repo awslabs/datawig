@@ -463,7 +463,7 @@ class SimpleImputer:
                  verbose: int = 0,
                  num_epochs: int = 100,
                  iterations: int = 1,
-                 output_path: str = ""):
+                 output_path: str = "."):
         """
         Given a dataframe with missing values, this function detects all imputable columns, trains an imputation model
         on all other columns and imputes values for each missing value.
