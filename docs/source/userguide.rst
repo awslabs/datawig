@@ -18,11 +18,11 @@ For additional examples and use cases, refer to the `unit test cases`_.
 
 Data
 ****
-Unless otherwise specified, these examples will make use of the `Multimodal Attribute Extraction (MAE) dataset`_. This dataset contains over 2.2 million products with corresponding attributes, but to make data loading and processing more manageable, we provide a reformatted subset of the validation data (for the *finish* attribute) as a .csv file.
+Unless otherwise specified, these examples will make use of the `Multimodal Attribute Extraction (MAE) dataset`_. This dataset contains over 2.2 million products with corresponding attributes, but to make data loading and processing more manageable, we provide a reformatted subset of the validation data (for the *finish* and *color* attributes) as a .csv file.
 
-This data contains columns for *title*, *text*, and *finish*. The title and text columns contain string data that will be used to impute the finish attribute. Note, the dataset is extremely noisy, but still provides a good example for real-world use cases of DataWig.
+This data contains columns for *title*, *text*, *finish*, and *color*. The title and text columns contain string data that will be used to impute the finish attribute. Note, the dataset is extremely noisy, but still provides a good example for real-world use cases of DataWig.
 
-To speed up run-time, all examples will use a smaller version of this finish dataset that contains only 500 samples. Run the following in this directory to download this dataset:
+To speed up run-time, all examples will use a smaller version of this finish dataset that contains ~5000 samples. Run the following in this directory to download this dataset:
 
 .. code-block:: bash
 
@@ -82,6 +82,109 @@ Imputer (*imputer.py*)
 ^^^^^^^^^^^^^^^^^^^^^^
 
 :code:`Imputer` is the backbone of the :code:`SimpleImputer` and is responsible for running the preprocessing code, creating the model, executing training, and making predictions. Using the :code:`Imputer` enables more flexibility with specifying model parameters, such as using particular encoders and featurizers rather than the default ones that :code:`SimpleImputer` uses.
+
+
+
+Introduction to :code:`SimpleImputer`
+-------------------------------------
+
+This tutorial will teach you the basics of how to use :code:`SimpleImputer` for your data imputation tasks.
+As an advanced feature the SimpleImputer supports label-shift detection and correction which is described in `Label Shift and Empirical Risk Minimization`_.
+For now, we will use a subset of the MAE data as an example. To download this data, please refer to the previous section.
+
+Open the `SimpleImputer intro`_ in this directory to see the code used in this tutorial.
+
+Load Data
+*********
+First, let's load the data into a pandas DataFrame and split the data into train (80%) and test (20%) subsets.
+
+.. code-block:: python
+
+    df = pd.read_csv('../finish_val_data_sample.csv')
+    df_train, df_test = random_split(df, split_ratios=[0.8, 0.2])
+
+
+Note, the :code:`random_split()` method is provided in :code:`datawig.utils`. The validation set is partitioned from the train data during training and defaults to 10%.
+
+Default :code:`SimpleImputer`
+*****************************
+
+At the most basic level, you can run the :code:`SimpleImputer` on data without specifying any additional arguments. This will automatically choose the right :code:`ColumnEncoder` and :code:`Featurizer` for each column and train an imputation model with default hyperparameters.
+
+To train a model, you can simply initialize a :code:`SimpleImputer`, specifying the input columns containing useful data for imputation, the output column that you'd like to impute values for, and the output path, which will store model data and metrics. Then, you can use the :code:`fit()` method to train the model.
+
+.. code-block:: python
+
+    #Initialize a SimpleImputer model
+    imputer = SimpleImputer(
+        input_columns=['title', 'text'],
+        output_column='finish',
+        output_path = 'imputer_model'
+    )
+
+    #Fit an imputer model on the train data
+    imputer.fit(train_df=df_train)
+
+
+From here, you can this model to make predictions on the test set and return the original dataframe with an additional column containing the model's predictions.
+
+.. code-block:: python
+
+    predictions = imputer.predict(df_test)
+
+Finally, you can determine useful metrics to gauge how well the model's predictions compare to the true values (using :code:`sklearn.metrics`).
+
+.. code-block:: python
+
+    #Calculate f1 score
+    f1 = f1_score(predictions['finish'], predictions['finish_imputed'])
+
+    #Print overall classification report
+    print(classification_report(predictions['finish'], predictions['finish_imputed']))
+
+HPO with :code:`SimpleImputer`
+******************************
+
+DataWig also enables hyperparameter optimization to find the best model on a particular dataset.
+
+The steps for training a model with HPO are identical to the default :code:`SimpleImputer`.
+
+.. code-block:: python
+
+    imputer = SimpleImputer(
+        input_columns=['title', 'text'],
+        output_column='finish',
+        output_path='imputer_model'
+    )
+
+    # fit an imputer model with customized hyperparameters
+    imputer.fit_hpo(train_df=df_train)
+
+Calling HPO like this will search through some basic and usually helpful hyperparameter choices.
+There are two ways for a more detailed search. Firstly, :code:`fit_hpo` offers additional arguments that can be inspected in the SimpleImputer_. For even more configurations and variation of hyperparameters for the various input column types, a dictionary with ranges can be passed to :code:`fit_hpo` as can be seen in the hpo-code_.
+Results for any HPO run can be accessed under :code:`imputer.hpo.results` and the model from any HPO run can then be loaded using :code:`imputer.load_hpo_model(idx)` passing the model index.
+
+
+Load Saved Model
+****************
+
+Once a model is trained, it will be saved in the location of :code:`output_path`, which you specified as an argument when intializing the :code:`SimpleImputer`. You can easily load this model for further experiments or run on new datasets as follows.
+
+.. code-block:: python
+
+    #Load saved model
+    imputer = SimpleImputer.load('./imputer_model')
+
+This model also contains the associated metrics (stored as a dictionary) calculated on the validation set during training.
+
+.. code-block:: python
+
+    #Load metrics from the validation set
+    metrics = imputer.load_metrics()
+    weighted_f1 = metrics['weighted_f1']
+    avg_precision = metrics['avg_precision']
+    # ...
+
 
 
 Introduction to Imputer
@@ -174,108 +277,6 @@ To get predictions (original dataframe with an extra column) and the associated 
     predictions, metrics = imputer.transform_and_compute_metrics(df_test)
 
 
-Introduction to :code:`SimpleImputer`
--------------------------------------
-
-This tutorial will teach you the basics of how to use :code:`SimpleImputer` for your data imputation tasks. We will use a subset of the MAE data as an example. To download this data, please refer to the previous section.
-
-Open the `SimpleImputer intro`_ in this directory to see the code used in this tutorial.
-
-Load Data
-*********
-First, let's load the data into a pandas DataFrame and split the data into train (80%) and test (20%) subsets.
-
-.. code-block:: python
-
-    df = pd.read_csv('../finish_val_data_sample.csv')
-    df_train, df_test = random_split(df, split_ratios=[0.8, 0.2])
-
-
-Note, the :code:`random_split()` method is provided in :code:`datawig.utils`. The validation set is partitioned from the train data during training and defaults to 10%.
-
-Default :code:`SimpleImputer`
-*****************************
-
-At the most basic level, you can run the :code:`SimpleImputer` on data without specifying any additional arguments. This will automatically choose the right :code:`ColumnEncoder` and :code:`Featurizer` for each column and train an imputation model with default hyperparameters.
-
-To train a model, you can simply initialize a :code:`SimpleImputer`, specifying the input columns containing useful data for imputation, the output column that you'd like to impute values for, and the output path, which will store model data and metrics. Then, you can use the :code:`fit()` method to train the model.
-
-.. code-block:: python
-
-    #Initialize a SimpleImputer model
-    imputer = SimpleImputer(
-        input_columns=['title', 'text'],
-        output_column='finish',
-        output_path = 'imputer_model'
-    )
-
-    #Fit an imputer model on the train data
-    imputer.fit(train_df=df_train)
-
-
-From here, you can this model to make predictions on the test set and return the original dataframe with an additional column containing the model's predictions.
-
-.. code-block:: python
-
-    predictions = imputer.predict(df_test)
-
-Finally, you can determine useful metrics to gauge how well the model's predictions compare to the true values (using :code:`sklearn.metrics`).
-
-.. code-block:: python
-
-    #Calculate f1 score
-    f1 = f1_score(predictions['finish'], predictions['finish_imputed'])
-
-    #Print overall classification report
-    print(classification_report(predictions['finish'], predictions['finish_imputed']))
-
-HPO with :code:`SimpleImputer`
-******************************
-
-DataWig also enables hyperparameter optimization to find the best model on a particular dataset.
-
-The steps for training a model with HPO are identical to the default :code:`SimpleImputer`.
-
-.. code-block:: python
-
-    imputer = SimpleImputer(
-        input_columns=['title', 'text'],
-        output_column='finish',
-        output_path='imputer_model'
-    )
-
-    # fit an imputer model with customized hyperparameters
-    imputer.fit_hpo(
-        train_df=df_train,
-        num_epochs=100,
-        patience=3,
-        learning_rate_candidates=[1e-3, 3e-4, 1e-4]
-    )
-
-See the SimpleImputer_ for more details on parameters.
-
-We also have a tutorial that covers more details on relevant parameters for text and numerical data.
-
-Load Saved Model
-****************
-
-Once a model is trained, it will be saved in the location of :code:`output_path`, which you specified as an argument when intializing the :code:`SimpleImputer`. You can easily load this model for further experiments or run on new datasets as follows.
-
-.. code-block:: python
-
-    #Load saved model
-    imputer = SimpleImputer.load('./imputer_model')
-
-This model also contains the associated metrics (stored as a dictionary) calculated on the validation set during training.
-
-.. code-block:: python
-
-    #Load metrics from the validation set
-    metrics = imputer.load_metrics()
-    weighted_f1 = metrics['weighted_f1']
-    avg_precision = metrics['avg_precision']
-    # ...
-
 
 Parameters for Different Data Types
 -----------------------------------
@@ -332,6 +333,48 @@ Here is an example of using these parameters:
 
 In this case, the model will use a fully connected layer size of 50 or 100, with 0 or 2 hidden layers.
 
+
+Advanced Features
+-----------------
+
+Label Shift and Empirical Risk Minimization
+*******************************************
+
+The SimpleImputer implements the method described by `Lipton, Wang and Smola`_ to detect and fix label shift for categorical outputs. Label shift occurs when the marginal distribution differs between the training and production setting. For instance, we might be interested in imputing the color of T-Shirts from their free-text description. Let's assume that the training data consists only of women's T-Shirts while the production data consists only of Men's T-Shirts. Then the marginal distribution of colors, p(color), is likely different while the conditional, p(description | color) may be unchanged. This is a scenario where datawig can detect and fix the shift.
+
+Upon training a SimpleImputer, we can detect shift by calling:
+
+.. code-block:: python
+
+    weights = imputer.check_for_label_shift(production_data)
+
+Note, that :code:`production_data` needs to have all the relevant input columns but does not have labels.
+This call will return a dictionary where each key is a label and the value is the corresponding weight by which any observation's contribution to the log-likelihood must be weighted to minimized the empirical risk.
+It will also loh the following the severity of the shift and further information:
+
+.. code-block::
+
+    The estimated true label marginals are [('black', 0.62), ('white', 0.38)]
+    Marginals in the training data are [('black', 0.23), ('white', 0.77)]
+    Reweighing factors for empirical risk minimization{'label_0': 2.72, 'label_1': 0.49}
+    The smallest eigenvalue of the confusion matrix is 0.21 ' (needs to be > 0).
+
+To correct the shift we need to retrain the model with a weighted likelihood which can easily be achieved
+
+.. code-block:: python
+
+    simple_imputer.fit(train_df, class_weights=instance_weights)
+
+The resulting model will generally have improved performance on the production_data, if there was indeed a label shift present and if the original classifier performed reasonably well. For further assumptions see the above cited paper.
+Note, that in extreme cases such as very high label noise, this method may lead to a decreased model performance.
+
+Reweighing the likelihood can be useful for reasons other than label-shift. For instance we may trust certain observations more than others and wish to up-weigh their impact on the model parameters.
+To this end, weights can also be passed on an instance level as list with an entry for every row in the training data, for instance:
+
+.. code-block:: python
+
+    simple_imputer.fit(train_df, class_weights=[1, 1, 1, 2, 1, 1, 1, ...])
+
 .. _README: https://github.com/awslabs/datawig/blob/master/README.md
 .. _`installation instructions in the readme`: https://github.com/awslabs/datawig/blob/master/README.md
 .. _`unit test cases`: https://github.com/awslabs/datawig/blob/master/test/test_imputer.py#L278
@@ -341,3 +384,5 @@ In this case, the model will use a fully connected layer size of 50 or 100, with
 .. _SimpleImputer: https://github.com/awslabs/datawig/blob/97e259d6fde9e38f66c59e82a068172c54060c04/datawig/simple_imputer.py#L144-L162
 .. _`parameter tutorial`: https://github.com/awslabs/datawig/blob/master/examples/params_tutorial.py
 .. _`here`: https://github.com/awslabs/datawig/tree/master/examples
+.. _hpo-code: https://github.com/awslabs/datawig/blob/c0d25631e9cda567577d2ed5a34089716831a565/datawig/simple_imputer.py#L167
+.. _`Lipton, Wang and Smola`: https://arxiv.org/abs/1802.03916

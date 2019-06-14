@@ -85,7 +85,7 @@ def impute_sklearn_rf(X, mask):
     X_incomplete = X.copy()
     X_incomplete[mask] = np.nan
     reg = RandomForestRegressor(random_state=0)
-    parameters = {  
+    parameters = {
         'n_estimators': [2, 10, 100],
         'max_features;': [int(np.sqrt(X.shape[-1])), X.shape[-1]]
                 }
@@ -150,7 +150,6 @@ def generate_missing_mask(X, percent_missing=10, missing_at_random=True):
             values_to_discard = X[:,depends_on_col].argsort()[discard_idx]
             mask[values_to_discard, col_affected] = 1
     return mask > 0
-       
 
 def experiment(percent_missing_list=[10], nreps=1):
     DATA_LOADERS = [
@@ -192,14 +191,13 @@ def experiment(percent_missing_list=[10], nreps=1):
     return results
 
 def run():
-    
     # this appears to be neccessary for not running into too many open files errors
     import resource
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
 
     results = experiment(percent_missing_list=[5, 10, 30, 50, 70], nreps = 5)
-    
+
     json.dump(results, open(os.path.join(dir_path, 'benchmark_results.json'), 'w'))
 
 def plot_results(results):
@@ -208,7 +206,7 @@ def plot_results(results):
 
     df = pd.DataFrame(results)
     df['mse_percent'] = df.mse / df.groupby(['data','missing_at_random','percent_missing'])['mse'].transform(max)
-    df.groupby(['missing_at_random','percent_missing','imputer']).agg({'mse_percent':'median'}) 
+    df.groupby(['missing_at_random','percent_missing','imputer']).agg({'mse_percent':'median'})
 
     plt.figure(figsize=(10,8))
     plt.subplot(2,1,1)

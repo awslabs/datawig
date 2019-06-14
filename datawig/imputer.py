@@ -37,7 +37,7 @@ from . import calibration
 from .column_encoders import (CategoricalEncoder, ColumnEncoder,
                               NumericalEncoder, TfIdfEncoder)
 from .evaluation import evaluate_and_persist_metrics
-from .iterators import ImputerIterDf
+from .iterators import ImputerIterDf, INSTANCE_WEIGHT_COLUMN
 from .mxnet_input_symbols import Featurizer
 from .utils import (AccuracyMetric, ColumnOverwriteException,
                     LogMetricCallBack, MeanSymbol, get_context, logger,
@@ -128,7 +128,6 @@ class Imputer:
                         ", ".join(encoder_outputs), featurizer_type))
             # TODO: check whether encoder type matches requirements of featurizer
 
-
         # collect names of data and label columns
         input_col_names = [c.field_name for c in self.data_featurizers]
         label_col_names = list(itertools.chain(*[c.input_columns for c in self.label_encoders]))
@@ -165,8 +164,7 @@ class Imputer:
 
         """
 
-        no_filehandler_present = not any([h.baseFilename.endswith('imputer.log') for h in logger.handlers if type(h) is FileHandler])
-        if os.access(os.path.dirname(filename), os.W_OK) and no_filehandler_present:
+        if os.access(os.path.dirname(filename), os.W_OK):
             file_handler = FileHandler(filename, mode='a')
             file_handler.setLevel(level)
             file_handler.setFormatter(log_formatter)
@@ -196,11 +194,12 @@ class Imputer:
             elif isinstance(col_enc, CategoricalEncoder):
                 values_not_in_test_set = set(col_enc.token_to_idx.keys()) - \
                                          set(data_frame[col_enc.input_columns[0]].unique())
-                logger.warning(
-                    "Test set does not contain any ocurrences of values [{}] in column [{}], "
-                    "consider using a more representative test set.".format(
-                        ", ".join(values_not_in_test_set),
-                        col_enc.input_columns[0]))
+                if len(values_not_in_test_set) > 0:
+                    logger.warning(
+                        "Test set does not contain any ocurrences of values [{}] in column [{}], "
+                        "consider using a more representative test set.".format(
+                            ", ".join(values_not_in_test_set),
+                            col_enc.input_columns[0]))
 
     def fit(self,
             train_df: pd.DataFrame,
@@ -292,7 +291,7 @@ class Imputer:
         """
 
         if len(self.label_encoders) > 1:
-            logger.warn('Persisting class prototypes works only for a single output column. '
+            logger.warning('Persisting class prototypes works only for a single output column. '
                         'Choosing ' + str(self.label_encoders[0].output_column) + '.')
         label_name = self.label_encoders[0].output_column
 
@@ -307,7 +306,7 @@ class Imputer:
         explainable_data_encoders_idx = []
         for encoder_idx, encoder in enumerate(self.data_encoders):
             if not (isinstance(encoder, TfIdfEncoder) or isinstance(encoder, CategoricalEncoder)):
-                logger.warn("Data encoder type {} incompatible for explaining classes".format(type(encoder)))
+                logger.warning("Data encoder type {} incompatible for explaining classes".format(type(encoder)))
             else:
                 explainable_data_encoders.append(encoder)
                 explainable_data_encoders_idx.append(encoder_idx)
@@ -333,7 +332,7 @@ class Imputer:
                         [np.sum(p_normalized[np.where(feature_matrix_scaled[0, :] == category)[0], :], axis=0)
                          for category in encoder.idx_to_token.keys()])))
             else:
-                logger.warn("column encoder not supported for explain.")
+                logger.warning("column encoder not supported for explain.")
 
         self.__class_patterns = class_patterns
 
@@ -1006,12 +1005,19 @@ class Imputer:
         ctx = imputer.ctx
 
         logger.debug("Loading mxnet model from {}".format(imputer.module_path))
+
+        # for categorical outputs, instance weight is added
+        if isinstance(imputer.label_encoders[0], NumericalEncoder):
+            data_names = [s.field_name for s in imputer.data_featurizers]
+        else:
+            data_names = [s.field_name for s in imputer.data_featurizers] + [INSTANCE_WEIGHT_COLUMN]
+
         # deserialize mxnet module
         imputer.module = mx.module.Module.load(
             imputer.module_path,
             imputer.__get_best_epoch(),
             context=ctx,
-            data_names=[s.field_name for s in imputer.data_featurizers],
+            data_names=data_names,
             label_names=[s.output_column for s in imputer.label_encoders]
         )
         return imputer
@@ -1097,7 +1103,8 @@ class _MXNetModule:
         self.label_encoders = label_encoders
         self.final_fc_hidden_units = final_fc_hidden_units
 
-    def __call__(self, iter_train: ImputerIterDf) -> mx.mod.Module:
+    def __call__(self,
+                 iter_train: ImputerIterDf) -> mx.mod.Module:
         """
         Given a training iterator, build MXNet module and return it
 
@@ -1116,10 +1123,14 @@ class _MXNetModule:
         mod = mx.mod.Module(
             mx.sym.Group([loss] + output_symbols),
             context=self.ctx,
-            data_names=[name for name, dim in iter_train.provide_data],
+            # [name for name, dim in iter_train.provide_data],
+            data_names=[name for name, dim in iter_train.provide_data if name in loss.list_arguments()],
             label_names=[name for name, dim in iter_train.provide_label]
         )
-        mod.bind(data_shapes=iter_train.provide_data, label_shapes=iter_train.provide_label)
+
+        if mod.binded is False:
+            mod.bind(data_shapes=[d for d in iter_train.provide_data if d.name in loss.list_arguments()],  # iter_train.provide_data,
+                     label_shapes=iter_train.provide_label)
 
         return mod
 
@@ -1161,6 +1172,7 @@ class _MXNetModule:
                             data=latents,
                             num_hidden=layer)
 
+        instance_weight = mx.sym.Variable(INSTANCE_WEIGHT_COLUMN)
         pred = mx.sym.softmax(fully_connected)
         label = mx.sym.Variable(label_field_name)
 
@@ -1174,7 +1186,7 @@ class _MXNetModule:
         indices = mx.sym.broadcast_lesser(label, num_labels_vec)
         label = label * indices
 
-        # goes from (batch, 1) to (batch,) as it is required for softmax output
+        # goes from (batch, 1) to (batch,) as is required for softmax output
         label = mx.sym.split(label, axis=1, num_outputs=1, squeeze_axis=1)
 
         # mask entries when label is 0 (missing value)
@@ -1183,6 +1195,8 @@ class _MXNetModule:
 
         # compute the cross entropy only when labels are positive
         cross_entropy = mx.sym.pick(mx.sym.log_softmax(fully_connected), label) * -1 * positive_mask
+        # multiply loss by class weighting
+        cross_entropy = cross_entropy * mx.sym.pick(instance_weight, label)
 
         # normalize the cross entropy by the number of positive label
         num_positive_indices = mx.sym.sum(positive_mask)
@@ -1196,7 +1210,8 @@ class _MXNetModule:
         return pred, cross_entropy
 
     @staticmethod
-    def __make_numerical_loss(latents: mx.symbol, label_field_name: str) -> Tuple[Any, Any]:
+    def __make_numerical_loss(latents: mx.symbol,
+                              label_field_name: str) -> Tuple[Any, Any]:
         """
         Generate output symbol for univariate numeric loss
 

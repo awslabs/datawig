@@ -28,8 +28,10 @@ from sklearn.metrics import f1_score, mean_squared_error
 from datawig.column_encoders import BowEncoder
 from datawig.mxnet_input_symbols import BowFeaturizer
 from datawig.simple_imputer import SimpleImputer
-from datawig.utils import logger, rand_string, random_split, generate_df_numeric, generate_df_string
+from datawig.utils import (logger, rand_string, random_split, generate_df_numeric,
+                           generate_df_string)
 from datawig import column_encoders
+from .conftest import synthetic_label_shift_simple
 
 warnings.filterwarnings("ignore")
 
@@ -41,6 +43,86 @@ def test_simple_imputer_no_string_column_name():
         SimpleImputer([0], '1')
     with pytest.raises(ValueError):
         SimpleImputer(['0'], 1)
+
+
+def test_simple_imputer_label_shift(test_dir):
+    """
+    Test capabilities for detecting and correcting label shift
+    """
+
+    tr = synthetic_label_shift_simple(N=1000, label_proportions=[.2, .8], error_proba=.05, covariates=['foo', 'bar'])
+    val = synthetic_label_shift_simple(N=500, label_proportions=[.9, .1], error_proba=.05, covariates=['foo', 'bar'])
+
+    # randomly make covariate uninformative
+    rand_idxs = np.random.choice(range(val.shape[0]), size=int(val.shape[0]/3), replace=False)
+    val.loc[rand_idxs, 'covariate'] = 'foo bar'
+
+    tr, te = random_split(tr, [.8, .2])
+
+    # train domain classifier
+    imputer = SimpleImputer(
+        input_columns=['covariate'],
+        output_column='label',
+        output_path=os.path.join(test_dir, "tmp", "label_weighting_experiments"))
+
+    # Fit an imputer model on the train data (coo_imputed_proba, coo_imputed)
+    imputer.fit(tr, te, num_epochs=15, learning_rate=3e-4, weight_decay=0)
+    pred = imputer.predict(val)
+
+    # compute estimate of ratio of marginals and add corresponding label to the training data
+    weights = imputer.check_for_label_shift(val)
+
+    # retrain classifier with balancing
+    imputer_balanced = SimpleImputer(
+        input_columns=['covariate'],
+        output_column='label',
+        output_path=os.path.join(test_dir, "tmp", "label_weighting_experiments"))
+
+    # Fit an imputer model on the train data (coo_imputed_proba, coo_imputed)
+    imputer_balanced.fit(tr, te, num_epochs=15, learning_rate=3e-4, weight_decay=0, class_weights=weights)
+
+    pred_balanced = imputer_balanced.predict(val)
+
+    acc_balanced = (pred_balanced.label == pred_balanced['label_imputed']).mean()
+    acc_classic = (pred.label == pred['label_imputed']).mean()
+
+    # check that weighted performance is better
+    assert acc_balanced > acc_classic
+
+
+def test_label_shift_weight_computation():
+    """
+    Tests that label shift detection can determine the label marginals of validation data.
+    """
+
+    train_proportion = [.7, .3]
+    target_proportion = [.3, .7]
+
+    data = synthetic_label_shift_simple(N=2000, label_proportions=train_proportion,
+                                        error_proba=.1, covariates=['foo', 'bar'])
+
+    # original train test splits
+    tr, te = random_split(data, [.5, .5])
+
+    # train domain classifier
+    imputer = SimpleImputer(
+        input_columns=['covariate'],
+        output_column='label',
+        output_path='/tmp/imputer_model')
+
+    # Fit an imputer model on the train data (coo_imputed_proba, coo_imputed)
+    imputer.fit(tr, te, num_epochs=15, learning_rate=3e-4, weight_decay=0)
+
+    target_data = synthetic_label_shift_simple(1000, target_proportion,
+                                               error_proba=.1, covariates=['foo', 'bar'])
+
+    weights = imputer.check_for_label_shift(target_data)
+
+    # compare the product of weights and training marginals
+    # (i.e. estimated target marginals) with the true target marginals.
+    for x in list(zip(list(weights.values()), train_proportion, target_proportion)):
+        assert x[0]*x[1] - x[2] < .1
+
 
 
 def test_simple_imputer_real_data_default_args(test_dir, data_frame):
@@ -77,7 +159,8 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
         output_column=label_col,
         output_path=output_path
     ).fit(
-        train_df=df_train
+        train_df=df_train,
+        num_epochs=10
     )
 
     logfile = os.path.join(imputer.output_path, 'imputer.log')
@@ -90,8 +173,8 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
     assert set(imputer.imputer.data_encoders[0].input_columns) == set(input_columns)
     assert set(imputer.imputer.label_encoders[0].input_columns) == set([label_col])
 
-
     assert all([after == before for after, before in zip(df_train.columns, df_train_cols_before)])
+
 
     df_no_label_column = df_test.copy()
     true_labels = df_test[label_col]
@@ -122,7 +205,7 @@ def test_simple_imputer_real_data_default_args(test_dir, data_frame):
 
     assert f1 > .9
 
-    retrained_simple_imputer = deserialized.fit(df_train, df_train)
+    retrained_simple_imputer = deserialized.fit(df_train, df_train, num_epochs=10)
 
     df_train_imputed = retrained_simple_imputer.predict(df_train.copy(), inplace=True)
     f1 = f1_score(df_train[label_col], df_train_imputed[label_col + '_imputed'], average="weighted")
@@ -175,6 +258,7 @@ def test_numeric_or_text_imputer(test_dir, data_frame):
     ).fit(
         train_df=df_train,
         learning_rate=1e-3,
+        num_epochs=10
     )
 
     imputer_numeric_linear.predict(df_test, inplace=True)
@@ -199,7 +283,8 @@ def test_numeric_or_text_imputer(test_dir, data_frame):
         output_column=label_col,
         output_path=output_path
     ).fit(
-        train_df=df_train
+        train_df=df_train,
+        num_epochs=10
     )
 
     imputer_string.predict(df_test, inplace=True)
@@ -291,7 +376,7 @@ def test_imputer_hpo_text(test_dir, data_frame):
     hps['global']['weight_decay'] = [0]
     hps['global']['num_epochs'] = [30]
 
-    imputer_string.fit_hpo(df_train, hps=hps)
+    imputer_string.fit_hpo(df_train, hps=hps, num_epochs=10, num_evals=3)
 
     assert max(imputer_string.hpo.results['f1_micro']) > 0.7
 
@@ -304,7 +389,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
     """
     label_col = "label"
 
-    n_samples = 1000
+    n_samples = 500
     num_labels = 3
     seq_len = 12
 
@@ -344,8 +429,8 @@ def test_hpo_all_input_types(test_dir, data_frame):
     hps['string_feature']['max_tokens'] = [2 ** 15]
     hps['string_feature']['tokens'] = [['words', 'chars']]
     hps['string_feature']['ngram_range'] = {}
-    hps['string_feature']['ngram_range']['words'] = [(1, 4), (2, 5)]
-    hps['string_feature']['ngram_range']['chars'] = [(2, 4), (3, 5)]
+    hps['string_feature']['ngram_range']['words'] = [(1, 5)]
+    hps['string_feature']['ngram_range']['chars'] = [(2, 4), (1, 3)]
 
     hps['categorical_feature'] = {}
     hps['categorical_feature']['type'] = ['categorical']
@@ -375,15 +460,17 @@ def test_hpo_all_input_types(test_dir, data_frame):
     imputer.fit_hpo(df_train,
                     hps=hps,
                     user_defined_scores=uds,
-                    num_evals=5,
-                    hpo_run_name='test1_')
+                    num_evals=3,
+                    hpo_run_name='test1_',
+                    num_epochs=10)
 
     imputer.fit_hpo(df_train,
                     hps=hps,
                     user_defined_scores=uds,
-                    num_evals=5,
+                    num_evals=3,
                     hpo_run_name='test2_',
-                    max_running_hours=1/3600)
+                    max_running_hours=1/3600,
+                    num_epochs=10)
 
     results = imputer.hpo.results
 
@@ -394,7 +481,7 @@ def test_hpo_all_input_types(test_dir, data_frame):
 def test_hpo_defaults(test_dir, data_frame):
     label_col = "label"
 
-    n_samples = 1000
+    n_samples = 500
     num_labels = 3
     seq_len = 10
 
@@ -420,9 +507,9 @@ def test_hpo_defaults(test_dir, data_frame):
         output_path=output_path
     )
 
-    imputer.fit_hpo(df_train, num_evals=2)
+    imputer.fit_hpo(df_train, num_evals=10, num_epochs=5)
 
-    assert imputer.hpo.results.precision_weighted.max() > .5
+    assert imputer.hpo.results.precision_weighted.max() > .9
 
 
 def test_hpo_num_evals_empty_hps(test_dir, data_frame):
@@ -439,9 +526,9 @@ def test_hpo_num_evals_empty_hps(test_dir, data_frame):
     )
 
     num_evals = 2
-    imputer.fit_hpo(df, num_evals=num_evals)
+    imputer.fit_hpo(df, num_evals=num_evals, num_epochs=10)
 
-    assert imputer.hpo.results.shape[0] == 1
+    assert imputer.hpo.results.shape[0] == 2
 
 
 def test_hpo_num_evals_given_hps(test_dir, data_frame):
@@ -451,21 +538,17 @@ def test_hpo_num_evals_given_hps(test_dir, data_frame):
     df = data_frame(feature_col=feature_col,
                     label_col=label_col)
 
-    num_evals = 2
     # assert that num_evals is an upper bound on the number of hpo runs
-    for n_max_tokens_to_try in range(1, 5):
+    for num_evals in range(1, 3):
         imputer = SimpleImputer(
             input_columns=[col for col in df.columns if col != label_col],
             output_column=label_col,
             output_path=test_dir
         )
 
-        hps = {
-            feature_col: {'max_tokens': n_max_tokens_to_try*[10]}
-        }
-        imputer.fit_hpo(df, hps=hps, num_evals=num_evals)
+        imputer.fit_hpo(df, num_evals=num_evals, num_epochs=5)
 
-        assert imputer.hpo.results.shape[0] == min(num_evals, n_max_tokens_to_try)
+        assert imputer.hpo.results.shape[0] == num_evals
 
 
 def test_hpo_many_columns(test_dir, data_frame):
@@ -492,7 +575,7 @@ def test_hpo_many_columns(test_dir, data_frame):
         output_path=test_dir
     )
 
-    imputer.fit_hpo(df, num_evals=2)
+    imputer.fit_hpo(df, num_evals=2, num_epochs=10)
 
     assert imputer.hpo.results.precision_weighted.max() > .75
 
@@ -648,8 +731,10 @@ def test_hpo_runs(test_dir, data_frame):
     hps['global'] = {}
     hps['global']['concat_columns'] = [False]
     hps['global']['num_epochs'] = [10]
+    hps['global']['num_epochs'] = [10]
+    hps['global']['num_epochs'] = [10]
 
-    imputer.fit_hpo(df, hps=hps)
+    imputer.fit_hpo(df, hps=hps, num_hash_bucket_candidates=[2**15], tokens_candidates=['words'])
 
     # only search over specified parameter ranges
     assert set(imputer.hpo.results[feature_col+':'+'max_tokens'].unique().tolist()) == set(max_tokens)
@@ -676,7 +761,7 @@ def test_hpo_single_column_encoder_parameter(test_dir, data_frame):
 
     imputer.fit_hpo(df, hps=hps)
 
-    assert imputer.hpo.results.shape[0] == 1
+    assert imputer.hpo.results.shape[0] == 2
     assert imputer.imputer.data_encoders[0].vectorizer.max_features == 1024
 
 
@@ -695,9 +780,10 @@ def test_hpo_multiple_columns_only_one_used(test_dir, data_frame):
     )
 
     hps = dict()
-    hps[feature_col] = {'max_tokens': [1024]}
     hps['global'] = {}
     hps['global']['num_epochs'] = [10]
+    hps[feature_col] = {'max_tokens': [1024]}
+    hps[feature_col]['tokens'] = [['chars']]
 
     imputer.fit_hpo(df, hps=hps)
 
@@ -761,7 +847,7 @@ def test_hpo_similar_input_col_mixed_types(test_dir, data_frame):
         output_path=test_dir
     )
 
-    imputer.fit_hpo(df)
+    imputer.fit_hpo(df, num_epochs=10)
 
 
 def test_hpo_kwargs_only_support(test_dir, data_frame):
@@ -828,6 +914,7 @@ def test_hpo_numeric_best_pick(test_dir, data_frame):
     )
 
     hps = {feature_col: {'max_tokens': [1, 2, 3]}}
+    hps[feature_col]['tokens'] = [['chars']]
 
     imputer.fit_hpo(df, hps=hps)
 
@@ -878,5 +965,5 @@ def test_hpo_explainable(test_dir, data_frame):
             output_column=label_col,
             output_path=test_dir,
             is_explainable=explainable
-        ).fit_hpo(df)
+        ).fit_hpo(df, num_epochs=3)
         assert isinstance(imputer.imputer.data_encoders[0].vectorizer, vectorizer)
