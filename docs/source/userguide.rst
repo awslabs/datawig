@@ -349,8 +349,7 @@ Upon training a SimpleImputer, we can detect shift by calling:
     weights = imputer.check_for_label_shift(production_data)
 
 Note, that :code:`production_data` needs to have all the relevant input columns but does not have labels.
-This call will return a dictionary where each key is a label and the value is the corresponding weight by which any observation's contribution to the log-likelihood must be weighted to minimized the empirical risk.
-It will also loh the following the severity of the shift and further information:
+This call will log the severity of the shift and further information, as follows.
 
 .. code-block::
 
@@ -359,14 +358,15 @@ It will also loh the following the severity of the shift and further information
     Reweighing factors for empirical risk minimization{'label_0': 2.72, 'label_1': 0.49}
     The smallest eigenvalue of the confusion matrix is 0.21 ' (needs to be > 0).
 
-To correct the shift we need to retrain the model with a weighted likelihood which can easily be achieved
+To fix the shift, the reweighing factors are most important. They are returned as dictionary where each key is a label and the value is the corresponding weight by which any observation's contribution to the log-likelihood must be multiplied to minimize the empirical risk.
+To correct the shift we need to retrain the model with a weighted likelihood which can easily be achieved by passing the weight dictionary to the :code:`fit()` method.
 
 .. code-block:: python
 
-    simple_imputer.fit(train_df, class_weights=instance_weights)
+    simple_imputer.fit(train_df, class_weights=weights)
 
-The resulting model will generally have improved performance on the production_data, if there was indeed a label shift present and if the original classifier performed reasonably well. For further assumptions see the above cited paper.
-Note, that in extreme cases such as very high label noise, this method may lead to a decreased model performance.
+The resulting model will generally have improved performance on the production_data, if there was a label shift present and if the original classifier performed reasonably well. For further assumptions see the above cited paper.
+Note, that in extreme cases such as very high label noise, this method can lead to a decreased model performance.
 
 Reweighing the likelihood can be useful for reasons other than label-shift. For instance we may trust certain observations more than others and wish to up-weigh their impact on the model parameters.
 To this end, weights can also be passed on an instance level as list with an entry for every row in the training data, for instance:
