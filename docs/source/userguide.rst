@@ -351,7 +351,7 @@ Upon training a SimpleImputer, we can detect shift by calling:
 Note, that :code:`production_data` needs to have all the relevant input columns but does not have labels.
 This call will log the severity of the shift and further information, as follows.
 
-.. code-block::
+.. code-block:: console
 
     The estimated true label marginals are [('black', 0.62), ('white', 0.38)]
     Marginals in the training data are [('black', 0.23), ('white', 0.77)]
