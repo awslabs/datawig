@@ -482,10 +482,7 @@ class SimpleImputer:
         :param verbose: verbosity level, values > 0 log to stdout (default: 0)
         :param num_epochs: number of epochs for each imputation model training (default: 100)
         :param iterations: number of iterations for iterative imputation (default: 1)
-<<<<<<< HEAD
-=======
         :param output_path: path to store model and metrics
->>>>>>> upstream/master
         :return: dataframe with imputations
         """
 
@@ -499,11 +496,7 @@ class SimpleImputer:
             data_frame = data_frame.copy()
 
         if verbose == 0:
-<<<<<<< HEAD
-            set_stream_log_level("ERROR")    
-=======
             set_stream_log_level("ERROR")
->>>>>>> upstream/master
 
         numeric_columns = [c for c in data_frame.columns if is_numeric_dtype(data_frame[c])]
         string_columns = list(set(data_frame.columns) - set(numeric_columns))
@@ -513,11 +506,6 @@ class SimpleImputer:
 
         categorical_columns = [col for col in string_columns if SimpleImputer._is_categorical(data_frame[col])]
         logger.debug("Assuming categorical columns: {}".format(", ".join(categorical_columns)))
-<<<<<<< HEAD
-        
-=======
-
->>>>>>> upstream/master
         for _ in range(iterations):
             for output_col in set(numeric_columns) | set(categorical_columns):
                 # train on all input columns but the to-be-imputed one

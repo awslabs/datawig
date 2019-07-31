@@ -5,19 +5,22 @@ import json
 import itertools
 import numpy as np
 import pandas as pd
-from datawig import SimpleImputer
 from sklearn.impute import IterativeImputer
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 
 sys.path.insert(0,'/Users/felix/code/datawig_fork')
+from datawig import SimpleImputer
 
 from sklearn.datasets import (
     make_low_rank_matrix,
     load_diabetes,
     load_wine,
-    make_swiss_roll
+    make_swiss_roll,
+    load_breast_cancer,
+    load_linnerud,
+    load_boston
 )
 
 from fancyimpute import (
@@ -58,7 +61,7 @@ def fancyimpute_hpo(fancyimputer, param_candidates, X, mask, percent_validation=
     X_incomplete[mask | validation_mask] = np.nan
     mse_hpo = []
     for params in all_param_candidates:
-        X_imputed = fancyimputer(**params).fit_transform(X_incomplete)
+        X_imputed = fancyimputer(**params, verbose=False).fit_transform(X_incomplete)
         mse = evaluate_mse(X_imputed, X, validation_mask)
         print(f"Trained {fancyimputer.__name__} with {params}, mse={mse}")
         mse_hpo.append(mse)
@@ -117,7 +120,8 @@ def impute_datawig_iterative(X, mask):
     X_incomplete[mask] = np.nan
     df = pd.DataFrame(X_incomplete)
     df.columns = [str(c) for c in df.columns]
-    df = SimpleImputer.complete(df, hpo=True, verbose=0, iterations=5)
+    # df = SimpleImputer.complete(df, hpo=True, verbose=0, iterations=5)
+    df = SimpleImputer.complete(df, hpo=False, verbose=0, iterations=1)
     mse = evaluate_mse(df.values, X, mask)
     return mse
 
@@ -127,21 +131,25 @@ def get_data(data_fn):
     elif data_fn.__name__ is 'make_swiss_roll':
         X, t = data_fn(n_samples=1000, random_state=0)
         X = np.vstack([X.T, t]).T
-    elif data_fn.__name__ in ['load_digits', 'load_wine', 'load_diabetes']:
+    else:
         X, _ = data_fn(return_X_y=True)
     return X
 
-def generate_missing_mask(X, percent_missing=10, missing_at_random=True):
-    if missing_at_random:
+def generate_missing_mask(X, percent_missing=10, missingness='MCAR'):
+    if missingness=='MCAR':
+        # missing completely at random
         mask = np.random.rand(*X.shape) < percent_missing / 100.
-    else:
+    elif missingness=='MAR':
+        # missing at random, missingness is conditioned on a random other column
+        # this case could contain MNAR cases, when the percentile in the other column is 
+        # computed including values that are to be masked
         mask = np.zeros(X.shape)
         n_values_to_discard = int((percent_missing / 100) * X.shape[0])
         # for each affected column
         for col_affected in range(X.shape[1]):
             # select a random other column for missingness to depend on
             depends_on_col = np.random.choice([c for c in range(X.shape[1]) if c != col_affected])
-            # pick a random percentile
+            # pick a random percentile of values in other column
             if n_values_to_discard < X.shape[0]:
                 discard_lower_start = np.random.randint(0, X.shape[0]-n_values_to_discard)
             else:
@@ -149,14 +157,31 @@ def generate_missing_mask(X, percent_missing=10, missing_at_random=True):
             discard_idx = range(discard_lower_start, discard_lower_start + n_values_to_discard)
             values_to_discard = X[:,depends_on_col].argsort()[discard_idx]
             mask[values_to_discard, col_affected] = 1
+    elif missingness == 'MNAR':
+        # missing not at random, missingness of one column depends on unobserved values in this column
+        mask = np.zeros(X.shape)
+        n_values_to_discard = int((percent_missing / 100) * X.shape[0])
+        # for each affected column
+        for col_affected in range(X.shape[1]):
+            # pick a random percentile of values in other column
+            if n_values_to_discard < X.shape[0]:
+                discard_lower_start = np.random.randint(0, X.shape[0]-n_values_to_discard)
+            else:
+                discard_lower_start = 0
+            discard_idx = range(discard_lower_start, discard_lower_start + n_values_to_discard)
+            values_to_discard = X[:,col_affected].argsort()[discard_idx]
+            mask[values_to_discard, col_affected] = 1
     return mask > 0
 
 def experiment(percent_missing_list=[10], nreps=1):
     DATA_LOADERS = [
         make_low_rank_matrix,
-        load_diabetes,
-        load_wine,
-        make_swiss_roll
+        # load_diabetes,
+        # load_wine,
+        # make_swiss_roll,
+        # load_breast_cancer,
+        # load_linnerud,
+        # load_boston
     ]
 
     imputers = [
@@ -164,9 +189,9 @@ def experiment(percent_missing_list=[10], nreps=1):
         # impute_knn,
         # impute_mf,
         # impute_sklearn_rf,
-        # impute_sklearn_linreg,
-        # impute_datawig
-        impute_datawig_iterative
+        impute_sklearn_linreg,
+        impute_datawig
+        # impute_datawig_iterative
     ]
 
     results = []
@@ -174,16 +199,16 @@ def experiment(percent_missing_list=[10], nreps=1):
     for percent_missing in percent_missing_list:
         for data_fn in DATA_LOADERS:
             X = get_data(data_fn)
-            for missingness_at_random in [True, False]:
+            for missingness in ['MCAR', 'MAR', 'MNAR']:
                 for _ in range(nreps):
-                    missing_mask = generate_missing_mask(X, percent_missing, missingness_at_random)
+                    missing_mask = generate_missing_mask(X, percent_missing, missingness)
                     for imputer_fn in imputers:
                         mse = imputer_fn(X, missing_mask)
                         result = {
                             'data': data_fn.__name__,
                             'imputer': imputer_fn.__name__,
                             'percent_missing': percent_missing,
-                            'missing_at_random': missingness_at_random,
+                            'missingness': missingness,
                             'mse': mse
                         }
                         print(result)
@@ -196,7 +221,8 @@ def run():
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
 
-    results = experiment(percent_missing_list=[5, 10, 30, 50, 70], nreps = 5)
+    # results = experiment(percent_missing_list=[5, 10, 30, 50, 70], nreps = 5)
+    results = experiment(percent_missing_list=[5, 50], nreps = 1)
 
     json.dump(results, open(os.path.join(dir_path, 'benchmark_results.json'), 'w'))
 
