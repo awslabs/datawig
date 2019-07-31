@@ -521,7 +521,7 @@ class SimpleImputer:
                     imputer.fit_hpo(data_frame.loc[~idx_missing, :],
                                     patience=5 if output_col in categorical_columns else 20,
                                     num_epochs=100,
-                                    final_fc_hidden_units=[[10], [50], [100]])
+                                    final_fc_hidden_units=[[0], [10], [50], [100]])
                 else:
                     imputer.fit(data_frame.loc[~idx_missing, :],
                                 patience=5 if output_col in categorical_columns else 20,
