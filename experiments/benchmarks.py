@@ -40,6 +40,12 @@ warnings.filterwarnings("ignore")
 np.random.seed(0)
 DIR_PATH = '/daten/'
 
+# this appears to be neccessary for not running into too many open files errors
+import resource
+soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (8192, hard))
+
+
 def dict_product(hp_dict):
     '''
     Returns cartesian product of hyperparameters
@@ -184,7 +190,7 @@ def generate_missing_mask(X, percent_missing=10, missingness='MCAR'):
             mask[values_to_discard, col_affected] = 1
     return mask > 0
 
-def experiment(percent_missing_list=[10], nreps=1):
+def experiment(percent_missing_list=[70], nreps = 3):
     DATA_LOADERS = [
         make_low_rank_matrix,
         load_diabetes,
@@ -202,65 +208,76 @@ def experiment(percent_missing_list=[10], nreps=1):
         impute_sklearn_rf,
         impute_sklearn_linreg,
         impute_datawig
-        # impute_datawig_iterative
     ]
 
     results = []
-
-    for percent_missing in tqdm(percent_missing_list):
-        for data_fn in DATA_LOADERS:
-            X = get_data(data_fn)
-            for missingness in ['MCAR', 'MAR', 'MNAR']:
-                for _ in range(nreps):
-                    missing_mask = generate_missing_mask(X, percent_missing, missingness)
-                    for imputer_fn in imputers:
-                        mse = imputer_fn(X, missing_mask)
-                        result = {
-                            'data': data_fn.__name__,
-                            'imputer': imputer_fn.__name__,
-                            'percent_missing': percent_missing,
-                            'missingness': missingness,
-                            'mse': mse
-                        }
-                        print(result)
-                        results.append(result)
-    return results
-
-def run():
-    # this appears to be neccessary for not running into too many open files errors
-    import resource
-    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-    resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
-
-    results = experiment(percent_missing_list=[5, 10, 30, 50, 70], nreps = 5)
-    #results = experiment(percent_missing_list=[50], nreps = 1)
-
-    json.dump(results, open(os.path.join(DIR_PATH, 'benchmark_results.json'), 'w'))
+    with open(os.path.join(DIR_PATH, 'benchmark_results.json'), 'w') as fh:
+        for percent_missing in tqdm(percent_missing_list):
+            for data_fn in DATA_LOADERS:
+                X = get_data(data_fn)
+                for missingness in ['MCAR', 'MAR', 'MNAR']:
+                    for _ in range(nreps):
+                        missing_mask = generate_missing_mask(X, percent_missing, missingness)
+                        for imputer_fn in imputers:
+                            mse = imputer_fn(X, missing_mask)
+                            result = {
+                                'data': data_fn.__name__,
+                                'imputer': imputer_fn.__name__,
+                                'percent_missing': percent_missing,
+                                'missingness': missingness,
+                                'mse': mse
+                            }
+                            fh.write(json.dumps(result) + "\n")
+                            print(result)
 
 def plot_results(results):
     import matplotlib.pyplot as plt
     import seaborn as sns
 
-    df = pd.DataFrame(results)
-    df['mse_percent'] = df.mse / df.groupby(['data','missing_at_random','percent_missing'])['mse'].transform(max)
-    df.groupby(['missing_at_random','percent_missing','imputer']).agg({'mse_percent':'median'})
+    df = pd.read_csv(open(os.path.join(dir_path, 'benchmark_results.csv'))
+    df['mse_percent'] = df.mse / df.groupby(['data','missingness','percent_missing'])['mse'].transform(max)
+    df.groupby(['missingness','percent_missing','imputer']).agg({'mse_percent':'median'}) 
 
-    plt.figure(figsize=(10,8))
-    plt.subplot(2,1,1)
-    sns.boxplot(hue='imputer',y='mse_percent',x='percent_missing', data=df[df['missing_at_random']==True], notch=True)
+    sns.set_style("whitegrid")
+    sns.set_palette(sns.color_palette("RdBu_r", 7))
+    sns.set_context("notebook", 
+                    font_scale=1.3, 
+                    rc={"lines.linewidth": 1.5})
+    plt.figure(figsize=(12,3))
+    plt.subplot(1,3,1)
+    sns.boxplot(hue='imputer',
+                y='mse_percent',
+                x='percent_missing', data=df[df['missingness']=='MCAR'])
+    plt.title("Missing completely at random")
+    plt.xlabel('Percent Missing')
+    plt.ylabel("Relative MSE")
+    plt.gca().get_legend().remove()
+
+
+    plt.subplot(1,3,2)
+    sns.boxplot(hue='imputer',
+                y='mse_percent',
+                x='percent_missing', 
+                data=df[df['missingness']=='MAR'])
     plt.title("Missing at random")
-    plt.xlabel("% Samples Missing")
-    plt.ylabel("Relative MSE in %")
-    plt.legend()
-    plt.subplot(2,1,2)
-    sns.boxplot(hue='imputer',y='mse_percent',x='percent_missing', data=df[df['missing_at_random']==False], notch=True)
+    plt.ylabel('')
+    plt.xlabel('Percent Missing')
+    plt.gca().get_legend().remove()
+
+    plt.subplot(1,3,3)
+    sns.boxplot(hue='imputer',
+                y='mse_percent',
+                x='percent_missing', 
+                data=df[df['missingness']=='MNAR'])
     plt.title("Missing not at random")
-    plt.xlabel("% Samples Missing")
-    plt.legend("")
-    plt.ylabel("Relative MSE in %")
+    plt.ylabel("")
+    plt.xlabel('Percent Missing')
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+
+    l = plt.legend(handles, labels, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 
     plt.tight_layout()
     plt.savefig('benchmarks_datawig.pdf')
 
-if __name__=='main':
-    run()
+experiment()
