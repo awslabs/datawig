@@ -490,8 +490,6 @@ class SimpleImputer:
         
         missing_mask = data_frame.copy().isnull()
 
-        missing_mask = data_frame.copy().isnull()
-
         if inplace is False:
             data_frame = data_frame.copy()
 
