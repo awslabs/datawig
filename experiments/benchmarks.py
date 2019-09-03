@@ -13,7 +13,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 
-sys.path.insert(0,'/home/fbiessmann/datawig_fork')
+# sys.path.insert(0,'')
 from datawig import SimpleImputer
 
 from sklearn.datasets import (
@@ -38,7 +38,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 np.random.seed(0)
-DIR_PATH = '/daten/'
+DIR_PATH = '.'
 
 # this appears to be neccessary for not running into too many open files errors
 import resource
@@ -137,8 +137,7 @@ def impute_datawig_iterative(X, mask):
     X_incomplete[mask] = np.nan
     df = pd.DataFrame(X_incomplete)
     df.columns = [str(c) for c in df.columns]
-    # df = SimpleImputer.complete(df, hpo=True, verbose=0, iterations=5)
-    df = SimpleImputer.complete(df, hpo=False, verbose=0, iterations=1)
+    df = SimpleImputer.complete(df, hpo=False, verbose=0, iterations=5)
     mse = evaluate_mse(df.values, X, mask)
     return mse
 
@@ -190,7 +189,7 @@ def generate_missing_mask(X, percent_missing=10, missingness='MCAR'):
             mask[values_to_discard, col_affected] = 1
     return mask > 0
 
-def experiment(percent_missing_list=[70], nreps = 3):
+def experiment(percent_missing_list=[10, 30], nreps = 3):
     DATA_LOADERS = [
         make_low_rank_matrix,
         load_diabetes,
