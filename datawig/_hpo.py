@@ -254,7 +254,7 @@ class _HPO:
                        weight_decay=global_parms['weight_decay'],
                        batch_size=global_parms['batch_size'],
                        final_fc_hidden_units=global_parms['final_fc_hidden_units'],
-                       calibrate=False)
+                       calibrate=True)
 
         # add suitable metrics to hp series
         imputed = hp_imputer.predict(test_df)
