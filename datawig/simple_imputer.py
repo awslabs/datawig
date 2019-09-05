@@ -487,7 +487,7 @@ class SimpleImputer:
         """
 
         # TODO: should we expose temporary dir for model serialization to avoid crashes due to not-writable dirs?
-
+        
         missing_mask = data_frame.copy().isnull()
 
         if inplace is False:
@@ -504,7 +504,6 @@ class SimpleImputer:
 
         categorical_columns = [col for col in string_columns if SimpleImputer._is_categorical(data_frame[col])]
         logger.debug("Assuming categorical columns: {}".format(", ".join(categorical_columns)))
-
         for _ in range(iterations):
             for output_col in set(numeric_columns) | set(categorical_columns):
                 # train on all input columns but the to-be-imputed one
@@ -520,7 +519,7 @@ class SimpleImputer:
                     imputer.fit_hpo(data_frame.loc[~idx_missing, :],
                                     patience=5 if output_col in categorical_columns else 20,
                                     num_epochs=100,
-                                    final_fc_hidden_units=[[10], [50], [100]])
+                                    final_fc_hidden_units=[[0], [10], [50], [100]])
                 else:
                     imputer.fit(data_frame.loc[~idx_missing, :],
                                 patience=5 if output_col in categorical_columns else 20,

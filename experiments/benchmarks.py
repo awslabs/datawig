@@ -1,23 +1,29 @@
 import os
+import glob
 import sys
 import shutil
 import json
 import itertools
+from tqdm import tqdm
 import numpy as np
 import pandas as pd
-from datawig import SimpleImputer
+from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 
-sys.path.insert(0,'/Users/felix/code/datawig_fork')
+# sys.path.insert(0,'')
+from datawig import SimpleImputer
 
 from sklearn.datasets import (
     make_low_rank_matrix,
     load_diabetes,
     load_wine,
-    make_swiss_roll
+    make_swiss_roll,
+    load_breast_cancer,
+    load_linnerud,
+    load_boston
 )
 
 from fancyimpute import (
@@ -28,8 +34,17 @@ from fancyimpute import (
     SimpleFill
 )
 
+import warnings
+warnings.filterwarnings("ignore")
+
 np.random.seed(0)
-dir_path = '.'
+DIR_PATH = '.'
+
+# this appears to be neccessary for not running into too many open files errors
+import resource
+soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (8192, hard))
+
 
 def dict_product(hp_dict):
     '''
@@ -58,6 +73,8 @@ def fancyimpute_hpo(fancyimputer, param_candidates, X, mask, percent_validation=
     X_incomplete[mask | validation_mask] = np.nan
     mse_hpo = []
     for params in all_param_candidates:
+        if fancyimputer.__name__ != 'SimpleFill':
+            params['verbose'] = False
         X_imputed = fancyimputer(**params).fit_transform(X_incomplete)
         mse = evaluate_mse(X_imputed, X, validation_mask)
         print(f"Trained {fancyimputer.__name__} with {params}, mse={mse}")
@@ -107,7 +124,10 @@ def impute_datawig(X, mask):
     X_incomplete[mask] = np.nan
     df = pd.DataFrame(X_incomplete)
     df.columns = [str(c) for c in df.columns]
-    df = SimpleImputer.complete(df, hpo=True, verbose=0)
+    dw_dir = os.path.join(DIR_PATH,'datawig_imputers')
+    df = SimpleImputer.complete(df, output_path=dw_dir, hpo=True, verbose=0, iterations=1)
+    for d in glob.glob(os.path.join(dw_dir,'*')):
+        shutil.rmtree(d)
     mse = evaluate_mse(df.values, X, mask)
     return mse
 
@@ -117,7 +137,7 @@ def impute_datawig_iterative(X, mask):
     X_incomplete[mask] = np.nan
     df = pd.DataFrame(X_incomplete)
     df.columns = [str(c) for c in df.columns]
-    df = SimpleImputer.complete(df, hpo=True, verbose=0, iterations=5)
+    df = SimpleImputer.complete(df, hpo=False, verbose=0, iterations=5)
     mse = evaluate_mse(df.values, X, mask)
     return mse
 
@@ -127,21 +147,25 @@ def get_data(data_fn):
     elif data_fn.__name__ is 'make_swiss_roll':
         X, t = data_fn(n_samples=1000, random_state=0)
         X = np.vstack([X.T, t]).T
-    elif data_fn.__name__ in ['load_digits', 'load_wine', 'load_diabetes']:
+    else:
         X, _ = data_fn(return_X_y=True)
     return X
 
-def generate_missing_mask(X, percent_missing=10, missing_at_random=True):
-    if missing_at_random:
+def generate_missing_mask(X, percent_missing=10, missingness='MCAR'):
+    if missingness=='MCAR':
+        # missing completely at random
         mask = np.random.rand(*X.shape) < percent_missing / 100.
-    else:
+    elif missingness=='MAR':
+        # missing at random, missingness is conditioned on a random other column
+        # this case could contain MNAR cases, when the percentile in the other column is 
+        # computed including values that are to be masked
         mask = np.zeros(X.shape)
         n_values_to_discard = int((percent_missing / 100) * X.shape[0])
         # for each affected column
         for col_affected in range(X.shape[1]):
             # select a random other column for missingness to depend on
             depends_on_col = np.random.choice([c for c in range(X.shape[1]) if c != col_affected])
-            # pick a random percentile
+            # pick a random percentile of values in other column
             if n_values_to_discard < X.shape[0]:
                 discard_lower_start = np.random.randint(0, X.shape[0]-n_values_to_discard)
             else:
@@ -149,83 +173,110 @@ def generate_missing_mask(X, percent_missing=10, missing_at_random=True):
             discard_idx = range(discard_lower_start, discard_lower_start + n_values_to_discard)
             values_to_discard = X[:,depends_on_col].argsort()[discard_idx]
             mask[values_to_discard, col_affected] = 1
+    elif missingness == 'MNAR':
+        # missing not at random, missingness of one column depends on unobserved values in this column
+        mask = np.zeros(X.shape)
+        n_values_to_discard = int((percent_missing / 100) * X.shape[0])
+        # for each affected column
+        for col_affected in range(X.shape[1]):
+            # pick a random percentile of values in other column
+            if n_values_to_discard < X.shape[0]:
+                discard_lower_start = np.random.randint(0, X.shape[0]-n_values_to_discard)
+            else:
+                discard_lower_start = 0
+            discard_idx = range(discard_lower_start, discard_lower_start + n_values_to_discard)
+            values_to_discard = X[:,col_affected].argsort()[discard_idx]
+            mask[values_to_discard, col_affected] = 1
     return mask > 0
 
-
-def experiment(percent_missing_list=[10], nreps=1):
+def experiment(percent_missing_list=[10, 30], nreps = 3):
     DATA_LOADERS = [
         make_low_rank_matrix,
         load_diabetes,
         load_wine,
-        make_swiss_roll
+        make_swiss_roll,
+        load_breast_cancer,
+        load_linnerud,
+        load_boston
     ]
 
     imputers = [
-        # impute_mean,
-        # impute_knn,
-        # impute_mf,
-        # impute_sklearn_rf,
-        # impute_sklearn_linreg,
-        # impute_datawig
-        impute_datawig_iterative
+        impute_mean,
+        impute_knn,
+        impute_mf,
+        impute_sklearn_rf,
+        impute_sklearn_linreg,
+        impute_datawig
     ]
 
     results = []
-
-    for percent_missing in percent_missing_list:
-        for data_fn in DATA_LOADERS:
-            X = get_data(data_fn)
-            for missingness_at_random in [True, False]:
-                for _ in range(nreps):
-                    missing_mask = generate_missing_mask(X, percent_missing, missingness_at_random)
-                    for imputer_fn in imputers:
-                        mse = imputer_fn(X, missing_mask)
-                        result = {
-                            'data': data_fn.__name__,
-                            'imputer': imputer_fn.__name__,
-                            'percent_missing': percent_missing,
-                            'missing_at_random': missingness_at_random,
-                            'mse': mse
-                        }
-                        print(result)
-                        results.append(result)
-    return results
-
-def run():
-
-    # this appears to be neccessary for not running into too many open files errors
-    import resource
-    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-    resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
-
-    results = experiment(percent_missing_list=[5, 10, 30, 50, 70], nreps = 5)
-
-    json.dump(results, open(os.path.join(dir_path, 'benchmark_results.json'), 'w'))
+    with open(os.path.join(DIR_PATH, 'benchmark_results.json'), 'w') as fh:
+        for percent_missing in tqdm(percent_missing_list):
+            for data_fn in DATA_LOADERS:
+                X = get_data(data_fn)
+                for missingness in ['MCAR', 'MAR', 'MNAR']:
+                    for _ in range(nreps):
+                        missing_mask = generate_missing_mask(X, percent_missing, missingness)
+                        for imputer_fn in imputers:
+                            mse = imputer_fn(X, missing_mask)
+                            result = {
+                                'data': data_fn.__name__,
+                                'imputer': imputer_fn.__name__,
+                                'percent_missing': percent_missing,
+                                'missingness': missingness,
+                                'mse': mse
+                            }
+                            fh.write(json.dumps(result) + "\n")
+                            print(result)
 
 def plot_results(results):
     import matplotlib.pyplot as plt
     import seaborn as sns
 
-    df = pd.DataFrame(results)
-    df['mse_percent'] = df.mse / df.groupby(['data','missing_at_random','percent_missing'])['mse'].transform(max)
-    df.groupby(['missing_at_random','percent_missing','imputer']).agg({'mse_percent':'median'})
+    df = pd.read_csv(open(os.path.join(dir_path, 'benchmark_results.csv'))
+    df['mse_percent'] = df.mse / df.groupby(['data','missingness','percent_missing'])['mse'].transform(max)
+    df.groupby(['missingness','percent_missing','imputer']).agg({'mse_percent':'median'}) 
 
-    plt.figure(figsize=(10,8))
-    plt.subplot(2,1,1)
-    sns.boxplot(hue='imputer',y='mse_percent',x='percent_missing', data=df[df['missing_at_random']==True], notch=True)
+    sns.set_style("whitegrid")
+    sns.set_palette(sns.color_palette("RdBu_r", 7))
+    sns.set_context("notebook", 
+                    font_scale=1.3, 
+                    rc={"lines.linewidth": 1.5})
+    plt.figure(figsize=(12,3))
+    plt.subplot(1,3,1)
+    sns.boxplot(hue='imputer',
+                y='mse_percent',
+                x='percent_missing', data=df[df['missingness']=='MCAR'])
+    plt.title("Missing completely at random")
+    plt.xlabel('Percent Missing')
+    plt.ylabel("Relative MSE")
+    plt.gca().get_legend().remove()
+
+
+    plt.subplot(1,3,2)
+    sns.boxplot(hue='imputer',
+                y='mse_percent',
+                x='percent_missing', 
+                data=df[df['missingness']=='MAR'])
     plt.title("Missing at random")
-    plt.xlabel("% Samples Missing")
-    plt.ylabel("Relative MSE in %")
-    plt.legend()
-    plt.subplot(2,1,2)
-    sns.boxplot(hue='imputer',y='mse_percent',x='percent_missing', data=df[df['missing_at_random']==False], notch=True)
+    plt.ylabel('')
+    plt.xlabel('Percent Missing')
+    plt.gca().get_legend().remove()
+
+    plt.subplot(1,3,3)
+    sns.boxplot(hue='imputer',
+                y='mse_percent',
+                x='percent_missing', 
+                data=df[df['missingness']=='MNAR'])
     plt.title("Missing not at random")
-    plt.xlabel("% Samples Missing")
-    plt.legend("")
-    plt.ylabel("Relative MSE in %")
+    plt.ylabel("")
+    plt.xlabel('Percent Missing')
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+
+    l = plt.legend(handles, labels, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 
     plt.tight_layout()
     plt.savefig('benchmarks_datawig.pdf')
 
-if __name__=='main':
-    run()
+experiment()
