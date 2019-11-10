@@ -37,15 +37,31 @@ The DataWig API expects your data as a [pandas DataFrame](https://pandas.pydata.
 | SDCards     | Best SDCard ever ...  | 8GB  | Blue  |
 | Dress       | This **yellow** dress | M    | **?** |
 
-For most use cases, the `SimpleImputer` class is the best starting point. DataWig expects you to provide the column name of the column you would like to impute values for (called `output_column` below) and some column names that contain values that you deem useful for imputation (called `input_columns` below).
+For most use cases, the `SimpleImputer` class is the best starting point. For convenience there is the function [SimpleImputer.complete](https://datawig.readthedocs.io/en/latest/source/API.html#datawig.simple_imputer.SimpleImputer.complete) that takes a DataFrame and fits an imputation model for each column with missing values, with all other columns as inputs:
+
+```python
+import datawig, numpy
+
+# generate some data with simple nonlinear dependency
+df = datawig.utils.generate_df_numeric() 
+# mask 10% of the values
+df_with_missing = df.mask(numpy.random.rand(*df.shape) > .9)
+
+# impute missing values
+df_with_missing_imputed = datawig.SimpleImputer.complete(df_with_missing)
+
+```
+
+You can also impute values in specific columns only (called `output_column` below) using values in other columns (called `input_columns` below). DataWig currently supports imputation of categorical columns and numeric columns.
 
 ### Imputation of categorical columns
 
 ```python
 import datawig
 
-df = datawig.utils.generate_df_string(num_samples=200, data_column_name='sentences', label_column_name='label')
-df_train, df_test = datawig.utils.random_split(df)
+df = datawig.utils.generate_df_string( num_samples=200, 
+                                       data_column_name='sentences', label_column_name='label')
+
 
 #Initialize a SimpleImputer model
 imputer = datawig.SimpleImputer(
@@ -66,7 +82,9 @@ imputed = imputer.predict(df_test)
 ```python
 import datawig
 
-df = datawig.utils.generate_df_numeric(num_samples=200, data_column_name='x', label_column_name='y')         
+df = datawig.utils.generate_df_numeric( num_samples=200, 
+                                        data_column_name='x', 
+                                        label_column_name='y')         
 df_train, df_test = datawig.utils.random_split(df)
 
 #Initialize a SimpleImputer model
