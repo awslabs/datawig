@@ -359,12 +359,12 @@ def test_imputer_without_train_df(test_dir):
         output_path=output_path,
     )
 
-    with pytest.raises(ValueError, message="Need a non-empty DataFrame for fitting Imputer model"):
+    with pytest.raises(ValueError, match="Need a non-empty DataFrame for fitting Imputer model"):
         imputer.fit(
             train_df=df_train
         )
 
-    with pytest.raises(ValueError, message="Need a non-empty DataFrame for fitting Imputer model"):
+    with pytest.raises(ValueError, match="Need a non-empty DataFrame for fitting Imputer model"):
         imputer.fit(
             train_df=None
         )
