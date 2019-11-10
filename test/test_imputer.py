@@ -455,6 +455,29 @@ def test_imputer_load_read_exec_only_dir(tmpdir, data_frame):
         print(e)
         pytest.fail('Loading imputer from read-only directory should not fail.')
 
+def test_imputer_load_with_invalid_context(tmpdir, data_frame):
+    
+    # on shared build-fleet tests fail with converting tmpdir to string
+    tmpdir = str(tmpdir)
+    feature = 'feature'
+    label = 'label'
+
+    df = data_frame(feature, label, n_samples=100)
+    # fit and output model + metrics to tmpdir
+
+    imputer = Imputer(
+        data_featurizers=[BowFeaturizer(feature)],
+        label_encoders=[CategoricalEncoder(label)],
+        data_encoders=[BowEncoder(feature)],
+        output_path=tmpdir
+    )
+    imputer.fit(train_df=df, num_epochs=1)
+    imputer.ctx = None
+    imputer.save()
+
+    imputer_deser = Imputer.load(tmpdir)
+    _ = imputer_deser.predict(df)
+    
 
 def test_imputer_fit_fail_non_writable_output_dir(tmpdir, data_frame):
     import stat
