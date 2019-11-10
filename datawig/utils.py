@@ -175,6 +175,7 @@ class MeanSymbol(mx.metric.EvalMetric):
 
     def update(self, _, preds):
         sym = preds[self.symbol_index]
+        # pylint: disable=no-member
         self.sum_metric += mx.ndarray.sum(sym).asscalar()
         self.num_inst += sym.size
 

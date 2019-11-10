@@ -1002,7 +1002,8 @@ class Imputer:
         # the module path must be updated when loading the Imputer, too
         imputer.module_path = os.path.join(output_path, 'model')
         imputer.output_path = output_path
-        ctx = imputer.ctx
+        # make sure that the context for this deserialized model is available
+        ctx = get_context()
 
         logger.debug("Loading mxnet model from {}".format(imputer.module_path))
 
