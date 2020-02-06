@@ -37,6 +37,8 @@ The DataWig API expects your data as a [pandas DataFrame](https://pandas.pydata.
 | SDCards     | Best SDCard ever ...  | 8GB  | Blue  |
 | Dress       | This **yellow** dress | M    | **?** |
 
+### Quickstart Example
+
 For most use cases, the `SimpleImputer` class is the best starting point. For convenience there is the function [SimpleImputer.complete](https://datawig.readthedocs.io/en/latest/source/API.html#datawig.simple_imputer.SimpleImputer.complete) that takes a DataFrame and fits an imputation model for each column with missing values, with all other columns as inputs:
 
 ```python
@@ -60,8 +62,10 @@ You can also impute values in specific columns only (called `output_column` belo
 import datawig
 
 df = datawig.utils.generate_df_string( num_samples=200, 
-                                       data_column_name='sentences', label_column_name='label')
+                                       data_column_name='sentences', 
+                                       label_column_name='label')
 
+df_train, df_test = datawig.utils.random_split(df)
 
 #Initialize a SimpleImputer model
 imputer = datawig.SimpleImputer(
