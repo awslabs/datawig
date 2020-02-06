@@ -819,14 +819,14 @@ class Imputer:
         predictions = self.predict_above_precision(data_frame, precision_threshold).items()
         for label, imputations in predictions:
             imputation_col = label + imputation_suffix
-            if data_frame.columns.contains(imputation_col):
+            if imputation_col in data_frame.columns:
                 raise ColumnOverwriteException(
                     "DataFrame contains column {}; remove column and try again".format(
                         imputation_col))
 
             if label not in numerical_outputs:
                 imputation_proba_col = label + score_suffix
-                if data_frame.columns.contains(imputation_proba_col):
+                if imputation_proba_col in data_frame.columns:
                     raise ColumnOverwriteException(
                         "DataFrame contains column {}; remove column and try again".format(
                             imputation_proba_col))
