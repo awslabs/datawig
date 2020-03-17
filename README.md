@@ -143,3 +143,18 @@ Run tests:
 ./venv/bin/pip install -r requirements/requirements.dev.txt
 ./venv/bin/python -m pytest
 ```
+
+
+### Updating PyPi distribution
+
+Before updating, increment the version in setup.py.
+
+```
+git clone git@github.com:awslabs/datawig.git
+cd datawig
+# build local distribution for current version
+python setup.py sdist
+# upload to PyPi
+twine upload --skip-existing dist/*
+```
+
