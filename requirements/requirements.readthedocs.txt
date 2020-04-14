@@ -1,4 +1,3 @@
-numpy==1.18.0
 scikit-learn[alldeps]==0.22.1
 typing==3.6.6
 pandas==0.25.0

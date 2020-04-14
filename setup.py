@@ -3,7 +3,7 @@ import setuptools
 
 ROOT = os.path.dirname(__file__)
 
-with open(os.path.join(ROOT,"requirements","requirements.txt")) as f:
+with open(os.path.join(ROOT,"requirements", "requirements.txt")) as f:
     required = f.read().splitlines()
 
 with open("README.md", "r") as fh:
@@ -11,7 +11,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="datawig",
-    version="0.1.11",
+    version="0.1.12",
     author="datawig-dev",
     author_email="datawig-dev@amazon.com",
     maintainer_email='datawig-dev@amazon.com',
@@ -20,6 +20,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/awslabs/datawig",
     packages=setuptools.find_packages(),
+    data_files=[('requirements', ['requirements/requirements.txt'])],
     install_requires=required,
     license='Apache License 2.0',
     python_requires='>=3',
