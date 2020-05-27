@@ -169,8 +169,20 @@ class Imputer:
             file_handler.setLevel(level)
             file_handler.setFormatter(log_formatter)
             logger.addHandler(file_handler)
+
         else:
             logger.warning("Could not attach file log handler, {} is not writable.".format(filename))
+
+
+    def __close_filehandlers(self) -> None:
+        """Function to close connection with log file.
+        author: Carlos Moral Rubio."""
+
+        handlers = logger.handlers[:]
+        for handler in handlers:
+            handler.close()
+            logger.removeHandler(handler)
+
 
     def __check_data(self, data_frame: pd.DataFrame) -> None:
         """
@@ -279,6 +291,8 @@ class Imputer:
 
         if self.is_explainable:
             self.__persist_class_prototypes(iter_train, train_df)
+
+        self.__close_filehandlers()
 
         return self
 
