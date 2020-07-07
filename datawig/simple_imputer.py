@@ -528,7 +528,7 @@ class SimpleImputer:
 
                 tmp = imputer.predict(data_frame, precision_threshold=precision_threshold)
                 data_frame.loc[idx_missing, output_col] = tmp[output_col + "_imputed"]
-                shutil.rmtree(output_col)
+                shutil.rmtree(os.path.join(output_path, output_col))
                 
         return data_frame
 
