@@ -8,8 +8,8 @@ install:
 script:
 - python -m pytest
 - pylint --version
-- pylint --rcfile=pylintrc datawig -E
-- pylint --rcfile=pylintrc test -E
+#- pylint --rcfile=pylintrc datawig -E
+#- pylint --rcfile=pylintrc test -E
 deploy:
   provider: pypi
   distributions: sdist bdist_wheel
