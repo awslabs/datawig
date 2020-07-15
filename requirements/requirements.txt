@@ -1,4 +1,4 @@
-scikit-learn[alldeps]==0.22.1
+scikit-learn[alldeps]==0.23.1
 typing==3.6.6
-pandas==0.25.3
-mxnet==1.4.0
+pandas==1.0.5
+mxnet==1.6.0

@@ -201,7 +201,7 @@ def test_tfidf_encoder():
     assert tfidf_encoder.is_fitted() is False
     tfidf_encoder.fit(df)
     bow = tfidf_encoder.transform(df)[0].toarray()[0]
-    true = np.array([0.75592893, 0.5669467, 0.18898223, 0.18898223, 0.18898223])
+    true = np.array([0.6666667 , 0.5       , 0.16666667, 0.5       , 0.16666667])
     assert tfidf_encoder.is_fitted() is True
     assert true == pytest.approx(bow, 1e-4)
 

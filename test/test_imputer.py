@@ -327,8 +327,8 @@ def test_imputer_real_data_all_featurizers(test_dir, data_frame):
     predictions_df = not_so_precise_imputer.predict(df_test, precision_threshold=.5,
                                                     imputation_suffix="_imputed")
 
-    assert predictions_df.columns.contains(label_col + "_imputed")
-    assert predictions_df.columns.contains(label_col + "_imputed_proba")
+    assert label_col + "_imputed" in predictions_df.columns
+    assert label_col + "_imputed_proba" in predictions_df.columns
     #Commenting due to issue with randomization that causes fails
     #assert predictions_df.loc[0, label_col + '_imputed'] == df_test.loc[0, label_col]
     #assert np.isnan(predictions_df.loc[0, label_col + '_imputed_proba']) == False
