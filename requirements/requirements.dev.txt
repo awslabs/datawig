@@ -1,2 +1,2 @@
 pylint
-pytest
+pytest==5.4.3
