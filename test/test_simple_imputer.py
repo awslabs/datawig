@@ -606,7 +606,7 @@ def test_imputer_categorical_heuristic(data_frame):
 
 def test_imputer_complete():
     """
-    Tests the heuristic used for checking whether a column is categorical
+    Tests the complete functionality of SimpleImputer
     :param data_frame:
     """
 
@@ -653,6 +653,7 @@ def test_imputer_complete():
     assert df[feature_col_numeric].isnull().sum() == 0
     assert df[label_col_numeric].isnull().sum() == 0
 
+    df = SimpleImputer.complete(data_frame=df, output_path='some_path')
 
 def test_default_no_explainable_simple_imputer():
     imputer = SimpleImputer(
