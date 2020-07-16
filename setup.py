@@ -11,7 +11,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="datawig",
-    version="0.1.12",
+    version="0.2.0",
     author="datawig-dev",
     author_email="datawig-dev@amazon.com",
     maintainer_email='datawig-dev@amazon.com',
