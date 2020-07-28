@@ -23,3 +23,4 @@ The port contains three main components:
 
 Run `python server.py` and navigate with browser to [http://localhost:8081/datawig](http://localhost:8081/datawig).
 
+To get started, feel free to use any of the Excel files in the `examples` directory.
