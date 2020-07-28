@@ -1,0 +1,3 @@
+- Support for multiple iterations of upload/predict/download (downloading data more than once fails because worksheet already exists)
+- WebWorkers for lag-free UX
+- add support for sparse tensors (tf.SparseTensor is not yet supported by TFJS)
