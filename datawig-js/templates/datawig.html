@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <script src="{{ url_for('static', filename='jspsych-6.1.0/jspsych.js') }}"></script>
+    <script src="{{ url_for('static', filename='jspsych-6.1.0/plugins/jspsych-html-keyboard-response.js') }}"></script>
+    <script src="{{ url_for('static', filename='jspsych-6.1.0/plugins/jspsych-external-html.js') }}"></script>
+    <script src="{{ url_for('static', filename='jspsych-6.1.0/plugins/jspsych-instructions.js') }}"></script>
+    <script src="{{ url_for('static', filename='jspsych-6.1.0/plugins/jspsych-call-function.js') }}"></script>
+    <script src="{{ url_for('static', filename='jspsych-6.1.0/plugins/jspsych-survey-likert.js') }}"></script>
+    <script src="{{ url_for('static', filename='jspsych-6.1.0/plugins/jspsych-image-keyboard-response.js') }}"></script>
+    <script src="{{ url_for('static', filename='jspsych-6.1.0/plugins/jspsych-html-button-response.js') }}"></script>
+    <script src="{{ url_for('static', filename='jspsych-6.1.0/plugins/jspsych-survey-multi-choice.js') }}"></script>
+    <script src="{{ url_for('static', filename='jspsych-6.1.0/plugins/jspsych-survey-html-form.js') }}"></script>
+
+    <script src="{{ url_for('static', filename='js/jquery-3.4.1.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/popper-1.14.7.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap-4.3.1.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jquery-ui-1.12.js') }}"></script>
+
+
+    <script src="{{ url_for('static', filename='js/tfjs@1.7.2.js') }}"> </script>
+    <script src="{{ url_for('static', filename='js/jquery.mark.8.11.1.js') }}"></script>
+
+    <script src="{{ url_for('static', filename='js/datawig/util.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/datawig/math.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/datawig/Vectorizers.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/datawig/StandardScaler.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/datawig/LabelEncoder.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/datawig/SimpleImputer.js') }}"></script>
+
+    <script src="{{ url_for('static', filename='js/xlsx_jszip_0.15.5.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/xlsx_0.15.5.js') }}"></script>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-4.3.1.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jquery-ui-1.12.1.min.css') }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-table.min_1.16.0.css') }}">
+    <script src="{{ url_for('static', filename='js/bootstrap-table.min_1.16.0.js') }}"></script>
+
+    <title>Datawig-JS</title>
+
+    <style>
+        body {
+          background-color: #F5F5F5;
+        }
+        .top-buffer {
+          margin-top:35px;
+        }
+        .dash-border {
+          border:dashed 2px #c3c3c3;
+        }
+    </style>
+
+    <script>
+      const nEpochs = 50
+      let model
+      let allDataPromise
+      let workbookPromise
+
+      // return Promise<Array<Object>>
+      function getAuditSamples(k = 5) {
+        console.log('Getting', k, 'audit samples')
+
+        const output = $('#output_column').val()
+
+        // const mostUncertainSamples = allDataPromise.then(function(data) {
+        //   const unlabelled = data.filter(function(el) { return el[output] == ''})
+        //   return model.getTopKMostUncertainSamples(unlabelled, k)
+        // })
+
+        const mostUncertainSamples = allDataPromise.then(function(data) {
+          const unlabelled = data.filter(function(el) {
+            return ! hasLabel(el, output);
+          })
+          console.log(`Getting sample uncertainty for ${unlabelled.length} samples out of ${data.length}`)
+          // this changes the underlying ordering of data
+          // const d = Math_.shuffle(unlabelled).slice(0, 500)
+          return model.getTopKMostUncertainSamples(unlabelled, k)
+        })
+        return mostUncertainSamples
+      }
+
+      $(document).ready( function() {
+        // init
+        // $('#progressbar').progressbar({value: 0})
+
+        // TODO: on_finish for each batch, or as part of async cb, update
+        // samples, re-train
+
+        async function onFinishAudits(doneCallback) {
+          console.log('End of audits, adding new samples')
+
+          getAuditSamples().then(function(samples) {
+            const labels = Object.getOwnPropertyNames(model.label_encoder.label_indices)
+            const input = $('#input_column').val()
+            const output = $('#output_column').val()
+
+            const trials = samples.map(function(sample) {
+              let trial = {
+                type: 'html-button-response',
+                stimulus: `<p>${sample[input]}</p>`,
+                choices: labels,
+                prompt: "<p>Choose a label</p>",
+                on_finish: function(sample) {
+                  console.log('Finished trial with data:', sample)
+                  console.log('Updating data with index', sample["__idx__"])
+                  sample[output] = labels[sample["button_pressed"]]
+                  model.partial_fit([sample]);
+
+                  allDataPromise.then(function(allData) {
+                    const s = allData[sample["__idx__"]]
+                    s[output] = sample[output]
+                  })
+                },
+                data: {
+                  __idx__: sample['__idx__']
+                }
+              }
+              // for partial fit
+              trial['data'][input] = sample[input]
+              return trial
+            })
+
+            const trial = {
+              type: 'call-function',
+              async: true,
+              func: onFinishAudits
+            }
+
+            // update labels of sampled data
+            // online update of model with newly sampled data (partial_fit)
+
+            // const model_update = {
+            //   type: 'call-function',
+            //   async: true,
+            //   func: async function(cb) {
+            //     cb({})
+            //   }
+            // }
+
+            const allTrials = trials.concat([trial])
+            console.log(allTrials)
+
+            allTrials.forEach(function(trial) {
+              console.log(`Adding ${trial}`)
+              jsPsych.addNodeToEndOfTimeline(trial, function(){})
+            })
+
+            console.log('Calling done cb')
+            doneCallback({})
+        })
+      }
+
+        $('#start_audit_button').click(function() {
+          console.log('Starting audits')
+
+          const trial = {
+            type: 'call-function',
+            async: true,
+            func: onFinishAudits
+          }
+
+          jsPsych.init({
+            timeline: [trial],
+            display_element: 'jspsych_container',
+            on_finish: function() {
+              console.log('finished!');
+            }
+          })
+        })
+
+
+
+        // audits
+
+
+
+
+        $('#download_button').click(function() {
+          const output = $('#output_column').val()
+
+          workbookPromise.then(function(workbook) {
+            allDataPromise.then(function(elements) {
+              const predictData = elements//.filter(function(el) { return el[output] == '' })
+              const probas = model.predict_proba(predictData)
+              const predictedLabelIndices = probas.argMax(1).arraySync()
+              const predictedLabelProbas = probas.max(1).arraySync()
+              console.log(probas)
+
+              const predictions = predictData.map(function(element, element_index) {
+                element['predicted_label'] = model.label_encoder.index_labels[predictedLabelIndices[element_index]]
+                element['predicted_label_confidence'] = predictedLabelProbas[element_index]
+                return element
+              })
+              // const sheet = XLSX.utils.json_to_sheet([{a: 1}, {a: 2}])
+              const sheet = XLSX.utils.json_to_sheet(predictions)
+
+              XLSX.utils.book_append_sheet(workbook, sheet, "Datawig-JS Results");
+              XLSX.writeFile(workbook, 'audited.xlsx');
+
+            })
+          })
+        })
+
+        $('#sheet_name').change(function() {
+          const input = $("#input_column")
+          const output = $("#output_column")
+
+          input.empty()
+          input.append('<option selected></option>')
+          output.empty()
+          output.append('<option selected></option>')
+
+          // $('#table_col').remove()
+          // $('#table_row').append(`<div class="col" id="table_col"><table id="table"></table></div>`)
+
+          const sheetName = $(this).val();
+
+          // read elements from sheet
+          allDataPromise = workbookPromise.then(function(workbook) {
+            return XLSX.utils.sheet_to_json(workbook.Sheets[sheetName])
+          }).then(function(elements) {
+            elements.forEach(function(e, idx) {
+              e['__idx__'] = idx;
+            })
+            return elements
+          }).then(function(elements) {
+            // showSampleTable(elements)
+            return elements
+          }).then(function(elements) {
+            // populate dropdowns
+
+            const columnNames = Object.getOwnPropertyNames(elements[0]).forEach(function(el) {
+              input.append(`<option value='${el}'>${el}</option>`)
+              output.append(`<option value='${el}'>${el}</option>`)
+            })
+            return elements
+          })
+        })
+
+        $('#analyze_button').click(function() {
+          const input = $('#input_column').val()
+          const output = $('#output_column').val()
+
+          const summary = $('#summary_stats')
+
+          summary.empty()
+
+          if (input == "" || output == "") {
+            summary.append(`<div class="col">Please specify input and output</div>`)
+          } else {
+            allDataPromise.then(function(elements) {
+              const labels_ = new Object()
+              const nTotal = elements.length
+              const labelledInstances = elements.filter(function(e) {
+                const elementHasLabel = hasLabel(e, output)
+                if (elementHasLabel) {
+                  const label = e[output]
+                  // store distinct labels
+                  labels_[label] = true
+                }
+
+                return elementHasLabel
+              })
+
+              const labels = Object.getOwnPropertyNames(labels_)
+
+              summary.append(`<div class="col"><b>${labelledInstances.length}</b> rows with labels out of <b>${nTotal}</b> rows.</div>`)
+              summary.append(`<div class="col"><b>${labels.length}</b> distinct labels (${labels.join(', ')})</div>`)
+            })
+
+          }
+        })
+
+        $('#start_button').click(function() {
+          const sheet = $('#sheet_name').val()
+          const input = $('#input_column').val()
+          const output = $('#output_column').val()
+
+          console.log(`${sheet}: ${input} -> ${output}`)
+          allDataPromise.then(function(elements) {
+            // shuffle training data
+            const trainData = Math_.shuffle(elements.filter(function(el) { return hasLabel(el, output); }))
+            const miniBatchSize = 500
+            const firstMiniBatchSize = 500
+
+            console.log(trainData.length)
+            if (model == undefined) {
+              model = new SimpleImputer(input, output)
+            }
+
+            async function miniBatchFit() {
+              // larger vocabulary for vectorizer
+              const firstBatch = new Array()
+              const firstBatchIndices = new Set()
+              for(let i = 0; i < firstMiniBatchSize; i++) {
+                const idx = Math.floor(Math.random()*trainData.length)
+                // console.log('Adding index', idx)
+                firstBatchIndices.add(idx)
+              }
+              for(let idx of firstBatchIndices.values()) {
+                firstBatch.push(trainData[idx])
+              }
+              await model.partial_fit(firstBatch)
+              console.log('Done fitting first batch', model)
+              model.compute_explain_patterns(firstBatch)
+              console.log('Done computing patterns', model)
+
+              for (let i = 0; i < trainData.length; i += miniBatchSize) {
+                console.log(i)
+                const batch = trainData.slice(i, i + miniBatchSize)
+                await model.partial_fit(batch)
+              }
+            }
+
+            miniBatchFit()
+          })
+
+        })
+
+        $("#dropzone").on("dragover", function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        $("#dropzone").on("dragleave", function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        $("#dropzone").on("drop", function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.dataTransfer = event.originalEvent.dataTransfer
+            const file = event.dataTransfer.files[0]
+
+            workbookPromise = readFile(file).then(function (data) {
+              const workbook = XLSX.read(data, {type: 'binary'})
+              return workbook
+            })
+
+            workbookPromise.then(function(book) {
+              $('#sheet_name').empty()
+              $('#sheet_name').append(`<option selected></option>`)
+              // populate sheet name dropdown, upon select, actually load data
+              book.SheetNames.forEach(function(sheetName){
+                $('#sheet_name').append(`<option value='${sheetName}'>${sheetName}</option>`)
+              })
+            })
+        });
+
+        // in line prediction and highlights
+        $("#query").keyup(function() {
+          const query = $("#query").val()
+          const input = $('#input_column').val()
+          console.log(query)
+
+          const querySample = new Object()
+          querySample[input] = query
+          const pred = model.predict_proba([querySample])
+          const probas = pred.arraySync()[0]
+          // const pred_label_idx = Math_.argsort(probas)[0]
+          const pred_label_idx = pred.argMax(1).arraySync()[0]
+          const pred_label = model.label_encoder.index_labels[pred_label_idx]
+          const pred_label_conf = probas[pred_label_idx]
+          $('#predicted_label').empty()
+          $('#predicted_label').append(`<b>Predicted label</b>: ${pred_label} (${(pred_label_conf*100.0).toFixed(2)}% confidence)`)
+
+          const explanations = model.explain(pred_label_idx, 10)
+          console.log(explanations)
+          explainInput(explanations)
+        })
+      })
+    </script>
+</head>
+<body>
+
+<div class="container">
+    <div class="row top-buffer">
+      <div class="col">
+          <b>Datawig-JS</b>
+      </div>
+    </div>
+    <div class="row top-buffer" id="dropzone">
+      <div class="col dash-border">
+          <label class="text-muted" for="upload">
+              <p>Drag and Drop an excel file here and specify input/output columns to start</p>
+          </label>
+      </div>
+    </div>
+    <div class="row top-buffer">
+      <div class="col">
+        <div class="input-group mb-3">
+              <div class="input-group-prepend">
+                <label class="input-group-text">Sheet name</label>
+              </div>
+              <select class="custom-select" id="sheet_name">
+                  <option selected=""></option>
+              </select>
+        </div>
+      </div>
+      <div class="col">
+        <div class="input-group mb-3">
+              <div class="input-group-prepend">
+                <label class="input-group-text">Input column</label>
+              </div>
+              <select class="custom-select" id="input_column">
+                  <option selected></option>
+              </select>
+        </div>
+      </div>
+      <div class="col">
+        <div class="input-group mb-3">
+              <div class="input-group-prepend">
+                <label class="input-group-text">Label column</label>
+              </div>
+              <select class="custom-select" id="output_column">
+                  <option selected></option>
+              </select>
+        </div>
+      </div>
+    </div>
+    <div class="row top-buffer" id="summary_stats">
+    </div>
+    <!-- <div class="row top-buffer" id="table_row">
+      <div class="col" id="table_col">
+          <table id="table"></table>
+      </div>
+    </div> -->
+    <hr>
+    <div class="row top-buffer">
+      <div class="col">
+          <button type="button" class="btn btn-success" id="analyze_button">Analyze data</button>
+      </div>
+      <div class="col">
+        <button type="button" class="btn btn-success" id="start_button">Train model</button>
+      </div>
+      <!-- <div class="col-8">
+        <div id="progressbar"></div>
+      </div> -->
+    </div>
+    <div class="row top-buffer">
+      <div class="col" id="training_stats"></div>
+    </div>
+    <div class="row top-buffer">
+      <div class="col">
+          <button type="button" class="btn btn-primary" id="start_audit_button">Start audit</button>
+      </div>
+      <div class="col">
+          <button type="button" class="btn btn-info" id="download_button">Download predictions</button>
+      </div>
+    </div>
+    <hr>
+    <div class="row top-buffer">
+      <div class="col-6">
+        <div class="form-group">
+            <input name="query" type="text" class="form-control" id="query" placeholder="keywords to explain...">
+        </div>
+      </div>
+      <div class="text-muted col-4" id="explanation">
+      </div>
+      <div class="col-2">
+        <span id="predicted_label"></span>
+      </div>
+    </div>
+    <div class="row top-buffer dash-border">
+      <div class="col" id="jspsych_container">
+      </div>
+    </div>
+</div>
+
+</body>
+</html>
