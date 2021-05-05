@@ -1,4 +1,2 @@
-scikit-learn[alldeps]==0.22.1
 typing==3.6.6
-pandas==0.25.3
-mxnet==1.4.0
+autogluon.tabular[all]==0.2.0

@@ -19,69 +19,59 @@ Imputes missing values in tables based on autogluon-tabular
 """
 
 from pandas.api.types import is_numeric_dtype
+from sklearn.metrics import precision_recall_curve, classification_report, mean_absolute_error
 
 
 class AutoGluonImputer:
 
     """
 
-    SimpleImputer model based on n-grams of concatenated strings of input columns and concatenated
-    numerical features, if provided.
-
-    Given a data frame with string columns, a model is trained to predict observed values in label
-    column using values observed in other columns.
-
-    The model can then be used to impute missing values.
+    AutoGluonImputer model 
 
     :param input_columns: list of input column names (as strings)
     :param output_column: output column name (as string)
     :param output_path: path to store model and metrics
-    :param num_hash_buckets: number of hash buckets used for the n-gram hashing vectorizer, only
-                                used for non-numerical input columns, ignored otherwise
-    :param num_labels: number of imputable values considered after, only used for non-numerical
-                        input columns, ignored otherwise
-    :param tokens: string, 'chars' or 'words' (default 'chars'), determines tokenization strategy
-                for n-grams, only used for non-numerical input columns, ignored otherwise
-    :param numeric_latent_dim: int, number of latent dimensions for hidden layer of NumericalFeaturizers;
-                only used for numerical input columns, ignored otherwise
-    :param numeric_hidden_layers: number of numeric hidden layers
-    :param is_explainable: if this is True, a stateful tf-idf encoder is used that allows
-                           explaining classes and single instances
-
+   
 
     Example usage:
 
 
-    from datawig.simple_imputer import SimpleImputer
-    import pandas as pd
-
-    fn_train = os.path.join(datawig_test_path, "resources", "shoes", "train.csv.gz")
-    fn_test = os.path.join(datawig_test_path, "resources", "shoes", "test.csv.gz")
-
-    df_train = pd.read_csv(training_data_files)
-    df_test = pd.read_csv(testing_data_files)
-
-    output_path = "imputer_model"
-
-    # set up imputer model
-    imputer = SimpleImputer( input_columns=['item_name', 'bullet_point'], output_column='brand')
-
-    # train the imputer model
-    imputer = imputer.fit(df_train)
-
-    # obtain imputations
-    imputations = imputer.predict(df_test)
-
     """
+
+    @staticmethod
+    def _is_categorical(col: pd.Series,
+                        n_samples: int = 100,
+                        max_unique_fraction=0.05) -> bool:
+        """
+
+        A heuristic to check whether a column is categorical:
+        a column is considered categorical (as opposed to a plain text column)
+        if the relative cardinality is max_unique_fraction or less.
+
+        :param col: pandas Series containing strings
+        :param n_samples: number of samples used for heuristic (default: 100)
+        :param max_unique_fraction: maximum relative cardinality.
+
+        :return: True if the column is categorical according to the heuristic
+
+        """
+
+        sample = col.sample(n=n_samples, replace=len(col) < n_samples).unique()
+
+        return sample.shape[0] / n_samples < max_unique_fraction
 
     def __init__(self,
                  input_columns: List[str],
                  output_column: str,
+                 precision_threshold: float = 0.0,
+                 numerical_confidence_quantile = 0.0,
                  output_path: str = "") -> None:
 
         self.input_columns = input_columns
         self.output_column = output_column
-        self.num_hash_buckets = num_hash_buckets
+        self.precision_threshold = precision_threshold
+        self.numerical_confidence_quantile = numerical_confidence_quantile
+        self.output_path = output_path
         
 
     def fit(self,
@@ -98,6 +88,43 @@ class AutoGluonImputer:
         :param test_split: if no test_df is provided this is the ratio of test data to be held
                             separate for determining model convergence
         """
+
+        if self._is_categorical(train_df[self.output_column]):
+        
+            self.predictor = TabularPredictor( 
+                                                label=self.output_column, 
+                                                problem_type='multiclass', 
+                                                verbosity=0).\
+                                                    fit(train_data=train_df.dropna(subset=[self.output_column]))
+            y_test = test_df.dropna(subset=[self.output_column]).drop([self.output_column],axis=1)
+           
+            # prec-rec curves for finding the likelihood thresholds for minimal precision
+            self.precision_thresholds = {}
+            probas = self.predictor.predict_proba(y_test)
+
+            for this_label_proba in probas.columns:
+                prec, rec, threshold = precision_recall_curve(y_test==this_label_proba.name, proba, pos_label=True)
+                threshold_for_minimal_precision = threshold[(prec >= self.categorical_precision_threshold).nonzero()[0][0]]
+                self.precision_thresholds[this_label_proba.name] = threshold_for_minimal_precision
+            
+            self.classification_metrics = classification_report(y_test, self.predictor.predict(y_test))
+
+        else:
+            self.quantiles = [ 
+                            self.numerical_confidence_quantile,
+                            .5,   
+                            1-self.numerical_confidence_quantile
+                        ]
+            self.predictors[col] = TabularPredictor(
+                                            label=col, 
+                                            quantile_levels=quantiles, 
+                                            problem_type='quantile', 
+                                            verbosity=0)\
+                                                .fit(train_data=train_df.dropna(subset=[self.output_column]))
+
+            y_test = test_df[self.output_column].dropna()
+            y_pred = self.predictor.predict(y_test)
+            self.predictor.mean_absolute_error = mean_absolute_error(y_test, y_pred[self.quantiles[1]])
 
     def predict(self,
                 data_frame: pd.DataFrame,
