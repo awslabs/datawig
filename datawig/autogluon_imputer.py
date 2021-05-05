@@ -23,6 +23,111 @@ from pandas.api.types import is_numeric_dtype
 
 class AutoGluonImputer:
 
+    """
+
+    SimpleImputer model based on n-grams of concatenated strings of input columns and concatenated
+    numerical features, if provided.
+
+    Given a data frame with string columns, a model is trained to predict observed values in label
+    column using values observed in other columns.
+
+    The model can then be used to impute missing values.
+
+    :param input_columns: list of input column names (as strings)
+    :param output_column: output column name (as string)
+    :param output_path: path to store model and metrics
+    :param num_hash_buckets: number of hash buckets used for the n-gram hashing vectorizer, only
+                                used for non-numerical input columns, ignored otherwise
+    :param num_labels: number of imputable values considered after, only used for non-numerical
+                        input columns, ignored otherwise
+    :param tokens: string, 'chars' or 'words' (default 'chars'), determines tokenization strategy
+                for n-grams, only used for non-numerical input columns, ignored otherwise
+    :param numeric_latent_dim: int, number of latent dimensions for hidden layer of NumericalFeaturizers;
+                only used for numerical input columns, ignored otherwise
+    :param numeric_hidden_layers: number of numeric hidden layers
+    :param is_explainable: if this is True, a stateful tf-idf encoder is used that allows
+                           explaining classes and single instances
+
+
+    Example usage:
+
+
+    from datawig.simple_imputer import SimpleImputer
+    import pandas as pd
+
+    fn_train = os.path.join(datawig_test_path, "resources", "shoes", "train.csv.gz")
+    fn_test = os.path.join(datawig_test_path, "resources", "shoes", "test.csv.gz")
+
+    df_train = pd.read_csv(training_data_files)
+    df_test = pd.read_csv(testing_data_files)
+
+    output_path = "imputer_model"
+
+    # set up imputer model
+    imputer = SimpleImputer( input_columns=['item_name', 'bullet_point'], output_column='brand')
+
+    # train the imputer model
+    imputer = imputer.fit(df_train)
+
+    # obtain imputations
+    imputations = imputer.predict(df_test)
+
+    """
+
+    def __init__(self,
+                 input_columns: List[str],
+                 output_column: str,
+                 output_path: str = "") -> None:
+
+        self.input_columns = input_columns
+        self.output_column = output_column
+        self.num_hash_buckets = num_hash_buckets
+        
+
+    def fit(self,
+            train_df: pd.DataFrame,
+            test_df: pd.DataFrame = None,
+            test_split: float = .1) -> Any:
+        """
+
+        Trains and stores imputer model
+
+        :param train_df: training data as dataframe
+        :param test_df: test data as dataframe; if not provided, a ratio of test_split of the
+                            training data are used as test data
+        :param test_split: if no test_df is provided this is the ratio of test data to be held
+                            separate for determining model convergence
+        """
+
+    def predict(self,
+                data_frame: pd.DataFrame,
+                precision_threshold: float = 0.0,
+                numerical_confidence_interval: float = 1.0,
+                imputation_suffix: str = "_imputed",
+                inplace: bool = False):
+        """
+        Imputes most likely value if it is above a certain precision threshold determined on the
+            validation set
+        Precision is calculated as part of the `datawig.evaluate_and_persist_metrics` function.
+
+        Returns original dataframe with imputations and respective likelihoods as estimated by
+        imputation model; in additional columns; names of imputation columns are that of the label
+        suffixed with `imputation_suffix`, names of respective likelihood columns are suffixed
+        with `score_suffix`
+
+        :param data_frame:   data frame (pandas)
+        :param precision_threshold: double between 0 and 1 indicating precision threshold categorical imputation
+        :param numerical_confidence_interval: double between 0 and 1 indicating confidence quantile for numerical imputation
+        :param imputation_suffix: suffix for imputation columns
+        :param inplace: add column with imputed values and column with confidence scores to data_frame, returns the
+            modified object (True). Create copy of data_frame with additional columns, leave input unmodified (False).
+        :return: data_frame original dataframe with imputations and likelihood in additional column
+        """
+        imputations = self.imputer.predict(data_frame, precision_threshold, imputation_suffix,
+                                           score_suffix, inplace=inplace)
+
+        return imputations
+
     @staticmethod
     def complete(data_frame: pd.DataFrame,
                  precision_threshold: float = 0.0,
