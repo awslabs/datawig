@@ -22,21 +22,7 @@ from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import precision_recall_curve, classification_report, mean_absolute_error
 
 
-class AutoGluonImputer:
-
-    """
-
-    AutoGluonImputer model 
-
-    :param input_columns: list of input column names (as strings)
-    :param output_column: output column name (as string)
-    :param output_path: path to store model and metrics
-   
-
-    Example usage:
-
-
-    """
+class AutoImputer:
 
     @staticmethod
     def _is_categorical(col: pd.Series,
@@ -59,101 +45,6 @@ class AutoGluonImputer:
         sample = col.sample(n=n_samples, replace=len(col) < n_samples).unique()
 
         return sample.shape[0] / n_samples < max_unique_fraction
-
-    def __init__(self,
-                 input_columns: List[str],
-                 output_column: str,
-                 precision_threshold: float = 0.0,
-                 numerical_confidence_quantile = 0.0,
-                 output_path: str = "") -> None:
-
-        self.input_columns = input_columns
-        self.output_column = output_column
-        self.precision_threshold = precision_threshold
-        self.numerical_confidence_quantile = numerical_confidence_quantile
-        self.output_path = output_path
-        
-
-    def fit(self,
-            train_df: pd.DataFrame,
-            test_df: pd.DataFrame = None,
-            test_split: float = .1) -> Any:
-        """
-
-        Trains and stores imputer model
-
-        :param train_df: training data as dataframe
-        :param test_df: test data as dataframe; if not provided, a ratio of test_split of the
-                            training data are used as test data
-        :param test_split: if no test_df is provided this is the ratio of test data to be held
-                            separate for determining model convergence
-        """
-
-        if self._is_categorical(train_df[self.output_column]):
-        
-            self.predictor = TabularPredictor( 
-                                                label=self.output_column, 
-                                                problem_type='multiclass', 
-                                                verbosity=0).\
-                                                    fit(train_data=train_df.dropna(subset=[self.output_column]))
-            y_test = test_df.dropna(subset=[self.output_column]).drop([self.output_column],axis=1)
-           
-            # prec-rec curves for finding the likelihood thresholds for minimal precision
-            self.precision_thresholds = {}
-            probas = self.predictor.predict_proba(y_test)
-
-            for this_label_proba in probas.columns:
-                prec, rec, threshold = precision_recall_curve(y_test==this_label_proba.name, proba, pos_label=True)
-                threshold_for_minimal_precision = threshold[(prec >= self.categorical_precision_threshold).nonzero()[0][0]]
-                self.precision_thresholds[this_label_proba.name] = threshold_for_minimal_precision
-            
-            self.classification_metrics = classification_report(y_test, self.predictor.predict(y_test))
-
-        else:
-            self.quantiles = [ 
-                            self.numerical_confidence_quantile,
-                            .5,   
-                            1-self.numerical_confidence_quantile
-                        ]
-            self.predictors[col] = TabularPredictor(
-                                            label=col, 
-                                            quantile_levels=quantiles, 
-                                            problem_type='quantile', 
-                                            verbosity=0)\
-                                                .fit(train_data=train_df.dropna(subset=[self.output_column]))
-
-            y_test = test_df[self.output_column].dropna()
-            y_pred = self.predictor.predict(y_test)
-            self.predictor.mean_absolute_error = mean_absolute_error(y_test, y_pred[self.quantiles[1]])
-
-    def predict(self,
-                data_frame: pd.DataFrame,
-                precision_threshold: float = 0.0,
-                numerical_confidence_interval: float = 1.0,
-                imputation_suffix: str = "_imputed",
-                inplace: bool = False):
-        """
-        Imputes most likely value if it is above a certain precision threshold determined on the
-            validation set
-        Precision is calculated as part of the `datawig.evaluate_and_persist_metrics` function.
-
-        Returns original dataframe with imputations and respective likelihoods as estimated by
-        imputation model; in additional columns; names of imputation columns are that of the label
-        suffixed with `imputation_suffix`, names of respective likelihood columns are suffixed
-        with `score_suffix`
-
-        :param data_frame:   data frame (pandas)
-        :param precision_threshold: double between 0 and 1 indicating precision threshold categorical imputation
-        :param numerical_confidence_interval: double between 0 and 1 indicating confidence quantile for numerical imputation
-        :param imputation_suffix: suffix for imputation columns
-        :param inplace: add column with imputed values and column with confidence scores to data_frame, returns the
-            modified object (True). Create copy of data_frame with additional columns, leave input unmodified (False).
-        :return: data_frame original dataframe with imputations and likelihood in additional column
-        """
-        imputations = self.imputer.predict(data_frame, precision_threshold, imputation_suffix,
-                                           score_suffix, inplace=inplace)
-
-        return imputations
 
     @staticmethod
     def complete(data_frame: pd.DataFrame,
@@ -221,6 +112,193 @@ class AutoGluonImputer:
 
 
         return data_frame
+
+    def __init__(self,
+                 input_columns: List[str],
+                 output_column: str,
+                 precision_threshold: float = 0.0,
+                 numerical_confidence_quantile = 0.0,
+                 output_path: str = "") -> None:
+
+        self.input_columns = input_columns
+        self.output_column = output_column
+        self.precision_threshold = precision_threshold
+        self.numerical_confidence_quantile = numerical_confidence_quantile
+        self.output_path = output_path
+
+    def fit(self,
+            train_df: pd.DataFrame,
+            test_df: pd.DataFrame = None,
+            test_split: float = .1) -> Any:
+        pass
+
+
+    def predict(self,
+            train_df: pd.DataFrame,
+            test_df: pd.DataFrame = None,
+            test_split: float = .1) -> Any:
+        pass
+
+    def save(self):
+        """
+
+        Saves model to disk; mxnet module and imputer are stored separately
+
+        """
+        raise(NotImplementedError)
+
+    @staticmethod
+    def load(output_path: str) -> Any:
+        """
+
+        Loads model from output path
+
+        :param output_path: output_path field of trained SimpleImputer model
+        :return: AutoGluonImputer model
+
+        """
+
+        raise(NotImplementedError)
+
+
+class AutoGluonImputer(AutoImputer):
+
+    """
+
+    AutoGluonImputer model
+
+    :param input_columns: list of input column names (as strings)
+    :param output_column: output column name (as string)
+    :param output_path: path to store model and metrics
+
+
+    Example usage:
+
+
+    """
+
+    def __init__(self,
+             output_column: str = None,
+             input_columns: List[str] = None,
+             precision_threshold: float = 0.0,
+             numerical_confidence_quantile = 0.05,
+             output_path: str = "") -> None:
+
+        self.input_columns = input_columns
+        self.output_column = output_column
+        self.precision_threshold = precision_threshold
+        self.numerical_confidence_quantile = numerical_confidence_quantile
+        self.output_path = output_path
+
+    def fit(self,
+            train_df: pd.DataFrame,
+            test_df: pd.DataFrame = None,
+            test_split: float = .1,
+            time_limit=30) -> Any:
+
+        """
+
+        Trains and stores imputer model
+
+        :param train_df: training data as dataframe
+        :param test_df: test data as dataframe; if not provided, a ratio of test_split of the
+                            training data are used as test data
+        :param test_split: if no test_df is provided this is the ratio of test data to be held
+                            separate for determining model convergence
+        """
+
+        if not self.input_columns or len(self.input_columns) == 0:
+            self.input_columns = [c for c in train_df.columns if c is not self.output_column]
+
+        if not is_numeric_dtype(train_df[self.output_column]):
+
+            self.predictor = TabularPredictor(label=self.output_column,
+                                              problem_type='multiclass',
+                                              verbosity=0).\
+                                                 fit(train_data=train_df.dropna(subset=[self.output_column]),
+                                                        time_limit=time_limit)
+            y_test = test_df.dropna(subset=[self.output_column])
+
+            # prec-rec curves for finding the likelihood thresholds for minimal precision
+            self.precision_thresholds = {}
+            probas = self.predictor.predict_proba(y_test)
+
+            for col_name in probas.columns:
+                prec, rec, thresholds = precision_recall_curve(y_test[self.output_column]==col_name,
+                                                              probas[col_name], pos_label=True)
+                threshold_idx = max(min((prec >= self.precision_threshold).nonzero()[0][0], len(thresholds)-1), 0)
+                threshold_for_minimal_precision = thresholds[threshold_idx]
+                self.precision_thresholds[col_name] = threshold_for_minimal_precision
+
+            self.classification_metrics = classification_report(y_test[self.output_column],
+                                                                self.predictor.predict(y_test))
+
+        else:
+            self.quantiles = [
+                            self.numerical_confidence_quantile,
+                            .5,
+                            1-self.numerical_confidence_quantile
+                        ]
+            self.predictor = TabularPredictor(
+                                            label=self.output_column,
+                                            quantile_levels=self.quantiles,
+                                            problem_type='quantile',
+                                            verbosity=0)\
+                                                .fit(train_data=train_df.dropna(subset=[self.output_column]),
+                                                    time_limit=time_limit)
+
+            y_test = test_df[self.output_column].dropna()
+            y_pred = self.predictor.predict(test_df.dropna(subset=[self.output_column]))
+            self.predictor.mean_absolute_error = mean_absolute_error(y_test, y_pred[self.quantiles[1]])
+
+        return self
+
+    def predict(self,
+                data_frame: pd.DataFrame,
+                precision_threshold: float = 0.0,
+                numerical_confidence_interval: float = 1.0,
+                imputation_suffix: str = "_imputed",
+                inplace: bool = False):
+        """
+        Imputes most likely value if it is above a certain precision threshold determined on the
+            validation set
+        Precision is calculated as part of the `datawig.evaluate_and_persist_metrics` function.
+
+        Returns original dataframe with imputations and respective likelihoods as estimated by
+        imputation model; in additional columns; names of imputation columns are that of the label
+        suffixed with `imputation_suffix`, names of respective likelihood columns are suffixed
+        with `score_suffix`
+
+        :param data_frame:   data frame (pandas)
+        :param precision_threshold: double between 0 and 1 indicating precision threshold categorical imputation
+        :param numerical_confidence_interval: double between 0 and 1 indicating confidence quantile for numerical imputation
+        :param imputation_suffix: suffix for imputation columns
+        :param inplace: add column with imputed values and column with confidence scores to data_frame, returns the
+            modified object (True). Create copy of data_frame with additional columns, leave input unmodified (False).
+        :return: data_frame original dataframe with imputations and likelihood in additional column
+        """
+        if not inplace:
+            df = data_frame.copy(deep=True)
+        else:
+            df = data_frame
+
+        if not is_numeric_dtype(df[self.output_column]):
+            imputations = self.predictor.predict(df)
+            probas = imputations = self.predictor.predict_proba(df)
+            for label in self.precision_thresholds.keys():
+                above_precision = (imputations == label) & \
+                                (probas[label] >= self.precision_thresholds[label])
+                df.loc[above_precision, self.output_column + "_imputed"] = label
+        else:
+            imputations = self.predictor.predict(df)
+            confidence_tube = imputations[self.quantiles[2]] - imputations[self.quantiles[0]]
+            error_smaller_than_confidence_tube = confidence_tube > self.predictor.mean_absolute_error
+            df.loc[error_smaller_than_confidence_tube, self.output_column + "_imputed"] = \
+                imputations.loc[error_smaller_than_confidence_tube, self.quantiles[1]]
+
+        return df
+
+
 
 
         def save(self):
