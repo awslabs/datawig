@@ -17,10 +17,16 @@ AutoGluon Imputer:
 Imputes missing values in tables based on autogluon-tabular
 
 """
+import os, shutil
 
+from typing import List, Dict, Any, Callable
+
+import pandas as pd
 from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import precision_recall_curve, classification_report, mean_absolute_error
+from sklearn.model_selection import train_test_split
 
+from autogluon.tabular import TabularPredictor
 
 class AutoImputer:
 
@@ -59,10 +65,7 @@ class AutoImputer:
         :param data_frame: original dataframe
         :param precision_threshold: precision threshold for categorical imputations (default: 0.0)
         :param inplace: whether or not to perform imputations inplace (default: False)
-        :param hpo: whether or not to perform hyperparameter optimization (default: False)
         :param verbose: verbosity level, values > 0 log to stdout (default: 0)
-        :param num_epochs: number of epochs for each imputation model training (default: 100)
-        :param iterations: number of iterations for iterative imputation (default: 1)
         :param output_path: path to store model and metrics
         :return: dataframe with imputations
         """
@@ -74,42 +77,22 @@ class AutoImputer:
         if inplace is False:
             data_frame = data_frame.copy()
 
-        numeric_columns = [c for c in data_frame.columns if is_numeric_dtype(data_frame[c])]
-        string_columns = list(set(data_frame.columns) - set(numeric_columns))
-        logger.debug("Assuming numerical columns: {}".format(", ".join(numeric_columns)))
+        for output_col in data_frame.columns:
+            
+            input_cols = list(set(data_frame.columns) - set([output_col]))
 
-        col_set = set(numeric_columns + string_columns)
+            # train on all observed values
+            idx_missing = missing_mask[output_col]
 
-        categorical_columns = [col for col in string_columns if SimpleImputer._is_categorical(data_frame[col])]
-        logger.debug("Assuming categorical columns: {}".format(", ".join(categorical_columns)))
-        for _ in range(iterations):
-            for output_col in set(numeric_columns) | set(categorical_columns):
-                # train on all input columns but the to-be-imputed one
-                input_cols = list(col_set - set([output_col]))
+            imputer = AutoGluonImputer(input_columns=input_cols,
+                                    output_column=output_col,
+                                    precision_threshold = 0.0,
+                                    numerical_confidence_quantile = 0.05,
+                                    output_path=os.path.join(output_path, output_col))\
+                                        .fit(data_frame)
 
-                # train on all observed values
-                idx_missing = missing_mask[output_col]
-
-                imputer = SimpleImputer(input_columns=input_cols,
-                                        output_column=output_col,
-                                        output_path=os.path.join(output_path, output_col))
-                if hpo:
-                    imputer.fit_hpo(data_frame.loc[~idx_missing, :],
-                                    patience=5 if output_col in categorical_columns else 20,
-                                    num_epochs=100,
-                                    final_fc_hidden_units=[[0], [10], [50], [100]])
-                else:
-                    imputer.fit(data_frame.loc[~idx_missing, :],
-                                patience=5 if output_col in categorical_columns else 20,
-                                num_epochs=num_epochs,
-                                calibrate=False)
-
-                tmp = imputer.predict(data_frame, precision_threshold=precision_threshold)
-                data_frame.loc[idx_missing, output_col] = tmp[output_col + "_imputed"]
-
-                # remove the directory with logfiles for this column
-                shutil.rmtree(os.path.join(output_path, output_col))
-
+            tmp = imputer.predict(data_frame)
+            data_frame.loc[idx_missing, output_col] = tmp[output_col + "_imputed"]
 
         return data_frame
 
@@ -142,7 +125,7 @@ class AutoImputer:
     def save(self):
         """
 
-        Saves model to disk; mxnet module and imputer are stored separately
+        Saves model to disk; 
 
         """
         raise(NotImplementedError)
@@ -189,6 +172,7 @@ class AutoGluonImputer(AutoImputer):
         self.precision_threshold = precision_threshold
         self.numerical_confidence_quantile = numerical_confidence_quantile
         self.output_path = output_path
+        self.predictor = None
 
     def fit(self,
             train_df: pd.DataFrame,
@@ -206,6 +190,8 @@ class AutoGluonImputer(AutoImputer):
         :param test_split: if no test_df is provided this is the ratio of test data to be held
                             separate for determining model convergence
         """
+        if not test_df:
+            train_df,  test_df  =  train_test_split(train_df.copy(), test_size=test_split)
 
         if not self.input_columns or len(self.input_columns) == 0:
             self.input_columns = [c for c in train_df.columns if c is not self.output_column]
@@ -284,7 +270,7 @@ class AutoGluonImputer(AutoImputer):
 
         if not is_numeric_dtype(df[self.output_column]):
             imputations = self.predictor.predict(df)
-            probas = imputations = self.predictor.predict_proba(df)
+            probas = self.predictor.predict_proba(df)
             for label in self.precision_thresholds.keys():
                 above_precision = (imputations == label) & \
                                 (probas[label] >= self.precision_thresholds[label])
