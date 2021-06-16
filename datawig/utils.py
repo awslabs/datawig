@@ -77,6 +77,9 @@ class ColumnOverwriteException(Exception):
     """Raised when an existing column of a pandas dataframe is about to be overwritten"""
     pass
 
+class TargetSparsityException(Exception):
+    """Raised when a target column cannot be used as label for a supervised learning model"""
+    pass
 
 def stringify_list(cols):
     """
