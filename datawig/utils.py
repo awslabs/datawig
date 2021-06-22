@@ -28,98 +28,19 @@ import string
 import collections
 from typing import Any, List, Tuple, Dict
 
-import mxnet as mx
 import numpy as np
 import pandas as pd
 
-mx.random.seed(1)
 random.seed(1)
 np.random.seed(42)
-
-# set global logger variables
-log_formatter = logging.Formatter("%(asctime)s [%(levelname)s]  %(message)s")
-logger = logging.getLogger()
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(log_formatter)
-consoleHandler.setLevel("INFO")
-logger.addHandler(consoleHandler)
-logger.setLevel("INFO")
-
-
-def set_stream_log_level(level: str):
-    for handler in logger.handlers:
-        if type(handler) is logging.StreamHandler:
-            handler.setLevel(level)
-
-
-def flatten_dict(d: Dict,
-                 parent_key: str ='',
-                 sep: str =':') -> Dict:
-    """
-    Flatten a nested dictionary and create new keys by concatenation
-
-    :param d: input dictionary (nested)
-    :param parent_key: Prefix for keys of the flat dictionary
-    :param sep: Separator when concatenating dictionary keys from different levels.
-    """
-
-    items = []
-    for k, v in d.items():
-        new_key = parent_key + sep + k if parent_key else k
-        if isinstance(v, collections.MutableMapping):
-            items.extend(flatten_dict(v, new_key, sep=sep).items())
-        else:
-            items.append((new_key, v))
-    return dict(items)
-
 
 class ColumnOverwriteException(Exception):
     """Raised when an existing column of a pandas dataframe is about to be overwritten"""
     pass
 
-
-def stringify_list(cols):
-    """
-    Returns list with elements stringified
-    """
-    return [str(c) for c in cols]
-
-
-def merge_dicts(d1: dict, d2: dict):
-    """
-
-    Merges two dicts
-
-    :param d1: A dictionary
-    :param d2: Another dictionary
-    :return: Merged dicts
-    """
-    return dict(itertools.chain(d1.items(), d2.items()))
-
-
-def get_context() -> mx.context:
-    """
-
-    Returns the a list of all available gpu contexts for a given machine.
-    If no gpus are available, returns [mx.cpu()].
-    Use it to automatically return MxNet contexts (uses max number of gpus or cpu)
-
-    :return: List of mxnet contexts of a gpu or [mx.cpu()] if gpu not available
-
-    """
-    context_list = []
-    for gpu_number in range(16):
-        try:
-            _ = mx.nd.array([1, 2, 3], ctx=mx.gpu(gpu_number))
-            context_list.append(mx.gpu(gpu_number))
-        except mx.MXNetError:
-            pass
-
-    if len(context_list) == 0:
-        context_list.append(mx.cpu())
-
-    return context_list
-
+class TargetSparsityException(Exception):
+    """Raised when a target column cannot be used as label for a supervised learning model"""
+    pass
 
 def random_split(data_frame: pd.DataFrame,
                  split_ratios: List[float] = None,
@@ -150,111 +71,6 @@ def rand_string(length: int = 16) -> str:
     import random, string
     return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(length)])
 
-
-@contextlib.contextmanager
-def timing(marker):
-    start_time = time.time()
-    sys.stdout.flush()
-    logger.info("\n========== start: %s" % marker)
-    try:
-        yield
-    finally:
-        logger.info("\n========== done (%s s) %s" % ((time.time() - start_time), marker))
-        sys.stdout.flush()
-
-
-class MeanSymbol(mx.metric.EvalMetric):
-    """
-    Metrics tracking the mean of a symbol, the index of the symbol must be passed as argument.
-    """
-
-    def __init__(self, name, symbol_index=0, output_names=None, label_names=None):
-        super(MeanSymbol, self).__init__(name, output_names=output_names,
-                                         label_names=label_names)
-        self.symbol_index = symbol_index
-
-    def update(self, _, preds):
-        sym = preds[self.symbol_index]
-        # pylint: disable=no-member
-        self.sum_metric += mx.ndarray.sum(sym).asscalar()
-        self.num_inst += sym.size
-
-
-class AccuracyMetric(mx.metric.EvalMetric):
-    """
-    Metrics tracking the accuracy, the index of the discrete label must be passed as argument.
-    """
-
-    def __init__(self, name, label_index=0):
-        super(AccuracyMetric, self).__init__("{}-accuracy".format(name))
-        self.label_index = label_index
-
-    def update(self, labels, preds):
-        chosen = preds[1 + self.label_index].asnumpy().argmax(axis=1)
-        labels_values = labels[self.label_index].asnumpy().squeeze(axis=1)
-        self.sum_metric += sum((chosen == labels_values) | (labels_values == 0.0))
-        self.num_inst += preds[0].size
-
-
-class LogMetricCallBack(object):
-    """
-    Tracked the metrics specified as arguments.
-    Any mxnet metric whose name contains one of the argument will be tracked.
-    """
-
-    def __init__(self, tracked_metrics, patience=None):
-        """
-        :param tracked_metrics: metrics to be tracked
-        :param patience: if not None then if the metrics does not improve during 'patience' number
-        of steps, StopIteration is raised.
-        """
-        self.tracked_metrics = tracked_metrics
-        self.metrics = {metric: [] for metric in tracked_metrics}
-        self.patience = patience
-
-    def __call__(self, param):
-        if param.eval_metric is not None:
-            name_value = param.eval_metric.get_name_value()
-            for metric in self.tracked_metrics:
-                for name, value in name_value:
-                    if metric in name and not math.isnan(value):
-                        self.metrics[metric].append(value)
-                        if self.patience is not None:
-                            self.check_regression()
-
-    def check_regression(self):
-        """
-        If no improvement happens in "patience" number of steps then StopIteration exception is
-        raised. This is an ugly mechanism but it is currently the only way to support this feature
-        while using module api.
-        """
-        _, errors = next(iter(self.metrics.items()))
-
-        def convert_nans(e):
-            if math.isnan(e):
-                logger.warning("Found nan in metric")
-                return 0
-            else:
-                return e
-
-        errors = [convert_nans(e) for e in errors]
-
-        if self.patience < len(errors):
-            # check that the metric has improved, e.g. that all recent metrics were worse
-            metric_before_patience = errors[(-1 * self.patience) - 1]
-
-            no_improvement = all(
-                [errors[-i] >= metric_before_patience for i in range(0, self.patience)]
-            )
-            if no_improvement:
-                logger.info("No improvement detected for {} epochs compared to {} last error " \
-                            "obtained: {}, stopping here".format(self.patience,
-                                                                 metric_before_patience,
-                                                                 errors[-1]
-                                                                 ))
-                raise StopIteration
-
-
 def normalize_dataframe(data_frame: pd.DataFrame):
     """
 
@@ -272,15 +88,6 @@ def normalize_dataframe(data_frame: pd.DataFrame):
             .str.strip()
             .str.replace('[^a-zA-Z0-9_ \r\n\t\f\v]', '')
     )
-
-
-def softmax(x):
-    """
-    Compute softmax values for each sets of scores in x.
-    """
-    e_x = np.exp(x - np.max(x))
-    return e_x / e_x.sum()
-
 
 def generate_df_string(word_length: int = 5,
                        vocab_size: int = 100,
@@ -333,75 +140,3 @@ def generate_df_numeric(num_samples: int = 100,
         data_column_name: numeric_data,
         label_column_name: numeric_data ** 2 + np.random.normal(0, .01, (num_samples,)),
     })
-
-
-def random_cartesian_product(sets: List,
-                             num: int = 10) -> List:
-    """
-    Return random samples from the cartesian product of all iterators in sets.
-    Returns at most as many results as unique products exist.
-    Does not require materialization of the full product but is still truly random,
-    wich can't be achieved with itertools.
-
-    Example usage:
-    >>> random_cartesian_product([range(2**50), ['a', 'b']], num=2)
-    >>> [[558002326003088, 'a'], [367785400774751, 'a']]
-
-    :param sets: List of iteratbles
-    :param num: Number of random samples to draw
-    """
-
-    # Determine cardinality of full cartisian product
-    N = np.prod([len(y) for y in sets])
-
-    # Draw random integers without replacement
-    if N > 1e6:  # avoid materialising all integers if data is large
-        idxs = []
-        while len(idxs) < min(num, N):
-            idx_candidate = np.random.randint(N)
-            if idx_candidate not in idxs:
-                idxs.append(idx_candidate)
-    else:
-        idxs = np.random.choice(range(N), size=min(num, N), replace=False)
-
-    out = []
-    for idx in idxs:
-        out.append(sample_cartesian(sets, idx, N))
-
-    return out
-
-
-def sample_cartesian(sets: List,
-                     idx: int,
-                     n: int = None) -> List:
-    """
-    Draw samples from the cartesian product of all iterables in sets.
-    Each row in the cartesian product has a unique index. This function returns
-    the row with index idx without materialising any of the other rows.
-
-    For a cartesian products of lists with length l1, l2, ... lm, taking the cartesian
-    product can be thought of as traversing through all lists picking one element of each
-    and repeating this until all possible combinations are exhausted. The number of combinations
-    is N=l1*l2*...*lm. This can make materialization of the list impracticle.
-    By taking the first element from every list that leads to a new combination,
-    we can define a unique enumeration of all combinations.
-
-    :param sets: List of iteratbles
-    :param idx: Index of desired row in the cartersian product
-    :param n: Number of rows in the cartesian product
-    """
-
-    if n is None:
-        n = np.prod([len(y) for y in sets])
-
-    out = []  # prepare list to append elements to.
-    width = n  # width of the index set in which the desired row falls.
-    for item_set in sets:
-        width = width/len(item_set)  # map index set onto first item_set
-        bucket = int(np.floor(idx/width))  # determine index of the first item_set
-        out.append(item_set[bucket])
-        idx = idx - bucket*width  # restrict index to next item_set in the hierarchy (could use modulo operator here.)
-
-    assert width == 1  # at the end of this procedure, the leaf index set should have width 1.
-
-    return out
