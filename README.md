@@ -60,7 +60,7 @@ df_with_missing_imputed = datawig.AutoGluonImputer.complete(df_with_missing)
 
 This usage is very similar to using the underlying [tabular prediction API of AutoGluon](https://auto.gluon.ai/stable/tutorials/tabular_prediction/index.html) - but we added some convenience functionality such as a precision filtering for categorical imputations.  
 
-You can also impute values in specific columns only (called `output_column` below) using values in other columns (called `input_columns` below). DataWig currently supports imputation of categorical columns and numeric columns. Type inference is based on [``pandas.api.types.is_numeric_dtype``(https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.api.types.is_numeric_dtype.html) .
+You can also impute values in specific columns only (called `output_column` below) using values in other columns (called `input_columns` below). DataWig currently supports imputation of categorical columns and numeric columns. Type inference is based on [``pandas.api.types.is_numeric_dtype``](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.api.types.is_numeric_dtype.html) .
 
 #### Imputation of categorical columns
 
@@ -78,8 +78,9 @@ df.head(n=2)
 The generate data will look like this:
 
 |sentences	|label|
-0|	wILsn T366D r1Psz KAnDn 8RfUf GuuRU	|8RfUf
-1|	8RfUf jBq5U BqVnh pnXfL GuuRU XYnSP	|8RfUf
+|---------|-------|
+|	wILsn T366D r1Psz KAnDn 8RfUf GuuRU	|8RfUf|
+|	8RfUf jBq5U BqVnh pnXfL GuuRU XYnSP	|8RfUf|
 
 Now let's split the rows into training and test data and train an imputation model
 
