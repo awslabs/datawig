@@ -1,4 +1,0 @@
-typing>=3.6.6
-pandas>=0.22.0
-mxnet>=1.3.0
-fancyimpute==0.4.3

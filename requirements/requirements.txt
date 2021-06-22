@@ -1,2 +1,2 @@
 typing==3.6.6
-autogluon.tabular[all]==0.2.0
+autogluon.tabular[all]>=0.2.0
