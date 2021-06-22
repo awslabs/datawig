@@ -23,10 +23,12 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
-from sklearn.metrics import f1_score, mean_squared_error
+from sklearn.metrics import f1_score, mean_absolute_error
 
 from datawig.utils import (logger, rand_string, random_split, generate_df_numeric,
                            generate_df_string)
+
+from datawig.autogluon_imputer import AutoGluonImputer
 
 warnings.filterwarnings("ignore")
 
@@ -76,7 +78,7 @@ def test_numeric_or_text_imputer(test_dir, data_frame):
 
     imputer_numeric_linear.predict(df_test, inplace=True)
 
-    assert mean_squared_error(df_test['*2'], df_test['*2_imputed']) < 1.0
+    assert mean_absolute_error(df_test['*2'], df_test['*2_imputed']) < 1.0
 
     imputer_numeric = AutoGluonImputer(
         input_columns=['x', feature_col],
@@ -88,7 +90,7 @@ def test_numeric_or_text_imputer(test_dir, data_frame):
 
     imputer_numeric.predict(df_test, inplace=True)
 
-    assert mean_squared_error(df_test['**2'], df_test['**2_imputed']) < 0.1
+    assert mean_absolute_error(df_test['**2'], df_test['**2_imputed']) < 0.1
 
     imputer_string = AutoGluonImputer(
         input_columns=[feature_col, 'x'],
@@ -118,39 +120,47 @@ def test_imputer_complete():
     num_labels = 3
     seq_len = 20
 
-    missing_ratio = .1
+    missing_ratio = .2
 
     df_string = generate_df_string(
-        num_labels=num_labels,
-        num_words=seq_len,
-        num_samples=num_samples,
-        label_column_name=label_col,
-        data_column_name=feature_col)
+    num_labels=num_labels,
+    num_words=seq_len,
+    num_samples=num_samples,
+    label_column_name=label_col,
+    data_column_name=feature_col)
 
     df_numeric = generate_df_numeric(num_samples=num_samples,
-                                     label_column_name=label_col_numeric,
-                                     data_column_name=feature_col_numeric)
+                                 label_column_name=label_col_numeric,
+                                 data_column_name=feature_col_numeric)
 
     df = pd.concat([
-        df_string[[feature_col, label_col]],
-        df_numeric[[feature_col_numeric, label_col_numeric]]
+    df_string[[feature_col, label_col]],
+    df_numeric[[feature_col_numeric, label_col_numeric]]
     ], ignore_index=True, axis=1)
     df.columns = [feature_col, label_col, feature_col_numeric, label_col_numeric]
 
+    df_orig = df.copy(deep=True)
+    df_missing = df.copy(deep=True)
+
     # delete some entries
-    for col in df.columns:
-        missing = np.random.random(len(df)) < missing_ratio
-        df[col].iloc[missing] = np.nan
+    missing = (np.random.random(len(df) * len(df.columns)) < missing_ratio) \
+                .reshape((len(df),len(df.columns)))
+    df_missing[missing] = np.nan
 
     feature_col_missing = df[feature_col].isnull()
     label_col_missing = df[label_col].isnull()
 
-    df = SimpleImputer.complete(data_frame=df)
 
-    assert all(df[feature_col].isnull() == feature_col_missing)
-    assert df[label_col].isnull().sum() < label_col_missing.sum()
-    assert df[feature_col_numeric].isnull().sum() == 0
-    assert df[label_col_numeric].isnull().sum() == 0
+    df_imputed = AutoGluonImputer.complete(data_frame=df_missing)
 
-    df = SimpleImputer.complete(data_frame=df, output_path='some_path')
+    f1 = f1_score(
+            df_orig.loc[df_missing[label_col].isna(),label_col], 
+            df_imputed.loc[df_missing[label_col].isna(),label_col].fillna(''), average='weighted')
+
+    mae = mean_absolute_error(
+            df_orig.loc[df_missing[label_col_numeric].isna(),label_col_numeric], 
+            df_imputed.loc[df_missing[label_col_numeric].isna(),label_col_numeric].fillna(0))
+
+    assert f1 < .9
+    assert mae < 1.
 

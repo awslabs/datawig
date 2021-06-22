@@ -17,7 +17,7 @@ AutoGluon Imputer:
 Imputes missing values in tables based on autogluon-tabular
 
 """
-import os, shutil
+import os, shutil, warnings
 
 from typing import List, Dict, Any, Callable
 
@@ -26,125 +26,14 @@ from pandas.api.types import is_numeric_dtype
 from sklearn.metrics import precision_recall_curve, classification_report, mean_absolute_error
 from sklearn.model_selection import train_test_split
 
+
+class TargetColumnException(Exception):
+    """Raised when a target column cannot be used as label for a supervised learning model"""
+    pass
+
 from autogluon.tabular import TabularPredictor
 
-class AutoImputer:
-
-    @staticmethod
-    def _is_categorical(col: pd.Series,
-                        n_samples: int = 100,
-                        max_unique_fraction=0.05) -> bool:
-        """
-
-        A heuristic to check whether a column is categorical:
-        a column is considered categorical (as opposed to a plain text column)
-        if the relative cardinality is max_unique_fraction or less.
-
-        :param col: pandas Series containing strings
-        :param n_samples: number of samples used for heuristic (default: 100)
-        :param max_unique_fraction: maximum relative cardinality.
-
-        :return: True if the column is categorical according to the heuristic
-
-        """
-
-        sample = col.sample(n=n_samples, replace=len(col) < n_samples).unique()
-
-        return sample.shape[0] / n_samples < max_unique_fraction
-
-    @staticmethod
-    def complete(data_frame: pd.DataFrame,
-                 precision_threshold: float = 0.0,
-                 numeric_confidence_quantile = 0.0,
-                 inplace: bool = False,
-                 output_path: str = "."):
-        """
-        Given a dataframe with missing values, this function detects all imputable columns, trains an imputation model
-        on all other columns and imputes values for each missing value using AutoGluon.
-
-        :param data_frame: original dataframe
-        :param precision_threshold: precision threshold for categorical imputations (default: 0.0)
-        :param inplace: whether or not to perform imputations inplace (default: False)
-        :param verbose: verbosity level, values > 0 log to stdout (default: 0)
-        :param output_path: path to store model and metrics
-        :return: dataframe with imputations
-        """
-
-        # TODO: should we expose temporary dir for model serialization to avoid crashes due to not-writable dirs?
-
-        missing_mask = data_frame.copy().isnull()
-
-        if inplace is False:
-            data_frame = data_frame.copy()
-
-        for output_col in data_frame.columns:
-            
-            input_cols = list(set(data_frame.columns) - set([output_col]))
-
-            # train on all observed values
-            idx_missing = missing_mask[output_col]
-
-            imputer = AutoGluonImputer(input_columns=input_cols,
-                                    output_column=output_col,
-                                    precision_threshold = 0.0,
-                                    numerical_confidence_quantile = 0.05,
-                                    output_path=os.path.join(output_path, output_col))\
-                                        .fit(data_frame)
-
-            tmp = imputer.predict(data_frame)
-            data_frame.loc[idx_missing, output_col] = tmp[output_col + "_imputed"]
-
-        return data_frame
-
-    def __init__(self,
-                 input_columns: List[str],
-                 output_column: str,
-                 precision_threshold: float = 0.0,
-                 numerical_confidence_quantile = 0.0,
-                 output_path: str = "") -> None:
-
-        self.input_columns = input_columns
-        self.output_column = output_column
-        self.precision_threshold = precision_threshold
-        self.numerical_confidence_quantile = numerical_confidence_quantile
-        self.output_path = output_path
-
-    def fit(self,
-            train_df: pd.DataFrame,
-            test_df: pd.DataFrame = None,
-            test_split: float = .1) -> Any:
-        pass
-
-
-    def predict(self,
-            train_df: pd.DataFrame,
-            test_df: pd.DataFrame = None,
-            test_split: float = .1) -> Any:
-        pass
-
-    def save(self):
-        """
-
-        Saves model to disk; 
-
-        """
-        raise(NotImplementedError)
-
-    @staticmethod
-    def load(output_path: str) -> Any:
-        """
-
-        Loads model from output path
-
-        :param output_path: output_path field of trained SimpleImputer model
-        :return: AutoGluonImputer model
-
-        """
-
-        raise(NotImplementedError)
-
-
-class AutoGluonImputer(AutoImputer):
+class AutoGluonImputer():
 
     """
 
@@ -165,14 +54,17 @@ class AutoGluonImputer(AutoImputer):
              input_columns: List[str] = None,
              precision_threshold: float = 0.0,
              numerical_confidence_quantile = 0.05,
-             output_path: str = "") -> None:
+             output_path: str = "",
+             verbosity: int = 0) -> None:
 
         self.input_columns = input_columns
         self.output_column = output_column
         self.precision_threshold = precision_threshold
         self.numerical_confidence_quantile = numerical_confidence_quantile
         self.output_path = output_path
+        self.verbosity = verbosity
         self.predictor = None
+
 
     def fit(self,
             train_df: pd.DataFrame,
@@ -197,12 +89,15 @@ class AutoGluonImputer(AutoImputer):
             self.input_columns = [c for c in train_df.columns if c is not self.output_column]
 
         if not is_numeric_dtype(train_df[self.output_column]):
-
+            if train_df[self.output_column].value_counts().max() < 10:
+                raise TargetColumnException("Maximum class count below 10, cannot train imputation model")
+                
             self.predictor = TabularPredictor(label=self.output_column,
                                               problem_type='multiclass',
                                               verbosity=0).\
                                                  fit(train_data=train_df.dropna(subset=[self.output_column]),
-                                                        time_limit=time_limit)
+                                                        time_limit=time_limit,
+                                                        verbosity=self.verbosity)
             y_test = test_df.dropna(subset=[self.output_column])
 
             # prec-rec curves for finding the likelihood thresholds for minimal precision
@@ -248,8 +143,7 @@ class AutoGluonImputer(AutoImputer):
         """
         Imputes most likely value if it is above a certain precision threshold determined on the
             validation set
-        Precision is calculated as part of the `datawig.evaluate_and_persist_metrics` function.
-
+        
         Returns original dataframe with imputations and respective likelihoods as estimated by
         imputation model; in additional columns; names of imputation columns are that of the label
         suffixed with `imputation_suffix`, names of respective likelihood columns are suffixed
@@ -284,7 +178,74 @@ class AutoGluonImputer(AutoImputer):
 
         return df
 
+    @staticmethod
+    def _is_categorical(col: pd.Series,
+                        n_samples: int = 100,
+                        max_unique_fraction=0.05) -> bool:
+        """
 
+        A heuristic to check whether a column is categorical:
+        a column is considered categorical (as opposed to a plain text column)
+        if the relative cardinality is max_unique_fraction or less.
+
+        :param col: pandas Series containing strings
+        :param n_samples: number of samples used for heuristic (default: 100)
+        :param max_unique_fraction: maximum relative cardinality.
+
+        :return: True if the column is categorical according to the heuristic
+
+        """
+
+        sample = col.sample(n=n_samples, replace=len(col) < n_samples).unique()
+
+        return sample.shape[0] / n_samples < max_unique_fraction
+
+    @staticmethod
+    def complete(data_frame: pd.DataFrame,
+                 precision_threshold: float = 0.0,
+                 numeric_confidence_quantile = 0.0,
+                 inplace: bool = False,
+                 time_limit: float = 60., 
+                 output_path: str = ".",
+                 verbosity=0):
+        """
+        Given a dataframe with missing values, this function detects all imputable columns, trains an imputation model
+        on all other columns and imputes values for each missing value using AutoGluon.
+
+        :param data_frame: original dataframe
+        :param precision_threshold: precision threshold for categorical imputations (default: 0.0)
+        :param inplace: whether or not to perform imputations inplace (default: False)
+        :param verbose: verbosity level, values > 0 log to stdout (default: 0)
+        :param output_path: path to store model and metrics
+        :return: dataframe with imputations
+        """
+
+        # TODO: should we expose temporary dir for model serialization to avoid crashes due to not-writable dirs?
+
+        missing_mask = data_frame.copy().isnull()
+
+        if inplace is False:
+            data_frame = data_frame.copy()
+
+        for output_col in data_frame.columns:
+            
+            input_cols = list(set(data_frame.columns) - set([output_col]))
+
+            # train on all observed values
+            idx_missing = missing_mask[output_col]
+            try:
+                imputer = AutoGluonImputer(input_columns=input_cols,
+                                        output_column=output_col,
+                                        precision_threshold = 0.0,
+                                        numerical_confidence_quantile = 0.05,
+                                        output_path=os.path.join(output_path, output_col),
+                                        verbosity=verbosity)\
+                                            .fit(data_frame, time_limit=time_limit)
+                tmp = imputer.predict(data_frame)
+                data_frame.loc[idx_missing, output_col] = tmp[output_col + "_imputed"]
+            except TargetColumnException:
+                warnings.warn(f'Could not train model on column {output_col}')
+        return data_frame
 
 
         def save(self):

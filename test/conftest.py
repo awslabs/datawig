@@ -37,9 +37,10 @@ def reset_random_seed():
 @pytest.fixture
 def test_dir():
     file_dir = os.path.dirname(os.path.realpath(__file__))
+    shutil.rmtree(os.path.join(file_dir,'AutogluonModels'), ignore_errors=True)
     joined = os.path.join(file_dir, "resources")
     yield joined
-    shutil.rmtree(joined)
+    shutil.rmtree(joined, ignore_errors=True)
 
 @pytest.fixture
 def data_frame():
