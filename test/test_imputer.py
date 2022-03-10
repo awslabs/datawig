@@ -52,7 +52,7 @@ def test_drop_missing(test_dir):
     batch_size = 16
 
     data_encoder_cols = [BowEncoder('data', max_tokens=max_tokens)]
-    label_encoder_cols = [CategoricalEncoder('label', max_tokens=1)]
+    label_encoder_cols = [CategoricalEncoder('label', max_tokens=2)]
     data_cols = [BowFeaturizer('data', max_tokens=max_tokens)]
 
     output_path = os.path.join(test_dir, "tmp", "real_data_experiment")
@@ -70,10 +70,11 @@ def test_drop_missing(test_dir):
 
     df_dropped = imputer._Imputer__drop_missing_labels(df_train, how='any')
 
-    df_dropped_true = pd.DataFrame({'data': {3: 'fasl', 7: 'fasl', 11: 'fasl', 15: 'fasl'},
-                                    'label': {3: 2.0, 7: 2.0, 11: 2.0, 15: 2.0}})
-
-    assert df_dropped[['data', 'label']].equals(df_dropped_true[['data', 'label']])
+    df_dropped_true = pd.DataFrame({
+        'label': {0: 1.0, 4: 1.0, 8: 1.0, 12: 1.0, 3: 2.0, 7: 2.0, 11: 2.0, 15: 2.0}, 
+        'data': {0: 'bla', 4: 'bla', 8: 'bla', 12: 'bla', 3: 'fasl', 7: 'fasl', 11: 'fasl', 15: 'fasl'}})
+    
+    assert df_dropped[['data', 'label']].sort_values('label').equals(df_dropped_true[['data', 'label']].sort_values('label'))
 
 
 def test_imputer_init():
@@ -327,8 +328,8 @@ def test_imputer_real_data_all_featurizers(test_dir, data_frame):
     predictions_df = not_so_precise_imputer.predict(df_test, precision_threshold=.5,
                                                     imputation_suffix="_imputed")
 
-    assert predictions_df.columns.contains(label_col + "_imputed")
-    assert predictions_df.columns.contains(label_col + "_imputed_proba")
+    assert label_col + "_imputed" in predictions_df.columns 
+    assert label_col + "_imputed_proba" in predictions_df.columns
     #Commenting due to issue with randomization that causes fails
     #assert predictions_df.loc[0, label_col + '_imputed'] == df_test.loc[0, label_col]
     #assert np.isnan(predictions_df.loc[0, label_col + '_imputed_proba']) == False
